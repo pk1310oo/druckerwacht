@@ -61,8 +61,8 @@ export class Plate {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(COLOR.bg);
-    this.renderer.domElement.style.display = "block";
-    this.renderer.domElement.style.outline = "none";
+    // Die Leinwand füllt per CSS immer die ganze Fläche; die Pixelgröße folgt per ResizeObserver.
+    Object.assign(this.renderer.domElement.style, { display: "block", outline: "none", position: "absolute", inset: "0", width: "100%", height: "100%" });
 
     this.camera = new THREE.PerspectiveCamera(40, 1, 1, 5000);
     this.resetView();
@@ -115,7 +115,7 @@ export class Plate {
 
   mount(el: HTMLElement) {
     this.host = el;
-    el.appendChild(this.renderer.domElement);
+    el.prepend(this.renderer.domElement); // zuerst, damit Hinweise und Panels darüber liegen
     this.ro.observe(el);
     this.resize();
   }
@@ -154,8 +154,6 @@ export class Plate {
     const h = this.host.clientHeight;
     if (!w || !h) return;
     this.renderer.setSize(w, h, false);
-    this.renderer.domElement.style.width = `${w}px`;
-    this.renderer.domElement.style.height = `${h}px`;
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();
     this.invalidate();
