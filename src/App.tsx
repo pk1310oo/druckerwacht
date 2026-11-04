@@ -4,6 +4,7 @@ import { Dashboard } from "./views/Dashboard";
 import { CameraView } from "./views/CameraView";
 import { HistoryView } from "./views/HistoryView";
 import { SettingsView } from "./views/SettingsView";
+import { SlicerView } from "./views/SlicerView";
 import { useStore } from "./lib/store";
 
 export default function App() {
@@ -21,9 +22,11 @@ export default function App() {
       <Sidebar view={view} onChange={setView} />
       <div className="main">
         <Header />
-        <main className="content">
+        <main className={`content ${view === "slicer" ? "flush" : ""}`}>
           {!ready ? null : view === "dashboard" ? (
             <Dashboard go={setView} />
+          ) : view === "slicer" ? (
+            <SlicerView go={setView} />
           ) : view === "camera" ? (
             <CameraView go={setView} />
           ) : view === "history" ? (

@@ -5,6 +5,7 @@ import { discoverPrinters, isTauri, rawLogDir, reconnect, saveSettings } from ".
 import { connectionLabel } from "../lib/format";
 import type { FoundPrinter, Settings } from "../lib/types";
 import { Card, Switch } from "../components/ui";
+import { slicerInfo, type SlicerInfo } from "../slicer/api";
 
 const HOST_RE = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?!$)|$)){4}$|^[a-zA-Z0-9][a-zA-Z0-9.-]*$/;
 
@@ -26,6 +27,10 @@ export function SettingsView() {
   const [saveError, setSaveError] = useState<string | null>(null);
   const [scan, setScan] = useState<{ running: boolean; results: FoundPrinter[] | null }>({ running: false, results: null });
   const [logDir, setLogDir] = useState("");
+  const [orca, setOrca] = useState<SlicerInfo | null>(null);
+  useEffect(() => {
+    void slicerInfo().then(setOrca);
+  }, [saved.orcaPath]);
 
   useEffect(() => setDraft(saved), [saved]);
   useEffect(() => {
@@ -138,7 +143,25 @@ export function SettingsView() {
         </div>
       </Card>
 
-      <Card className="form-section" >
+      <Card className="form-section">
+        <span className="label">Slicer</span>
+        <div className="field">
+          <label htmlFor="orca">Pfad zu OrcaSlicer (optional)</label>
+          <input
+            id="orca"
+            className="input"
+            placeholder={/Mac/i.test(navigator.userAgent) ? "/Applications/OrcaSlicer.app" : "z. B. ~/Applications/OrcaSlicer.AppImage"}
+            value={draft.orcaPath}
+            spellCheck={false}
+            onChange={(e) => set("orcaPath", e.target.value)}
+          />
+          <span className="hint">
+            {orca?.found ? `Gefunden: ${orca.path}` : "Leer lassen – die App sucht OrcaSlicer automatisch an den üblichen Orten."}
+          </span>
+        </div>
+      </Card>
+
+      <Card className="form-section">
         <span className="label">Benachrichtigungen</span>
         <div>
           <ToggleRow label="Druck fertig" hint="Wenn ein Druck erfolgreich beendet wurde." on={draft.notifyFinished} set={(v) => set("notifyFinished", v)} />

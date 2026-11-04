@@ -9,6 +9,7 @@ Gebaut mit Tauri 2, React und TypeScript, das Backend ist in Rust geschrieben.
 - **Benachrichtigungen:** Druck fertig, Fehler, Verbindung verloren
 - **Druckverlauf:** Jeder mitverfolgte Druck mit Dauer und Ergebnis
 - **Verbindung:** Automatische Suche im Netz, automatischer Reconnect und Verbindungsstatus jederzeit sichtbar
+- **Slicer:** Modelle (STL/OBJ/3MF) auf der 3D-Druckplatte platzieren, drehen, skalieren und auf eine Fläche legen. Alle Einstellungen wie in Creality Print (Infill, Stützen, Brim, Temperaturen …), eigene Profile, Schichtvorschau und G-Code mit Vorschaubild. Als Motor dient OrcaSlicer, siehe unten.
 
 > **Nur lesend.** Pause, Fortsetzen, Abbrechen und Heizen sind bewusst noch nicht eingebaut.
 > Sie kommen erst dazu, wenn am echten Drucker bestätigt ist, wie die Schnittstelle sie annimmt (siehe unten).
@@ -108,7 +109,7 @@ npm install
 npm run tauri build -- --bundles dmg
 ```
 
-Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.1.2_aarch64.dmg`
+Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.2.0_aarch64.dmg`
 
 Die App ist nicht signiert. Beim ersten Start deshalb im Finder per **Rechtsklick → Öffnen** starten,
 oder das Quarantäne-Flag entfernen:
@@ -126,19 +127,19 @@ npm run tauri build -- --bundles deb appimage
 
 Ergebnisse:
 
-- `src-tauri/target/release/bundle/deb/Druckerwacht_0.1.2_amd64.deb`
-- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.1.2_amd64.AppImage`
+- `src-tauri/target/release/bundle/deb/Druckerwacht_0.2.0_amd64.deb`
+- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.2.0_amd64.AppImage`
 
 Installation:
 
 ```bash
-sudo apt install ./Druckerwacht_0.1.2_amd64.deb
+sudo apt install ./Druckerwacht_0.2.0_amd64.deb
 ```
 
 Die AppImage-Datei kann man stattdessen auch direkt ausführen:
 
 ```bash
-chmod +x Druckerwacht_0.1.2_amd64.AppImage && ./Druckerwacht_0.1.2_amd64.AppImage
+chmod +x Druckerwacht_0.2.0_amd64.AppImage && ./Druckerwacht_0.2.0_amd64.AppImage
 ```
 
 > Für den AppImage-Build lädt Tauri beim ersten Mal `linuxdeploy` von GitHub herunter. Dafür ist eine Internetverbindung nötig.
@@ -163,7 +164,41 @@ Gibt es das Bild nicht, erscheint ein neutraler Platzhalter.
 
 ---
 
-## 5. Aufbau
+## 5. Slicer
+
+Druckerwacht benutzt **OrcaSlicer als unsichtbaren Motor**, also die gleiche Rechenlogik, auf der auch Creality Print aufbaut. Die Oberfläche ist unsere eigene.
+
+**Einmalig OrcaSlicer installieren** (kostenlos: <https://github.com/SoftFever/OrcaSlicer/releases>):
+
+- **macOS:** Die `.dmg` herunterladen und **OrcaSlicer** in den Ordner **Programme** ziehen. Die App findet ihn dort automatisch.
+- **Linux:** Das AppImage herunterladen, z. B. nach `~/Applications/` legen und ausführbar machen. Alternativ in *Einstellungen → Slicer* den Pfad eintragen.
+
+OrcaSlicer selbst muss man nie öffnen.
+
+**Bedienung**
+
+| Aktion | So geht's |
+|---|---|
+| Modell laden | „Öffnen“ oder Datei ins Fenster ziehen (STL, OBJ, 3MF) |
+| Verschieben / Drehen | Werkzeug wählen (M / R) und am Griff ziehen, oder Werte im Objekt-Panel eingeben |
+| Auf Fläche legen | Werkzeug (F) wählen und die Fläche anklicken, die unten liegen soll |
+| Anordnen / Duplizieren / Löschen | A, Werkzeugleiste, Entf |
+| Einstellungen | Reiter Qualität · Festigkeit · Geschwindigkeit · Stützen · Haftung · Filament · Sonstiges · **Alle** (alle Orca-Einstellungen mit Suche) |
+| Eigenes Profil | Werte ändern (orangefarbener Punkt), dann „Als Profil“ |
+| Slicen | Druckzeit, Filament und Schichten erscheinen. Die Vorschau zeigt jede Schicht nach Linientyp eingefärbt |
+| G-Code | „G-Code speichern“. „Drucken“ (direkt an den Drucker) folgt in der nächsten Ausbaustufe |
+
+Die Profile (4 Qualitäten, 20 Filamente für den Ender 3 V3 KE) stammen aus OrcaSlicer und liegen aufgelöst in `src-tauri/resources/profiles`.
+Aktualisieren lassen sie sich so:
+
+```bash
+python3 scripts/flatten-profiles.py <orcaslicer>/resources/profiles/Creality
+python3 scripts/build-settings-catalog.py <orcaslicer> <export-settings.json>
+```
+
+OrcaSlicer und seine Profile stehen unter der AGPL-3.0.
+
+## 6. Aufbau
 
 ```
 src-tauri/src/
@@ -172,11 +207,13 @@ src-tauri/src/
   model.rs             Toleranter Parser → normalisierter PrinterStatus
   discovery.rs         Netzwerksuche (eigene /24-Netze, Port 9999 + WebSocket-Check)
   settings.rs          Einstellungen (JSON, atomar gespeichert)
+  slicer.rs            OrcaSlicer finden und aufrufen (--arrange 0), Profile, Vorschaubilder, Statistik
   lib.rs               Zustand, 1-Hz-Messreihe (60 min), Verlauf, Benachrichtigungen, Tauri-Befehle
 src/
   lib/                 Store, Tauri-Anbindung, Formatierung, weiche Zahlenanimation
   components/          Shell, Karten, Diagramme (uPlot), Kamera
-  views/               Dashboard, Kamera, Verlauf, Einstellungen
+  views/               Dashboard, Slicer, Kamera, Verlauf, Einstellungen
+  slicer/              3D-Druckplatte (three.js), G-Code-Vorschau, Einstellungskatalog (563 Orca-Optionen, deutsch)
   dev/preview.ts       Nur Browser-Entwicklung: Layoutvorschau (?preview=printing), nicht im Build
 scripts/probe.mjs      Mitschnitt der echten Schnittstelle
 ```

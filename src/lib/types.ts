@@ -56,6 +56,7 @@ export interface Settings {
   notifyError: boolean;
   notifyDisconnect: boolean;
   rawLog: boolean;
+  orcaPath: string;
 }
 
 export interface JobRecord {
@@ -81,4 +82,5 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyError: true,
   notifyDisconnect: true,
   rawLog: false,
+  orcaPath: "",
 };

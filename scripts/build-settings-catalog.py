@@ -43,14 +43,14 @@ groups = {
 }
 
 # --- Definitionen aus PrintConfig.cpp
-blocks = re.split(r'\n\s*def = this->add(?:_nullable)?\(', cfg)
+blocks = re.split(r'\n[^\n]*?\bdef\s*=\s*this->add(?:_nullable)?\(', cfg)
 defs = {}
 for b in blocks[1:]:
     m = re.match(r'\s*"([a-z0-9_]+)"\s*,\s*(co\w+)\)', b)
     if not m:
         continue
     key, typ = m.group(1), m.group(2)
-    body = b[: b.find("def = this->add") if "def = this->add" in b else len(b)]
+    body = b
     def grab(field):
         mm = re.search(r'def->' + field + r'\s*=\s*L?\(?\s*((?:"(?:[^"\\]|\\.)*"\s*)+)', body)
         return unq(re.findall(r'"((?:[^"\\]|\\.)*)"', mm.group(1))) if mm else None

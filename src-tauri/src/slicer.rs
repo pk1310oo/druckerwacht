@@ -71,7 +71,7 @@ pub struct Thumbnail {
     png: String,
 }
 
-#[derive(Serialize, Default)]
+#[derive(Serialize, Default, Debug)]
 #[serde(rename_all = "camelCase")]
 pub struct SliceResult {
     gcode_path: String,
@@ -277,11 +277,38 @@ fn first_num(s: &str) -> Option<f64> {
 
 pub async fn slice(app: AppHandle, orca: PathBuf, job: SliceJob) -> Result<SliceResult, String> {
     let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
-    let _ = std::fs::remove_dir_all(&base);
+    let datadir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("orca-data");
+    let app_progress = app.clone();
+    let app_pid = app.clone();
+    let res = run_orca(
+        &orca,
+        &base,
+        &datadir,
+        &job,
+        move |pct| {
+            let _ = app_progress.emit("slicer://progress", pct);
+        },
+        move |pid| {
+            *app_pid.state::<SlicerState>().running.lock().unwrap_or_else(|e| e.into_inner()) = pid;
+        },
+    )
+    .await;
+    res
+}
+
+/// Kern des Slice-Vorgangs – ohne Tauri, damit er sich direkt testen lässt.
+pub async fn run_orca(
+    orca: &Path,
+    base: &Path,
+    datadir: &Path,
+    job: &SliceJob,
+    on_progress: impl Fn(f64) + Send + 'static,
+    on_pid: impl Fn(Option<u32>),
+) -> Result<SliceResult, String> {
+    let _ = std::fs::remove_dir_all(base);
     let input = base.join("in");
     let output = base.join("out");
-    let datadir = app.path().app_data_dir().map_err(|e| e.to_string())?.join("orca-data");
-    for d in [&input, &output, &datadir] {
+    for d in [&input, &output, &datadir.to_path_buf()] {
         std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
     }
     if job.models.is_empty() {
@@ -304,9 +331,9 @@ pub async fn slice(app: AppHandle, orca: PathBuf, job: SliceJob) -> Result<Slice
         model_paths.push(p);
     }
 
-    let mut cmd = tokio::process::Command::new(&orca);
+    let mut cmd = tokio::process::Command::new(orca);
     cmd.arg("--datadir")
-        .arg(&datadir)
+        .arg(datadir)
         .arg("--arrange")
         .arg("0")
         .arg("--slice")
@@ -325,21 +352,17 @@ pub async fn slice(app: AppHandle, orca: PathBuf, job: SliceJob) -> Result<Slice
     let mut child = cmd
         .spawn()
         .map_err(|_| "OrcaSlicer konnte nicht gestartet werden. Ist der Pfad in den Einstellungen richtig?".to_string())?;
+    on_pid(child.id());
 
-    let state = app.state::<SlicerState>();
-    *state.running.lock().unwrap_or_else(|e| e.into_inner()) = child.id();
-
-    // Fortschritt aus der Orca-Ausgabe an das Frontend weiterreichen
-    let mut log_tail: Vec<String> = Vec::new();
+    // Fortschritt aus der Orca-Ausgabe weiterreichen
     let stdout = child.stdout.take();
-    let app2 = app.clone();
-    let reader = tauri::async_runtime::spawn(async move {
+    let reader = tokio::spawn(async move {
         let mut tail = Vec::new();
         if let Some(out) = stdout {
             let mut lines = BufReader::new(out).lines();
             while let Ok(Some(line)) = lines.next_line().await {
                 if let Some(pct) = progress_of(&line) {
-                    let _ = app2.emit("slicer://progress", pct);
+                    on_progress(pct);
                 }
                 tail.push(line);
                 if tail.len() > 60 {
@@ -351,10 +374,8 @@ pub async fn slice(app: AppHandle, orca: PathBuf, job: SliceJob) -> Result<Slice
     });
 
     let status = tokio::time::timeout(SLICE_TIMEOUT, child.wait()).await;
-    *state.running.lock().unwrap_or_else(|e| e.into_inner()) = None;
-    if let Ok(t) = reader.await {
-        log_tail = t;
-    }
+    on_pid(None);
+    let log_tail = reader.await.unwrap_or_default();
     let status = match status {
         Err(_) => {
             let _ = child.kill().await;
@@ -370,7 +391,7 @@ pub async fn slice(app: AppHandle, orca: PathBuf, job: SliceJob) -> Result<Slice
         .unwrap_or(Value::Null);
     let gcode_file = output.join("plate_1.gcode");
     if !gcode_file.is_file() {
-        if status.code() == Some(-1) || status.code().is_none() {
+        if status.code().is_none() {
             return Err("Slicen abgebrochen.".into());
         }
         let msg = result_json["error_string"]
@@ -438,6 +459,20 @@ pub fn cancel(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Echter Ende-zu-Ende-Test mit OrcaSlicer. Läuft nur, wenn ORCA_BIN und DW_JOB gesetzt sind:
+    /// DW_JOB ist ein von der Oberfläche exportierter Auftrag (Modelle, Profile, Vorschaubilder).
+    #[tokio::test]
+    async fn real_orca_slice() {
+        let (Ok(orca), Ok(job)) = (std::env::var("ORCA_BIN"), std::env::var("DW_JOB")) else { return };
+        let job: SliceJob = serde_json::from_str(&std::fs::read_to_string(job).unwrap()).unwrap();
+        let tmp = std::env::temp_dir().join("dw-slice-test");
+        let r = run_orca(Path::new(&orca), &tmp.join("work"), &tmp.join("data"), &job, |_| {}, |_| {}).await.unwrap();
+        println!("ERGEBNIS {r:?}");
+        let g = std::fs::read_to_string(&r.gcode_path).unwrap();
+        assert!(g.contains("; thumbnail begin 300x300"), "Vorschaubild fehlt");
+        assert!(r.time_s.unwrap() > 0.0 && r.filament_g.unwrap() > 0.0 && r.layers.unwrap() > 0);
+    }
 
     #[test]
     fn durations() {

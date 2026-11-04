@@ -37,6 +37,7 @@ function samples(minutes: number): Sample[] {
 }
 
 export function installPreview() {
+  if (new URLSearchParams(location.search).has("orca")) (window as unknown as { __dwOrca: string }).__dwOrca = "/Applications/OrcaSlicer.app";
   const mode = new URLSearchParams(location.search).get("preview");
   if (!mode) return;
   const settings = {
@@ -78,3 +79,14 @@ export function installPreview() {
       setState({ settings: DEFAULT_SETTINGS });
   }
 }
+
+// Slicer-Profile für die Browser-Vorschau (nur Entwicklung)
+const files = import.meta.glob("../../src-tauri/resources/profiles/**/*.json", { eager: true, import: "default" }) as Record<string, Record<string, unknown> & { name: string }>;
+const pick = (kind: string) => Object.entries(files).filter(([p]) => p.includes(`/${kind}/`)).map(([, v]) => v);
+(window as unknown as { __dwPresets: unknown }).__dwPresets = {
+  machine: pick("machine")[0],
+  process: pick("process"),
+  filament: pick("filament"),
+  userProcess: [],
+  userFilament: [],
+};
