@@ -49,6 +49,8 @@ pub struct PrinterStatus {
 
     pub state: PrintState,
     pub state_code: Option<i64>,
+    /// Druck gestartet, aber noch in der Vorbereitung (Heizen, Bett-Leveling).
+    pub preparing: bool,
     pub file_name: Option<String>,
     pub progress: Option<f64>,
     pub layer: Option<i64>,
@@ -73,6 +75,8 @@ pub struct PrinterStatus {
 
     pub max_nozzle_temp: Option<f64>,
     pub max_bed_temp: Option<f64>,
+    /// Verbrauchtes Filament des aktuellen Drucks in mm
+    pub used_material_mm: Option<f64>,
 }
 
 /// Führt eine eingehende Nachricht in den bisherigen Zustand zusammen.
@@ -118,8 +122,9 @@ fn pct(v: Option<f64>) -> Option<f64> {
     v.map(|p| p.clamp(0.0, 1000.0))
 }
 
-/// Statuscode → Zustand. Annahme (K1-Familie): 0 bereit, 1 druckt, 2 fertig,
-/// 3 fehlgeschlagen, 4 abgebrochen, 5 pausiert. Unbekannte Codes → Unknown.
+/// Statuscode → Zustand. Bestätigt am Ender 3 V3 KE: 1 druckt, 2 fertig.
+/// Annahme (K1-Familie, noch nicht gemessen): 0 bereit, 3 fehlgeschlagen,
+/// 4 abgebrochen, 5 pausiert. Unbekannte Codes → Unknown.
 ///
 /// Bestätigt am echten Ender 3 V3 KE (Firmware V1.1.0.17): im Leerlauf ohne Datei
 /// meldet er `state: 4`. Ein End-/Unbekannt-Zustand ohne Datei und ohne Fortschritt
@@ -158,6 +163,13 @@ pub fn parse(map: &Map<String, Value>) -> PrinterStatus {
     if no_job && !state.is_active() {
         state = PrintState::Idle;
     }
+    let elapsed_s = num(map, &["printJobTime"]).filter(|s| *s >= 0.0);
+    // Gemessen: state 1 schon während Heizen + Leveling; withSelfTest läuft dabei 5 → 100,
+    // printJobTime bleibt 0, bis die erste Schicht beginnt.
+    let self_test = num(map, &["withSelfTest"]).unwrap_or(0.0);
+    let preparing = state == PrintState::Printing
+        && ((self_test > 0.0 && self_test < 100.0)
+            || (elapsed_s.unwrap_or(0.0) <= 0.0 && progress.unwrap_or(0.0) <= 0.0));
 
     PrinterStatus {
         model: text(map, &["model", "modelName"]),
@@ -171,11 +183,12 @@ pub fn parse(map: &Map<String, Value>) -> PrinterStatus {
 
         state,
         state_code,
+        preparing,
         file_name,
         progress,
         layer: int(map, &["layer", "curLayer"]),
         total_layers: int(map, &["TotalLayer", "totalLayer", "totalLayers"]),
-        elapsed_s: num(map, &["printJobTime"]).filter(|s| *s >= 0.0),
+        elapsed_s,
         remaining_s: num(map, &["printLeftTime"]).filter(|s| *s >= 0.0),
 
         speed_mm_s: num(map, &["realTimeSpeed", "curSpeed"]).filter(|s| *s >= 0.0),
@@ -191,6 +204,7 @@ pub fn parse(map: &Map<String, Value>) -> PrinterStatus {
 
         max_nozzle_temp: num(map, &["maxNozzleTemp"]).filter(|t| *t > 0.0),
         max_bed_temp: num(map, &["maxBedTemp"]).filter(|t| *t > 0.0),
+        used_material_mm: num(map, &["usedMaterialLength"]).filter(|m| *m > 0.0),
     }
 }
 
@@ -242,6 +256,35 @@ mod tests {
         assert_eq!(s.max_nozzle_temp, Some(300.0));
         assert_eq!(s.max_bed_temp, Some(100.0));
         assert_eq!(s.error_code, Some(0));
+    }
+
+    /// Echter Mitschnitt: kompletter Druck (Vorbereitung → Druck → fertig)
+    #[test]
+    fn real_ke_print_capture() {
+        let mut m = Map::new();
+        let mut states = vec![];
+        for line in include_str!("../fixtures/ke-print.jsonl").lines().filter(|l| !l.trim().is_empty()) {
+            let v: Value = serde_json::from_str(line).unwrap();
+            if v["dir"] != "in" || !merge(&mut m, &v["msg"]) {
+                continue;
+            }
+            let s = parse(&m);
+            let tag = match (s.state, s.preparing) {
+                (PrintState::Printing, true) => "vorbereitung",
+                (PrintState::Printing, false) => "druckt",
+                (PrintState::Finished, _) => "fertig",
+                _ => "anders",
+            };
+            if states.last() != Some(&tag) {
+                states.push(tag);
+            }
+        }
+        assert_eq!(states, vec!["vorbereitung", "druckt", "fertig"]);
+        let s = parse(&m);
+        assert_eq!(s.file_name.as_deref(), Some("1st_Layer_test.stl_PLA_5m18s"));
+        assert_eq!(s.progress, Some(100.0));
+        assert_eq!(s.elapsed_s, Some(305.0));
+        assert_eq!(s.used_material_mm, Some(803.0));
     }
 
     #[test]

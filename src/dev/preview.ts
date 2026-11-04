@@ -12,7 +12,7 @@ const base: PrinterStatus = {
   chamberTemp: null, state: "printing", stateCode: 1, fileName: "Halterung_Kabelkanal_v3_PLA_0.2mm",
   progress: 47, layer: 112, totalLayers: 240, elapsedS: 4920, remainingS: 5460, speedMmS: 182, speedPct: 100,
   flowPct: 100, flowMm3S: 9.4, fanPct: 100, fanAuxPct: 0, fanCasePct: 0, errorCode: 0, errorKey: 0,
-  maxNozzleTemp: 300, maxBedTemp: 100,
+  maxNozzleTemp: 300, maxBedTemp: 100, preparing: false, usedMaterialMm: 4210,
 };
 
 function samples(minutes: number): Sample[] {

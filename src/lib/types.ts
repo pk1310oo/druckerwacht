@@ -10,6 +10,7 @@ export interface PrinterStatus {
   chamberTemp: number | null;
   state: PrintState;
   stateCode: number | null;
+  preparing: boolean;
   fileName: string | null;
   progress: number | null;
   layer: number | null;
@@ -27,6 +28,7 @@ export interface PrinterStatus {
   errorKey: number | null;
   maxNozzleTemp: number | null;
   maxBedTemp: number | null;
+  usedMaterialMm: number | null;
 }
 
 export type Connection =

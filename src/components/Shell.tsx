@@ -37,6 +37,7 @@ export function Header() {
   const name = useStore((s) => s.settings.printerName);
   const connection = useStore((s) => s.connection);
   const state = useStore((s) => s.status?.state ?? null);
+  const preparing = useStore((s) => s.status?.preparing ?? false);
 
   const dot =
     connection.kind === "connected" ? "ok" : connection.kind === "reconnecting" ? "bad" : connection.kind === "connecting" ? "wait" : "";
@@ -51,7 +52,9 @@ export function Header() {
       <span className="header-title" data-tauri-drag-region>
         {name}
       </span>
-      {connection.kind === "connected" && state && <Badge tone={STATE_TONE[state]}>{STATE_LABEL[state]}</Badge>}
+      {connection.kind === "connected" && state && (
+        <Badge tone={preparing ? "warning" : STATE_TONE[state]}>{preparing ? "Vorbereitung" : STATE_LABEL[state]}</Badge>
+      )}
       <span className="header-spacer" data-tauri-drag-region />
       <span className="header-meta" data-tauri-drag-region>
         <span>{meta.join(" · ")}</span>

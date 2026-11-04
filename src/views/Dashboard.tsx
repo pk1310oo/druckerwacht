@@ -173,7 +173,9 @@ function Stats({ status: s }: { status: PrinterStatus | null }) {
           <span>
             Schicht{" "}
             <b className="num">
-              {s && isJob(s) && s.layer != null ? `${fmtNum(s.layer)} / ${fmtNum(s.totalLayers)}` : DASH}
+              {s && isJob(s) && s.layer != null && (s.totalLayers ?? 0) > 0
+                ? `${fmtNum(s.layer)} / ${fmtNum(s.totalLayers)}`
+                : DASH}
             </b>
           </span>
         }
@@ -229,8 +231,15 @@ function ProgressPanel({ s }: { s: PrinterStatus }) {
             <div className="file-name" title={s.fileName ?? undefined}>
               {s.fileName ?? "Unbenannter Druck"}
             </div>
+            <div className="small muted num">
+              {s.preparing
+                ? "Heizen und Bett-Leveling …"
+                : s.usedMaterialMm != null
+                  ? `Filament ${fmtNum(s.usedMaterialMm / 1000, 2)} m`
+                  : "\u00A0"}
+            </div>
           </div>
-          <Badge tone={STATE_TONE[s.state]}>{STATE_LABEL[s.state]}</Badge>
+          <Badge tone={s.preparing ? "warning" : STATE_TONE[s.state]}>{s.preparing ? "Vorbereitung" : STATE_LABEL[s.state]}</Badge>
         </div>
         <div className="progress-bottom">
         <div className={`bar ${barClass}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>

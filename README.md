@@ -44,12 +44,15 @@ Es sendet nur zwei Dinge: eine Leseanfrage (`reqPrinterPara`) und die Antwort `o
 | Flow | `curFlowratePct` | ✅ bestätigt |
 | Lüfter | `modelFanPct`, `auxiliaryFanPct`, `caseFanPct` | ✅ vorhanden |
 | Fehler | `err.errcode`, `err.key` | ✅ vorhanden |
-| Status | `state` | ⚠️ Leerlauf meldet **4**. Codes während Druck/Pause/Ende noch nicht gemessen |
+| Status | `state` | ✅ 1 = druckt, 2 = fertig (gemessen) · Leerlauf meldet 4 · Pause/Fehler noch nicht gemessen |
+| Vorbereitung | `withSelfTest` 5 → 100, `printJobTime` = 0 | ✅ gemessen: Heizen + Leveling (~6 min) vor der ersten Schicht |
+| Filament | `usedMaterialLength` (mm) | ✅ gemessen |
 
 Der Drucker schickt nach dem Verbinden einmal den vollständigen Zustand und danach etwa alle 5 Sekunden nur geänderte Werte.
 Heartbeats kamen in 10 Minuten keine.
 
-**Noch offen:** ein Mitschnitt **während eines Drucks** und am Druckende, um die `state`-Codes für „druckt“, „pausiert“ und „fertig“ zu bestätigen.
+Ein vollständiger Druck (`fixtures/ke-print.jsonl`) ist als Test hinterlegt.
+**Noch offen:** die Codes für „pausiert“, „abgebrochen“ und „Fehler“. Zum Prüfen in der App *Einstellungen → Diagnose → Rohdaten mitschneiden* aktivieren.
 
 Fehlende oder unbekannte Felder führen nie zu einem Absturz. Die App zeigt dann einfach „–“.
 Besonders wichtig ist die Zuordnung der `state`-Codes, denn davon hängen die Meldungen „Druck fertig“ und „Fehler“ ab.
@@ -105,7 +108,7 @@ npm install
 npm run tauri build -- --bundles dmg
 ```
 
-Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.1.1_aarch64.dmg`
+Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.1.2_aarch64.dmg`
 
 Die App ist nicht signiert. Beim ersten Start deshalb im Finder per **Rechtsklick → Öffnen** starten,
 oder das Quarantäne-Flag entfernen:
@@ -123,19 +126,19 @@ npm run tauri build -- --bundles deb appimage
 
 Ergebnisse:
 
-- `src-tauri/target/release/bundle/deb/Druckerwacht_0.1.1_amd64.deb`
-- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.1.1_amd64.AppImage`
+- `src-tauri/target/release/bundle/deb/Druckerwacht_0.1.2_amd64.deb`
+- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.1.2_amd64.AppImage`
 
 Installation:
 
 ```bash
-sudo apt install ./Druckerwacht_0.1.1_amd64.deb
+sudo apt install ./Druckerwacht_0.1.2_amd64.deb
 ```
 
 Die AppImage-Datei kann man stattdessen auch direkt ausführen:
 
 ```bash
-chmod +x Druckerwacht_0.1.1_amd64.AppImage && ./Druckerwacht_0.1.1_amd64.AppImage
+chmod +x Druckerwacht_0.1.2_amd64.AppImage && ./Druckerwacht_0.1.2_amd64.AppImage
 ```
 
 > Für den AppImage-Build lädt Tauri beim ersten Mal `linuxdeploy` von GitHub herunter. Dafür ist eine Internetverbindung nötig.
