@@ -12,6 +12,8 @@ pub struct Settings {
     pub notify_disconnect: bool,
     /// Rohe WebSocket-Nachrichten in eine Datei mitschneiden (zur Analyse)
     pub raw_log: bool,
+    /// Pfad zu OrcaSlicer (leer = automatisch suchen)
+    pub orca_path: String,
 }
 
 impl Default for Settings {
@@ -24,6 +26,7 @@ impl Default for Settings {
             notify_error: true,
             notify_disconnect: true,
             raw_log: false,
+            orca_path: String::new(),
         }
     }
 }
@@ -66,6 +69,7 @@ impl Settings {
         }
         self.printer_ip = ip;
         self.camera_url = self.camera_url.trim().to_string();
+        self.orca_path = self.orca_path.trim().to_string();
         self
     }
 }

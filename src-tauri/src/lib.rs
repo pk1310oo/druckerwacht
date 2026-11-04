@@ -2,6 +2,7 @@ mod adapter;
 mod discovery;
 mod model;
 mod settings;
+mod slicer;
 
 use adapter::{creality::CrealityWsAdapter, AdapterEvent, ConnectionState, PrinterAdapter};
 use model::{PrintState, PrinterStatus};
@@ -393,10 +394,88 @@ fn raw_log_dir(state: State<'_, Arc<AppState>>) -> String {
     state.paths.raw_log_dir.to_string_lossy().into_owned()
 }
 
+// ----------------------------------------------------------------------------- Slicer
+
+#[tauri::command]
+fn slicer_info(state: State<'_, Arc<AppState>>) -> serde_json::Value {
+    let custom = state.lock().settings.orca_path.clone();
+    serde_json::to_value(slicer::find_orca(&custom)).unwrap_or_default()
+}
+
+#[tauri::command]
+fn slicer_presets(app: AppHandle) -> Result<slicer::Presets, String> {
+    slicer::load_presets(&app)
+}
+
+#[tauri::command]
+fn slicer_save_preset(app: AppHandle, kind: String, preset: serde_json::Value) -> Result<(), String> {
+    slicer::save_user_preset(&app, &kind, preset)
+}
+
+#[tauri::command]
+fn slicer_delete_preset(app: AppHandle, kind: String, name: String) -> Result<(), String> {
+    slicer::delete_user_preset(&app, &kind, &name)
+}
+
+#[tauri::command]
+async fn slicer_slice(app: AppHandle, job: slicer::SliceJob) -> Result<slicer::SliceResult, String> {
+    let custom = app.state::<Arc<AppState>>().lock().settings.orca_path.clone();
+    let info = slicer::find_orca(&custom);
+    let Some(path) = info.path_buf() else {
+        return Err("OrcaSlicer wurde nicht gefunden. Bitte installieren oder den Pfad in den Einstellungen eintragen.".into());
+    };
+    slicer::slice(app, path, job).await
+}
+
+#[tauri::command]
+fn slicer_cancel(app: AppHandle) {
+    slicer::cancel(&app);
+}
+
+/// Liest eine 3D-Datei (STL/OBJ/3MF), die der Nutzer gewählt oder hineingezogen hat.
+#[tauri::command]
+fn read_model_file(path: String) -> Result<String, String> {
+    use base64::Engine;
+    let p = std::path::Path::new(&path);
+    let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    if !["stl", "obj", "3mf"].contains(&ext.as_str()) {
+        return Err("Nur STL-, OBJ- und 3MF-Dateien werden unterstützt.".into());
+    }
+    let meta = std::fs::metadata(p).map_err(|_| "Datei nicht gefunden.".to_string())?;
+    if meta.len() > 400 * 1024 * 1024 {
+        return Err("Die Datei ist zu groß (über 400 MB).".into());
+    }
+    let bytes = std::fs::read(p).map_err(|_| "Datei konnte nicht gelesen werden.".to_string())?;
+    Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
+}
+
+/// Liest den zuletzt erzeugten G-Code für die Vorschau (nur aus dem Slice-Ordner).
+#[tauri::command]
+fn read_gcode(app: AppHandle, path: String) -> Result<String, String> {
+    let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
+    let p = std::path::Path::new(&path);
+    if !p.starts_with(&base) {
+        return Err("Zugriff verweigert.".into());
+    }
+    std::fs::read_to_string(p).map_err(|_| "G-Code konnte nicht gelesen werden.".to_string())
+}
+
+/// Speichert den erzeugten G-Code an einen vom Nutzer gewählten Ort.
+#[tauri::command]
+fn export_gcode(app: AppHandle, from: String, to: String) -> Result<(), String> {
+    let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
+    if !std::path::Path::new(&from).starts_with(&base) {
+        return Err("Zugriff verweigert.".into());
+    }
+    std::fs::copy(&from, &to).map(|_| ()).map_err(|_| "Datei konnte nicht gespeichert werden.".to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_dialog::init())
+        .manage(slicer::SlicerState::default())
         .setup(|app| {
             let config_dir = app.path().app_config_dir()?;
             let data_dir = app.path().app_data_dir()?;
@@ -440,7 +519,16 @@ pub fn run() {
             get_jobs,
             clear_jobs,
             discover_printers,
-            raw_log_dir
+            raw_log_dir,
+            slicer_info,
+            slicer_presets,
+            slicer_save_preset,
+            slicer_delete_preset,
+            slicer_slice,
+            slicer_cancel,
+            read_model_file,
+            read_gcode,
+            export_gcode
         ])
         .run(tauri::generate_context!())
         .expect("Druckerwacht konnte nicht gestartet werden");

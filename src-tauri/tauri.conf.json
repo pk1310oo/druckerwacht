@@ -29,7 +29,12 @@
   },
   "bundle": {
     "active": true,
-    "targets": ["deb", "appimage", "dmg", "app"],
+    "targets": [
+      "deb",
+      "appimage",
+      "dmg",
+      "app"
+    ],
     "category": "Utility",
     "shortDescription": "Live-Überwachung für Creality-3D-Drucker",
     "icon": [
@@ -39,6 +44,11 @@
       "icons/icon.icns",
       "icons/icon.ico"
     ],
-    "macOS": { "minimumSystemVersion": "11.0" }
+    "macOS": {
+      "minimumSystemVersion": "11.0"
+    },
+    "resources": [
+      "resources/profiles/**/*"
+    ]
   }
 }

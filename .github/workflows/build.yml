@@ -14,9 +14,15 @@ jobs:
           - os: macos-latest        # Apple Silicon → .dmg
             bundles: dmg,app
             name: macos-apple-silicon
+            target: ""
+          - os: macos-15-intel      # Ausweichweg: auf Intel-Mac für Apple Silicon bauen (kürzere Warteschlange)
+            bundles: dmg,app
+            name: macos-apple-silicon-via-intel
+            target: aarch64-apple-darwin
           - os: ubuntu-22.04        # ältere glibc → läuft auf Linux Mint 21 und 22
             bundles: deb,appimage
             name: linux-x86_64
+            target: ""
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -33,6 +39,8 @@ jobs:
           cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
 
       - uses: Swatinem/rust-cache@v2
         with:
@@ -41,16 +49,17 @@ jobs:
       - run: npm ci
 
       - name: Tests
+        if: matrix.target == ''
         run: cargo test --manifest-path src-tauri/Cargo.toml
 
       - name: Bauen
-        run: npx tauri build --bundles ${{ matrix.bundles }}
+        run: npx tauri build --bundles ${{ matrix.bundles }} ${{ matrix.target && format('--target {0}', matrix.target) || '' }}
 
       - uses: actions/upload-artifact@v4
         with:
           name: druckerwacht-${{ matrix.name }}
           path: |
-            src-tauri/target/release/bundle/dmg/*.dmg
-            src-tauri/target/release/bundle/deb/*.deb
-            src-tauri/target/release/bundle/appimage/*.AppImage
+            src-tauri/target/**/release/bundle/dmg/*.dmg
+            src-tauri/target/**/release/bundle/deb/*.deb
+            src-tauri/target/**/release/bundle/appimage/*.AppImage
           if-no-files-found: error
