@@ -4,7 +4,7 @@
 //! Protokoll-Annahmen (aus Mitschnitten der K1/KE-Familie, mit probe.mjs zu bestätigen):
 //! - Der Drucker schickt unaufgefordert JSON-Objekte mit Teil-Updates.
 //! - Gelegentlich kommt `{"ModeCode":"heart_beat"}`; Creality Print antwortet mit `ok`.
-//!   Ohne Antwort trennen manche Firmwares nach einiger Zeit die Verbindung.
+//!   (Der Ender 3 V3 KE mit Firmware V1.1.0.17 schickte in 10 min keinen Heartbeat.)
 //! - `{"method":"get","params":{"reqPrinterPara":1}}` fordert einen vollständigen Status an.
 //!   Das ist eine reine Leseanfrage.
 
@@ -18,10 +18,11 @@ use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 pub const PORT: u16 = 9999;
 const CONNECT_TIMEOUT: Duration = Duration::from_secs(8);
-/// Kommt so lange gar nichts, gilt die Verbindung als tot.
-const IDLE_TIMEOUT: Duration = Duration::from_secs(25);
+/// Kommt so lange gar nichts, gilt die Verbindung als tot. Der KE schickt nur Änderungen,
+/// im Leerlauf mit Pausen von bis zu ~15 s (gemessen) – daher großzügig.
+const IDLE_TIMEOUT: Duration = Duration::from_secs(60);
 /// Wie oft wir aktiv einen vollständigen Status anfordern (hält die Verbindung zusätzlich wach).
-const REFRESH_EVERY: Duration = Duration::from_secs(10);
+const REFRESH_EVERY: Duration = Duration::from_secs(20);
 const MAX_BACKOFF_S: u64 = 15;
 
 const REQUEST_STATUS: &str = r#"{"method":"get","params":{"reqPrinterPara":1}}"#;

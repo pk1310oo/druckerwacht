@@ -127,7 +127,7 @@ function Stats({ status: s }: { status: PrinterStatus | null }) {
         icon={Thermometer}
         value={s?.nozzleTemp ?? null}
         unit="°C"
-        meter={heatMeter(s?.nozzleTemp ?? null, s?.nozzleTarget ?? null, 300)}
+        meter={heatMeter(s?.nozzleTemp ?? null, s?.nozzleTarget ?? null, s?.maxNozzleTemp ?? 300)}
         sub={
           <span>
             Soll <b className="num">{target(s?.nozzleTarget)}</b>
@@ -139,7 +139,7 @@ function Stats({ status: s }: { status: PrinterStatus | null }) {
         icon={Box}
         value={s?.bedTemp ?? null}
         unit="°C"
-        meter={heatMeter(s?.bedTemp ?? null, s?.bedTarget ?? null, 110)}
+        meter={heatMeter(s?.bedTemp ?? null, s?.bedTarget ?? null, s?.maxBedTemp ?? 100)}
         sub={
           <span>
             Soll <b className="num">{target(s?.bedTarget)}</b>
@@ -183,7 +183,8 @@ function Stats({ status: s }: { status: PrinterStatus | null }) {
 }
 
 function isJob(s: PrinterStatus) {
-  return ["printing", "paused", "finished", "failed", "aborted"].includes(s.state) && (s.fileName != null || s.progress != null);
+  if (s.state === "printing" || s.state === "paused") return true;
+  return ["finished", "failed", "aborted"].includes(s.state) && s.fileName != null;
 }
 
 function Thumbnail({ file }: { file: string | null }) {

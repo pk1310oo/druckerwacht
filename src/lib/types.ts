@@ -25,6 +25,8 @@ export interface PrinterStatus {
   fanCasePct: number | null;
   errorCode: number | null;
   errorKey: number | null;
+  maxNozzleTemp: number | null;
+  maxBedTemp: number | null;
 }
 
 export type Connection =

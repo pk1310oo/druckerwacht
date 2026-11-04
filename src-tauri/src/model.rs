@@ -70,6 +70,9 @@ pub struct PrinterStatus {
 
     pub error_code: Option<i64>,
     pub error_key: Option<i64>,
+
+    pub max_nozzle_temp: Option<f64>,
+    pub max_bed_temp: Option<f64>,
 }
 
 /// Führt eine eingehende Nachricht in den bisherigen Zustand zusammen.
@@ -117,6 +120,10 @@ fn pct(v: Option<f64>) -> Option<f64> {
 
 /// Statuscode → Zustand. Annahme (K1-Familie): 0 bereit, 1 druckt, 2 fertig,
 /// 3 fehlgeschlagen, 4 abgebrochen, 5 pausiert. Unbekannte Codes → Unknown.
+///
+/// Bestätigt am echten Ender 3 V3 KE (Firmware V1.1.0.17): im Leerlauf ohne Datei
+/// meldet er `state: 4`. Ein End-/Unbekannt-Zustand ohne Datei und ohne Fortschritt
+/// wird deshalb in `parse` als „bereit“ gewertet.
 fn map_state(code: Option<i64>) -> PrintState {
     match code {
         Some(0) => PrintState::Idle,
@@ -144,6 +151,14 @@ pub fn parse(map: &Map<String, Value>) -> PrinterStatus {
         _ => (int(map, &["errcode"]), None),
     };
 
+    let file_name = text(map, &["printFileName", "fileName", "printFile"]).map(clean_file_name);
+    let progress = num(map, &["printProgress", "dProgress", "progress"]).map(|p| p.clamp(0.0, 100.0));
+    let mut state = map_state(state_code);
+    let no_job = file_name.is_none() && progress.unwrap_or(0.0) <= 0.0;
+    if no_job && !state.is_active() {
+        state = PrintState::Idle;
+    }
+
     PrinterStatus {
         model: text(map, &["model", "modelName"]),
         hostname: text(map, &["hostname", "deviceName"]),
@@ -154,10 +169,10 @@ pub fn parse(map: &Map<String, Value>) -> PrinterStatus {
         bed_target: num(map, &["targetBedTemp0", "targetBedTemp"]),
         chamber_temp: num(map, &["boxTemp", "chamberTemp"]),
 
-        state: map_state(state_code),
+        state,
         state_code,
-        file_name: text(map, &["printFileName", "fileName", "printFile"]).map(clean_file_name),
-        progress: num(map, &["printProgress", "dProgress", "progress"]).map(|p| p.clamp(0.0, 100.0)),
+        file_name,
+        progress,
         layer: int(map, &["layer", "curLayer"]),
         total_layers: int(map, &["TotalLayer", "totalLayer", "totalLayers"]),
         elapsed_s: num(map, &["printJobTime"]).filter(|s| *s >= 0.0),
@@ -173,6 +188,9 @@ pub fn parse(map: &Map<String, Value>) -> PrinterStatus {
 
         error_code,
         error_key,
+
+        max_nozzle_temp: num(map, &["maxNozzleTemp"]).filter(|t| *t > 0.0),
+        max_bed_temp: num(map, &["maxBedTemp"]).filter(|t| *t > 0.0),
     }
 }
 
@@ -199,10 +217,44 @@ mod tests {
         assert_eq!(s.error_code, Some(0));
     }
 
+    /// Echter Mitschnitt: Ender 3 V3 KE im Leerlauf (Firmware V1.1.0.17)
+    #[test]
+    fn real_ke_idle_capture() {
+        let mut m = Map::new();
+        for line in include_str!("../fixtures/ke-idle.jsonl").lines().filter(|l| !l.trim().is_empty()) {
+            let v: Value = serde_json::from_str(line).unwrap();
+            if v["dir"] == "in" {
+                merge(&mut m, &v["msg"]);
+            }
+        }
+        let s = parse(&m);
+        assert_eq!(s.state_code, Some(4));
+        assert_eq!(s.state, PrintState::Idle, "state 4 ohne Datei = Leerlauf");
+        assert_eq!(s.file_name, None);
+        assert_eq!(s.model.as_deref(), Some("F005"));
+        assert_eq!(s.nozzle_temp, Some(18.45));
+        assert_eq!(s.bed_temp, Some(18.62));
+        assert_eq!(s.nozzle_target, Some(0.0));
+        assert_eq!(s.flow_pct, Some(100.0));
+        assert_eq!(s.speed_pct, Some(100.0));
+        assert_eq!(s.speed_mm_s, Some(0.0));
+        assert_eq!(s.fan_pct, Some(0.0));
+        assert_eq!(s.max_nozzle_temp, Some(300.0));
+        assert_eq!(s.max_bed_temp, Some(100.0));
+        assert_eq!(s.error_code, Some(0));
+    }
+
+    #[test]
+    fn state4_with_file_is_aborted() {
+        let mut m = Map::new();
+        merge(&mut m, &json!({"state": 4, "printFileName": "/x/Benchy.gcode", "printProgress": 30}));
+        assert_eq!(parse(&m).state, PrintState::Aborted);
+    }
+
     #[test]
     fn unknown_state_code() {
         let mut m = Map::new();
-        merge(&mut m, &json!({"state": 42}));
+        merge(&mut m, &json!({"state": 42, "printFileName": "a.gcode"}));
         let s = parse(&m);
         assert_eq!(s.state, PrintState::Unknown);
         assert_eq!(s.state_code, Some(42));
