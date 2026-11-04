@@ -61,6 +61,8 @@ export class Plate {
     this.renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, preserveDrawingBuffer: false });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
     this.renderer.setClearColor(COLOR.bg);
+    this.renderer.shadowMap.enabled = true;
+    this.renderer.shadowMap.type = THREE.PCFSoftShadowMap;
     // Die Leinwand füllt per CSS immer die ganze Fläche; die Pixelgröße folgt per ResizeObserver.
     Object.assign(this.renderer.domElement.style, { display: "block", outline: "none", position: "absolute", inset: "0", width: "100%", height: "100%" });
 
@@ -99,8 +101,14 @@ export class Plate {
 
     this.scene.add(new THREE.HemisphereLight(0xffffff, 0x303030, 1.6));
     const key = new THREE.DirectionalLight(0xffffff, 1.6);
-    key.position.set(-150, -250, 400);
-    this.scene.add(key);
+    key.position.set(BED.x / 2 - 90, BED.y / 2 - 60, 380);
+    key.target.position.set(BED.x / 2, BED.y / 2, 0);
+    key.castShadow = true;
+    key.shadow.mapSize.set(2048, 2048);
+    key.shadow.bias = -0.0004;
+    key.shadow.normalBias = 0.6;
+    Object.assign(key.shadow.camera, { left: -200, right: 200, top: 200, bottom: -200, near: 50, far: 1000 });
+    this.scene.add(key, key.target);
     const rim = new THREE.DirectionalLight(0xffffff, 0.5);
     rim.position.set(300, 300, 200);
     this.scene.add(rim);
@@ -160,7 +168,7 @@ export class Plate {
   }
 
   resetView() {
-    this.camera.position.set(BED.x / 2, BED.y / 2 - 250, 200);
+    this.camera.position.set(BED.x / 2, BED.y / 2 - 300, 235);
     this.camera.lookAt(BED.x / 2, BED.y / 2, 10);
     if (this.orbit) {
       this.orbit.target.set(BED.x / 2, BED.y / 2, 10);
@@ -179,32 +187,63 @@ export class Plate {
   // ------------------------------------------------------------------ Druckbett
 
   private buildBed() {
-    const bed = new THREE.Mesh(
-      new THREE.PlaneGeometry(BED.x, BED.y),
-      new THREE.MeshStandardMaterial({ color: COLOR.bed, roughness: 1, metalness: 0 }),
-    );
-    bed.position.set(BED.x / 2, BED.y / 2, -0.05);
+    // Platte mit abgerundeten Ecken und 4 mm Stärke; Oberkante liegt bei z = 0
+    const margin = 6; // Rand der Federstahlplatte über den Druckbereich hinaus
+    const w = BED.x + margin * 2;
+    const d = BED.y + margin * 2;
+    const r = 10;
+    const shape = new THREE.Shape();
+    shape.moveTo(-margin + r, -margin);
+    shape.lineTo(-margin + w - r, -margin);
+    shape.quadraticCurveTo(-margin + w, -margin, -margin + w, -margin + r);
+    shape.lineTo(-margin + w, -margin + d - r);
+    shape.quadraticCurveTo(-margin + w, -margin + d, -margin + w - r, -margin + d);
+    shape.lineTo(-margin + r, -margin + d);
+    shape.quadraticCurveTo(-margin, -margin + d, -margin, -margin + d - r);
+    shape.lineTo(-margin, -margin + r);
+    shape.quadraticCurveTo(-margin, -margin, -margin + r, -margin);
+    const geo = new THREE.ExtrudeGeometry(shape, { depth: 4, bevelEnabled: true, bevelThickness: 0.6, bevelSize: 0.6, bevelSegments: 3, curveSegments: 12 });
+    geo.translate(0, 0, -4.6);
+
+    // UVs der Oberseite auf die Plattenfläche abbilden (Textur deckt Rand + Druckbereich ab)
+    const pos = geo.attributes.position;
+    const uv = geo.attributes.uv;
+    for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + margin) / w, (pos.getY(i) + margin) / d);
+
+    const top = new THREE.MeshStandardMaterial({ map: plateTexture(w, d, margin), roughness: 0.82, metalness: 0.15 });
+    top.map!.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    const side = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.45, metalness: 0.6 });
+    const bed = new THREE.Mesh(geo, [top, side]);
+    bed.receiveShadow = true;
     bed.name = "bed";
     this.scene.add(bed);
 
-    const minor: number[] = [];
-    const major: number[] = [];
-    for (let v = 0; v <= BED.x; v += 10) (v % 50 === 0 ? major : minor).push(v, 0, 0, v, BED.y, 0);
-    for (let v = 0; v <= BED.y; v += 10) (v % 50 === 0 ? major : minor).push(0, v, 0, BED.x, v, 0);
-    const lines = (arr: number[], color: number) => {
-      const g = new THREE.BufferGeometry();
-      g.setAttribute("position", new THREE.Float32BufferAttribute(arr, 3));
-      return new THREE.LineSegments(g, new THREE.LineBasicMaterial({ color }));
-    };
-    this.scene.add(lines(minor, COLOR.gridMinor), lines(major, COLOR.gridMajor));
+    // Nullpunkt-Markierung (vorne links), wie am Drucker
+    const origin = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), new THREE.MeshBasicMaterial({ color: COLOR.selected }));
+    origin.position.set(0, 0, 0.02);
+    this.scene.add(origin);
 
     // Bauraum dezent andeuten
     const box = new THREE.LineSegments(
       new THREE.EdgesGeometry(new THREE.BoxGeometry(BED.x, BED.y, BED.z)),
-      new THREE.LineBasicMaterial({ color: COLOR.edge, transparent: true, opacity: 0.35 }),
+      new THREE.LineBasicMaterial({ color: COLOR.edge, transparent: true, opacity: 0.3 }),
     );
     box.position.set(BED.x / 2, BED.y / 2, BED.z / 2);
     this.scene.add(box);
+
+    // Ruhiger Verlauf im Hintergrund
+    const c = document.createElement("canvas");
+    c.width = 4;
+    c.height = 256;
+    const g = c.getContext("2d")!;
+    const grad = g.createLinearGradient(0, 0, 0, 256);
+    grad.addColorStop(0, "#171717");
+    grad.addColorStop(1, "#0b0b0b");
+    g.fillStyle = grad;
+    g.fillRect(0, 0, 4, 256);
+    const bg = new THREE.CanvasTexture(c);
+    bg.colorSpace = THREE.SRGBColorSpace;
+    this.scene.background = bg;
   }
 
   // ------------------------------------------------------------------ Modelle laden
@@ -226,6 +265,7 @@ export class Plate {
 
     const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({ color: COLOR.model, roughness: 0.55, metalness: 0.05, flatShading: false }));
     mesh.name = name.replace(/\.(stl|obj|3mf)$/i, "");
+    mesh.castShadow = true;
     mesh.userData.id = this.nextId++;
     // Viel zu große Modelle (z. B. in Zoll oder Metern exportiert) auf das Bett einpassen
     const size = new THREE.Vector3();
@@ -404,6 +444,7 @@ export class Plate {
     if (!m) return;
     const c = new THREE.Mesh(m.geometry.clone(), (m.material as THREE.Material).clone());
     c.name = m.name;
+    c.castShadow = true;
     c.userData.id = this.nextId++;
     c.position.copy(m.position);
     c.quaternion.copy(m.quaternion);
@@ -615,4 +656,69 @@ function toBinaryStl(g: THREE.BufferGeometry): Uint8Array {
     o += 2;
   }
   return new Uint8Array(buf);
+}
+
+/** Oberfläche der Federstahlplatte: fein gekörnt, dezentes Raster, Rahmen und Maßangabe. */
+function plateTexture(w: number, d: number, margin: number): THREE.CanvasTexture {
+  const ppm = 10; // Pixel pro Millimeter
+  const c = document.createElement("canvas");
+  c.width = Math.round(w * ppm);
+  c.height = Math.round(d * ppm);
+  const g = c.getContext("2d")!;
+  const X = (mm: number) => (mm + margin) * ppm;
+  const Y = (mm: number) => c.height - (mm + margin) * ppm; // Canvas-Y zeigt nach unten
+
+  // Grundfarbe + Körnung (PEI-Struktur)
+  g.fillStyle = "#1b1b1b";
+  g.fillRect(0, 0, c.width, c.height);
+  const img = g.getImageData(0, 0, c.width, c.height);
+  let seed = 7;
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  for (let i = 0; i < img.data.length; i += 4) {
+    const n = (rnd() - 0.5) * 14;
+    img.data[i] += n;
+    img.data[i + 1] += n;
+    img.data[i + 2] += n;
+  }
+  g.putImageData(img, 0, 0);
+
+  // Rand außerhalb des Druckbereichs etwas dunkler
+  g.fillStyle = "rgba(0,0,0,0.28)";
+  g.fillRect(0, 0, c.width, margin * ppm);
+  g.fillRect(0, c.height - margin * ppm, c.width, margin * ppm);
+  g.fillRect(0, margin * ppm, margin * ppm, c.height - 2 * margin * ppm);
+  g.fillRect(c.width - margin * ppm, margin * ppm, margin * ppm, c.height - 2 * margin * ppm);
+
+  // Raster: 10 mm fein, 50 mm kräftiger
+  for (let v = 0; v <= 220; v += 10) {
+    const major = v % 50 === 0;
+    g.strokeStyle = major ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.045)";
+    g.lineWidth = major ? 2 : 1.5;
+    g.beginPath();
+    g.moveTo(X(v), Y(0));
+    g.lineTo(X(v), Y(220));
+    g.moveTo(X(0), Y(v));
+    g.lineTo(X(220), Y(v));
+    g.stroke();
+  }
+  // Umriss des Druckbereichs
+  g.strokeStyle = "rgba(255,255,255,0.22)";
+  g.lineWidth = 3;
+  g.strokeRect(X(0), Y(220), 220 * ppm, 220 * ppm);
+
+  // Beschriftung vorne rechts
+  g.fillStyle = "rgba(255,255,255,0.28)";
+  g.font = `600 ${3.2 * ppm}px "Inter Variable", Inter, system-ui, sans-serif`;
+  g.textAlign = "right";
+  g.textBaseline = "alphabetic";
+  g.fillText("ENDER 3 V3 KE", X(216), Y(4));
+  g.font = `500 ${2.6 * ppm}px "Inter Variable", Inter, system-ui, sans-serif`;
+  g.fillStyle = "rgba(255,255,255,0.18)";
+  g.fillText("220 × 220 mm", X(216), Y(8.5));
+
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  t.generateMipmaps = true;
+  t.minFilter = THREE.LinearMipmapLinearFilter;
+  return t;
 }
