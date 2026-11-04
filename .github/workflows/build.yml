@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     strategy:
@@ -63,3 +66,19 @@ jobs:
             src-tauri/target/**/release/bundle/deb/*.deb
             src-tauri/target/**/release/bundle/appimage/*.AppImage
           if-no-files-found: error
+
+      - name: Version lesen
+        id: ver
+        run: echo "version=$(node -p "require('./package.json').version")" >> "$GITHUB_OUTPUT"
+
+      - name: Als Release veröffentlichen
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          name: Druckerwacht ${{ steps.ver.outputs.version }}
+          overwrite_files: true
+          fail_on_unmatched_files: false
+          files: |
+            src-tauri/target/**/release/bundle/dmg/*.dmg
+            src-tauri/target/**/release/bundle/deb/*.deb
+            src-tauri/target/**/release/bundle/appimage/*.AppImage
