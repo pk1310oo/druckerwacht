@@ -1,0 +1,183 @@
+//! Datei an den Drucker senden und Druck starten – so wie Creality Print / OrcaSlicer es tun:
+//!
+//! 1. Hochladen: HTTP-POST (multipart, Feld „file“) an `http://<ip>/upload/<dateiname>`
+//! 2. Starten:   WebSocket :9999 → `{"method":"set","params":{"opGcodeFile":"printprt:<pfad>"}}`
+//!
+//! Quelle: OrcaSlicer `src/slic3r/Utils/CrealityPrint.cpp`. Der Ablageort
+//! `/usr/data/printer_data/gcodes/` ist am Ender 3 V3 KE gemessen (printFileName im Mitschnitt).
+//! Orca selbst würde für den KE fälschlich `/mnt/UDISK` annehmen, weil er nicht in seiner
+//! K1-Liste steht.
+
+use futures_util::{SinkExt, StreamExt};
+use std::time::Duration;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::net::TcpStream;
+use tokio_tungstenite::{connect_async, tungstenite::Message};
+
+pub const GCODE_DIR: &str = "/usr/data/printer_data/gcodes";
+const HTTP_PORT: u16 = 80;
+const WS_PORT: u16 = 9999;
+
+/// Dateiname, den der Drucker sicher verarbeiten kann (keine Leerzeichen/Umlaute).
+pub fn printer_file_name(name: &str) -> String {
+    let base = name.trim_end_matches(".gcode");
+    let mut s: String = base
+        .chars()
+        .map(|c| match c {
+            'ä' => 'a',
+            'ö' => 'o',
+            'ü' => 'u',
+            'Ä' => 'A',
+            'Ö' => 'O',
+            'Ü' => 'U',
+            'ß' => 's',
+            c if c.is_ascii_alphanumeric() || c == '-' || c == '.' => c,
+            _ => '_',
+        })
+        .collect();
+    while s.contains("__") {
+        s = s.replace("__", "_");
+    }
+    let s = s.trim_matches('_');
+    let s = if s.is_empty() { "druck" } else { s };
+    format!("{s}.gcode")
+}
+
+/// Lädt `data` als `file_name` hoch. `progress` erhält 0…1.
+pub async fn upload(host: &str, port: Option<u16>, file_name: &str, data: &[u8], progress: impl Fn(f64)) -> Result<(), String> {
+    let port = port.unwrap_or(HTTP_PORT);
+    let boundary = format!("----Druckerwacht{:x}", chrono::Utc::now().timestamp_nanos_opt().unwrap_or(0));
+    let head = format!(
+        "--{boundary}\r\nContent-Disposition: form-data; name=\"file\"; filename=\"{file_name}\"\r\nContent-Type: application/octet-stream\r\n\r\n"
+    );
+    let tail = format!("\r\n--{boundary}--\r\n");
+    let len = head.len() + data.len() + tail.len();
+    let request = format!(
+        "POST /upload/{file_name} HTTP/1.1\r\nHost: {host}\r\nUser-Agent: Druckerwacht\r\nAccept: */*\r\nContent-Type: multipart/form-data; boundary={boundary}\r\nContent-Length: {len}\r\nConnection: close\r\n\r\n"
+    );
+
+    let mut stream = tokio::time::timeout(Duration::from_secs(6), TcpStream::connect((host, port)))
+        .await
+        .map_err(|_| "Drucker antwortet nicht (Upload).".to_string())?
+        .map_err(|_| "Verbindung zum Drucker fehlgeschlagen (Upload).".to_string())?;
+
+    let io = |_| "Upload unterbrochen.".to_string();
+    stream.write_all(request.as_bytes()).await.map_err(io)?;
+    stream.write_all(head.as_bytes()).await.map_err(io)?;
+    let total = data.len().max(1) as f64;
+    let mut sent = 0usize;
+    for chunk in data.chunks(64 * 1024) {
+        tokio::time::timeout(Duration::from_secs(30), stream.write_all(chunk))
+            .await
+            .map_err(|_| "Upload hängt – Verbindung zu langsam?".to_string())?
+            .map_err(io)?;
+        sent += chunk.len();
+        progress(sent as f64 / total);
+    }
+    stream.write_all(tail.as_bytes()).await.map_err(io)?;
+    stream.flush().await.map_err(io)?;
+
+    // Antwort lesen (nur die Statuszeile ist wichtig)
+    let mut buf = Vec::new();
+    let _ = tokio::time::timeout(Duration::from_secs(60), async {
+        let mut tmp = [0u8; 4096];
+        loop {
+            match stream.read(&mut tmp).await {
+                Ok(0) | Err(_) => break,
+                Ok(n) => {
+                    buf.extend_from_slice(&tmp[..n]);
+                    if buf.len() > 64 * 1024 {
+                        break;
+                    }
+                }
+            }
+        }
+    })
+    .await;
+    let text = String::from_utf8_lossy(&buf);
+    let code: u16 = text
+        .lines()
+        .next()
+        .and_then(|l| l.split_whitespace().nth(1))
+        .and_then(|c| c.parse().ok())
+        .ok_or("Der Drucker hat den Upload nicht bestätigt.")?;
+    if (200..300).contains(&code) {
+        Ok(())
+    } else {
+        Err(format!("Der Drucker hat den Upload abgelehnt (HTTP {code})."))
+    }
+}
+
+/// Startet den Druck einer bereits hochgeladenen Datei.
+pub async fn start(host: &str, port: Option<u16>, file_name: &str) -> Result<(), String> {
+    let url = format!("ws://{host}:{}", port.unwrap_or(WS_PORT));
+    let (mut ws, _) = tokio::time::timeout(Duration::from_secs(6), connect_async(url.as_str()))
+        .await
+        .map_err(|_| "Drucker antwortet nicht (Start).".to_string())?
+        .map_err(|_| "Verbindung zum Drucker fehlgeschlagen (Start).".to_string())?;
+    let cmd = serde_json::json!({
+        "method": "set",
+        "params": { "opGcodeFile": format!("printprt:{GCODE_DIR}/{file_name}") }
+    });
+    ws.send(Message::text(cmd.to_string()))
+        .await
+        .map_err(|_| "Startbefehl konnte nicht gesendet werden.".to_string())?;
+    // Die Firmware schließt die Verbindung oft direkt nach dem Annehmen – das ist kein Fehler.
+    let _ = tokio::time::timeout(Duration::from_secs(2), ws.next()).await;
+    let _ = ws.close(None).await;
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use tokio::net::TcpListener;
+
+    #[test]
+    fn safe_names() {
+        assert_eq!(printer_file_name("Würfel Test (2).gcode"), "Wurfel_Test_2.gcode");
+        assert_eq!(printer_file_name("torus__1_Generic PLA_0.2mm.gcode"), "torus_1_Generic_PLA_0.2mm.gcode");
+        assert_eq!(printer_file_name("???"), "druck.gcode");
+    }
+
+    /// Nachgebauter Drucker: nimmt den Upload an und prüft den Startbefehl.
+    #[tokio::test]
+    async fn upload_and_start_roundtrip() {
+        let http = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let http_port = http.local_addr().unwrap().port();
+        let ws_l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let ws_port = ws_l.local_addr().unwrap().port();
+
+        let server = tokio::spawn(async move {
+            let (mut s, _) = http.accept().await.unwrap();
+            let mut req = Vec::new();
+            let mut tmp = [0u8; 8192];
+            loop {
+                let n = s.read(&mut tmp).await.unwrap();
+                req.extend_from_slice(&tmp[..n]);
+                if req.ends_with(b"--\r\n") || n == 0 {
+                    break;
+                }
+            }
+            s.write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\nok").await.unwrap();
+            drop(s);
+            let (sock, _) = ws_l.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(sock).await.unwrap();
+            let msg = ws.next().await.unwrap().unwrap().into_text().unwrap().to_string();
+            (String::from_utf8_lossy(&req).to_string(), msg)
+        });
+
+        let data = b"G28\nG1 X10\n".repeat(20000);
+        let last = std::sync::Arc::new(std::sync::Mutex::new(0.0));
+        let l2 = last.clone();
+        upload("127.0.0.1", Some(http_port), "test.gcode", &data, move |p| *l2.lock().unwrap() = p).await.unwrap();
+        start("127.0.0.1", Some(ws_port), "test.gcode").await.unwrap();
+
+        let (req, cmd) = server.await.unwrap();
+        assert!(req.starts_with("POST /upload/test.gcode HTTP/1.1"));
+        assert!(req.contains("name=\"file\"; filename=\"test.gcode\""));
+        assert!(req.contains("G1 X10"));
+        assert_eq!(*last.lock().unwrap(), 1.0);
+        assert_eq!(cmd, r#"{"method":"set","params":{"opGcodeFile":"printprt:/usr/data/printer_data/gcodes/test.gcode"}}"#);
+    }
+}

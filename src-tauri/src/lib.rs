@@ -1,6 +1,7 @@
 mod adapter;
 mod discovery;
 mod model;
+mod printjob;
 mod settings;
 mod slicer;
 
@@ -470,6 +471,43 @@ fn export_gcode(app: AppHandle, from: String, to: String) -> Result<(), String> 
     std::fs::copy(&from, &to).map(|_| ()).map_err(|_| "Datei konnte nicht gespeichert werden.".to_string())
 }
 
+/// Sendet den erzeugten G-Code an den Drucker und startet ihn auf Wunsch.
+#[tauri::command]
+async fn printer_send(app: AppHandle, path: String, start: bool) -> Result<String, String> {
+    let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
+    let p = std::path::PathBuf::from(&path);
+    if !p.starts_with(&base) {
+        return Err("Zugriff verweigert.".into());
+    }
+    let (host, busy) = {
+        let state = app.state::<Arc<AppState>>();
+        let inner = state.lock();
+        let busy = inner.status.as_ref().map(|s| s.state.is_active()).unwrap_or(false);
+        (inner.settings.printer_ip.clone(), busy)
+    };
+    if host.is_empty() {
+        return Err("Keine Drucker-IP eingetragen.".into());
+    }
+    if start && busy {
+        return Err("Der Drucker druckt gerade – bitte warten, bis der aktuelle Druck beendet ist.".into());
+    }
+    let data = std::fs::read(&p).map_err(|_| "G-Code konnte nicht gelesen werden.".to_string())?;
+    let name = printjob::printer_file_name(&p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
+    let app2 = app.clone();
+    let last = std::sync::atomic::AtomicI32::new(-1);
+    printjob::upload(&host, None, &name, &data, move |f| {
+        let pct = (f * 100.0) as i32;
+        if last.swap(pct, std::sync::atomic::Ordering::Relaxed) != pct {
+            let _ = app2.emit("printer://upload", pct);
+        }
+    })
+    .await?;
+    if start {
+        printjob::start(&host, None, &name).await?;
+    }
+    Ok(name)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -528,7 +566,8 @@ pub fn run() {
             slicer_cancel,
             read_model_file,
             read_gcode,
-            export_gcode
+            export_gcode,
+            printer_send
         ])
         .run(tauri::generate_context!())
         .expect("Druckerwacht konnte nicht gestartet werden");
