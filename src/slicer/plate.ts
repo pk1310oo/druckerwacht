@@ -10,6 +10,8 @@ import { OBJLoader } from "three/examples/jsm/loaders/OBJLoader.js";
 import { ThreeMFLoader } from "three/examples/jsm/loaders/3MFLoader.js";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import type { GcodePreview } from "./gcode";
+import bedModelUrl from "./assets/creality_ender3v3ke_buildplate_model.stl?url";
+import bedTextureSvg from "./assets/creality_ender3v3ke_buildplate_texture.svg?raw";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
@@ -37,7 +39,13 @@ export interface ModelInfo {
   outside: boolean;
 }
 
-export type Tool = "move" | "rotate" | "layflat" | null;
+export type Tool = "move" | "rotate" | "scale" | "layflat" | "cut" | "measure" | null;
+
+export interface Measure {
+  points: THREE.Vector3[];
+  distance: number | null;
+  delta: [number, number, number] | null;
+}
 
 export class Plate {
   readonly renderer: THREE.WebGLRenderer;
@@ -187,36 +195,34 @@ export class Plate {
   // ------------------------------------------------------------------ Druckbett
 
   private buildBed() {
-    // Platte mit abgerundeten Ecken und 4 mm Stärke; Oberkante liegt bei z = 0
-    const margin = 6; // Rand der Federstahlplatte über den Druckbereich hinaus
-    const w = BED.x + margin * 2;
-    const d = BED.y + margin * 2;
-    const r = 10;
-    const shape = new THREE.Shape();
-    shape.moveTo(-margin + r, -margin);
-    shape.lineTo(-margin + w - r, -margin);
-    shape.quadraticCurveTo(-margin + w, -margin, -margin + w, -margin + r);
-    shape.lineTo(-margin + w, -margin + d - r);
-    shape.quadraticCurveTo(-margin + w, -margin + d, -margin + w - r, -margin + d);
-    shape.lineTo(-margin + r, -margin + d);
-    shape.quadraticCurveTo(-margin, -margin + d, -margin, -margin + d - r);
-    shape.lineTo(-margin, -margin + r);
-    shape.quadraticCurveTo(-margin, -margin, -margin + r, -margin);
-    const geo = new THREE.ExtrudeGeometry(shape, { depth: 4, bevelEnabled: true, bevelThickness: 0.6, bevelSize: 0.6, bevelSegments: 3, curveSegments: 12 });
-    geo.translate(0, 0, -4.6);
+    // Originales Druckbett des Ender 3 V3 KE (Modell + Textur aus OrcaSlicer, AGPL-3.0).
+    // Das Modell ist um die Bettmitte zentriert; die Oberfläche liegt bei z = 0.
+    const bodyMat = new THREE.MeshStandardMaterial({ color: 0x232323, roughness: 0.6, metalness: 0.35 });
+    void fetch(bedModelUrl)
+      .then((r) => r.arrayBuffer())
+      .then((buf) => {
+        const geo = new STLLoader().parse(buf);
+        geo.computeVertexNormals();
+        const body = new THREE.Mesh(geo, bodyMat);
+        body.position.set(BED.x / 2, BED.y / 2, -0.01);
+        body.receiveShadow = true;
+        body.name = "bed";
+        this.scene.add(body);
+        this.invalidate();
+      })
+      .catch(() => {
+        /* Ohne Modell bleibt die Druckfläche trotzdem sichtbar */
+      });
 
-    // UVs der Oberseite auf die Plattenfläche abbilden (Textur deckt Rand + Druckbereich ab)
-    const pos = geo.attributes.position;
-    const uv = geo.attributes.uv;
-    for (let i = 0; i < pos.count; i++) uv.setXY(i, (pos.getX(i) + margin) / w, (pos.getY(i) + margin) / d);
-
-    const top = new THREE.MeshStandardMaterial({ map: plateTexture(w, d, margin), roughness: 0.82, metalness: 0.15 });
-    top.map!.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
-    const side = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.45, metalness: 0.6 });
-    const bed = new THREE.Mesh(geo, [top, side]);
-    bed.receiveShadow = true;
-    bed.name = "bed";
-    this.scene.add(bed);
+    // Druckfläche mit Körnung, Raster und den originalen Markierungen
+    const top = new THREE.Mesh(
+      new THREE.PlaneGeometry(BED.x, BED.y),
+      new THREE.MeshStandardMaterial({ map: bedTopTexture(() => this.invalidate()), roughness: 0.85, metalness: 0.1 }),
+    );
+    (top.material as THREE.MeshStandardMaterial).map!.anisotropy = this.renderer.capabilities.getMaxAnisotropy();
+    top.position.set(BED.x / 2, BED.y / 2, 0.01);
+    top.receiveShadow = true;
+    this.scene.add(top);
 
     // Nullpunkt-Markierung (vorne links), wie am Drucker
     const origin = new THREE.Mesh(new THREE.CircleGeometry(1.6, 24), new THREE.MeshBasicMaterial({ color: COLOR.selected }));
@@ -293,7 +299,10 @@ export class Plate {
 
   setTool(tool: Tool) {
     this.tool = tool;
+    if (tool !== "measure") this.clearMeasure();
+    this.updateCutPlane();
     this.syncGizmo();
+    this.emit();
   }
 
   getTool() {
@@ -301,11 +310,11 @@ export class Plate {
   }
 
   private syncGizmo() {
-    if (this.selected && (this.tool === "move" || this.tool === "rotate") && !this.preview) {
+    if (this.selected && (this.tool === "move" || this.tool === "rotate" || this.tool === "scale") && !this.preview) {
       this.gizmo.attach(this.selected);
-      this.gizmo.setMode(this.tool === "move" ? "translate" : "rotate");
+      this.gizmo.setMode(this.tool === "move" ? "translate" : this.tool === "rotate" ? "rotate" : "scale");
       this.gizmo.showZ = this.tool !== "move";
-      this.gizmo.setSpace(this.tool === "rotate" ? "world" : "world");
+      this.gizmo.setSpace(this.tool === "scale" ? "local" : "world");
     } else {
       this.gizmo.detach();
     }
@@ -335,6 +344,10 @@ export class Plate {
     if (e.button !== 0 || this.preview) return;
     if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 4) return; // war ein Drehen der Ansicht
     if ((this.gizmo as unknown as { dragging: boolean }).dragging) return;
+    if (this.tool === "measure") {
+      this.addMeasurePoint(e);
+      return;
+    }
     const hit = this.pick(e);
     if (this.tool === "layflat" && hit?.face) {
       this.layFlat(hit.object as THREE.Mesh, hit.face.normal);
@@ -361,6 +374,223 @@ export class Plate {
     this.select(mesh);
     this.tool = "move";
     this.syncGizmo();
+    this.emit();
+  }
+
+  // ------------------------------------------------------------------ Spiegeln, Ausrichten
+
+  mirror(axis: 0 | 1 | 2) {
+    if (!this.selected) return;
+    const s = this.selected.scale;
+    s.setComponent(axis, -s.getComponent(axis));
+    this.dropToBed(this.selected);
+    this.emit();
+  }
+
+  /**
+   * Automatisch ausrichten: probiert die Ausrichtungen der größten ebenen Flächen
+   * (und die sechs Achsrichtungen) und wählt die mit der größten Auflagefläche
+   * und der kleinsten Überhangfläche.
+   */
+  autoOrient() {
+    const m = this.selected;
+    if (!m) return;
+    m.updateMatrixWorld(true);
+    const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
+    const pos = g.attributes.position;
+    const tris = pos.count / 3;
+    const scaleM = new THREE.Matrix4().makeScale(m.scale.x, m.scale.y, m.scale.z);
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), n = new THREE.Vector3(), t = new THREE.Vector3();
+    // Dreiecke in Modellkoordinaten (mit Skalierung, ohne Drehung)
+    const P = new Float32Array(tris * 9);
+    const N = new Float32Array(tris * 3);
+    const A = new Float32Array(tris);
+    const buckets = new Map<string, { n: THREE.Vector3; area: number }>();
+    for (let i = 0; i < tris; i++) {
+      a.fromBufferAttribute(pos, i * 3).applyMatrix4(scaleM);
+      b.fromBufferAttribute(pos, i * 3 + 1).applyMatrix4(scaleM);
+      c.fromBufferAttribute(pos, i * 3 + 2).applyMatrix4(scaleM);
+      n.subVectors(c, b).cross(t.subVectors(a, b));
+      const area = n.length() / 2;
+      if (area < 1e-9) continue;
+      n.normalize();
+      P.set([a.x, a.y, a.z, b.x, b.y, b.z, c.x, c.y, c.z], i * 9);
+      N.set([n.x, n.y, n.z], i * 3);
+      A[i] = area;
+      const key = `${Math.round(n.x * 20)},${Math.round(n.y * 20)},${Math.round(n.z * 20)}`;
+      const e = buckets.get(key);
+      if (e) {
+        e.n.addScaledVector(n, area);
+        e.area += area;
+      } else buckets.set(key, { n: n.clone().multiplyScalar(area), area });
+    }
+    const candidates = [...buckets.values()]
+      .sort((x, y) => y.area - x.area)
+      .slice(0, 24)
+      .map((e) => e.n.clone().normalize());
+    for (const v of [[0, 0, -1], [0, 0, 1], [1, 0, 0], [-1, 0, 0], [0, 1, 0], [0, -1, 0]]) candidates.push(new THREE.Vector3(...v));
+
+    const down = new THREE.Vector3(0, 0, -1);
+    let best: { q: THREE.Quaternion; score: number } | null = null;
+    const v = new THREE.Vector3();
+    for (const cand of candidates) {
+      const q = new THREE.Quaternion().setFromUnitVectors(cand, down);
+      let minZ = Infinity;
+      for (let i = 0; i < tris * 3; i++) {
+        v.set(P[i * 3], P[i * 3 + 1], P[i * 3 + 2]).applyQuaternion(q);
+        if (v.z < minZ) minZ = v.z;
+      }
+      let contact = 0, overhang = 0, height = -Infinity;
+      for (let i = 0; i < tris; i++) {
+        if (!A[i]) continue;
+        n.set(N[i * 3], N[i * 3 + 1], N[i * 3 + 2]).applyQuaternion(q);
+        let zmax = -Infinity, zmin = Infinity;
+        for (let k = 0; k < 3; k++) {
+          v.set(P[i * 9 + k * 3], P[i * 9 + k * 3 + 1], P[i * 9 + k * 3 + 2]).applyQuaternion(q);
+          zmax = Math.max(zmax, v.z);
+          zmin = Math.min(zmin, v.z);
+        }
+        height = Math.max(height, zmax - minZ);
+        if (zmax - minZ < 0.15 && n.z < -0.95) contact += A[i];
+        else if (n.z < -0.707 && zmin - minZ > 0.3) overhang += A[i] * (-n.z);
+      }
+      const score = contact * 1.0 - overhang * 0.6 - height * 0.02;
+      if (!best || score > best.score) best = { q, score };
+    }
+    if (g !== m.geometry) g.dispose();
+    if (best) {
+      m.quaternion.copy(best.q);
+      this.dropToBed(m);
+      this.emit();
+    }
+  }
+
+  // ------------------------------------------------------------------ Schneiden
+
+  private cutHeight = 10;
+  private cutPlane: THREE.Mesh | null = null;
+
+  getCutHeight() {
+    return this.cutHeight;
+  }
+
+  setCutHeight(h: number) {
+    this.cutHeight = h;
+    this.updateCutPlane();
+    this.emit();
+  }
+
+  private updateCutPlane() {
+    const m = this.selected;
+    if (this.tool !== "cut" || !m) {
+      if (this.cutPlane) this.cutPlane.visible = false;
+      this.invalidate();
+      return;
+    }
+    if (!this.cutPlane) {
+      this.cutPlane = new THREE.Mesh(
+        new THREE.PlaneGeometry(1, 1),
+        new THREE.MeshBasicMaterial({ color: COLOR.selected, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false }),
+      );
+      this.scene.add(this.cutPlane);
+    }
+    const box = new THREE.Box3().setFromObject(m, true);
+    this.cutHeight = Math.min(Math.max(this.cutHeight, 0.2), Math.max(0.2, box.max.z - 0.2));
+    this.cutPlane.visible = true;
+    this.cutPlane.scale.set(box.max.x - box.min.x + 20, box.max.y - box.min.y + 20, 1);
+    this.cutPlane.position.set((box.min.x + box.max.x) / 2, (box.min.y + box.max.y) / 2, this.cutHeight);
+    this.invalidate();
+  }
+
+  /** Höhe des ausgewählten Modells (für den Schnitt-Regler). */
+  selectedHeight() {
+    if (!this.selected) return 0;
+    return new THREE.Box3().setFromObject(this.selected, true).max.z;
+  }
+
+  /** Schneidet das ausgewählte Modell waagerecht bei `cutHeight`. */
+  cut(keep: "both" | "upper" | "lower", flipUpper: boolean): string | null {
+    const m = this.selected;
+    if (!m) return null;
+    m.updateMatrixWorld(true);
+    const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()) as THREE.BufferGeometry;
+    g.applyMatrix4(m.matrixWorld);
+    if (m.matrixWorld.determinant() < 0) flipWinding(g);
+    const { lower, upper } = splitAtZ(g, this.cutHeight);
+    g.dispose();
+    if (!lower || !upper) return "An dieser Höhe gibt es nichts zu schneiden.";
+    const baseName = m.name;
+    const color = (m.material as THREE.MeshStandardMaterial).clone();
+    this.remove(m.userData.id);
+    const add = (geom: THREE.BufferGeometry, suffix: string, flip: boolean) => {
+      if (flip) geom.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI));
+      const mesh = new THREE.Mesh(cleanGeometry(geom), color.clone());
+      mesh.name = `${baseName} ${suffix}`;
+      mesh.castShadow = true;
+      mesh.userData.id = this.nextId++;
+      this.modelGroup.add(mesh);
+      this.models.push(mesh);
+      mesh.position.set(BED.x / 2, BED.y / 2, 0);
+      this.dropToBed(mesh);
+      return mesh;
+    };
+    let last: THREE.Mesh | null = null;
+    if (keep !== "upper") last = add(lower, "(unten)", false);
+    if (keep !== "lower") last = add(upper, "(oben)", flipUpper);
+    else upper.dispose();
+    if (keep === "upper") lower.dispose();
+    this.arrange();
+    this.tool = "move";
+    this.select(last);
+    this.updateCutPlane();
+    return null;
+  }
+
+  // ------------------------------------------------------------------ Messen
+
+  private measurePts: THREE.Vector3[] = [];
+  private measureObj = new THREE.Group();
+
+  getMeasure(): Measure {
+    const [a, b] = this.measurePts;
+    if (a && b) {
+      const d = b.clone().sub(a);
+      return { points: this.measurePts, distance: d.length(), delta: [Math.abs(d.x), Math.abs(d.y), Math.abs(d.z)] };
+    }
+    return { points: this.measurePts, distance: null, delta: null };
+  }
+
+  clearMeasure() {
+    this.measurePts = [];
+    this.measureObj.clear();
+    this.invalidate();
+  }
+
+  private addMeasurePoint(e: PointerEvent) {
+    const r = this.renderer.domElement.getBoundingClientRect();
+    const ndc = new THREE.Vector2(((e.clientX - r.left) / r.width) * 2 - 1, -((e.clientY - r.top) / r.height) * 2 + 1);
+    const ray = new THREE.Raycaster();
+    ray.setFromCamera(ndc, this.camera);
+    let p = ray.intersectObjects(this.models, false)[0]?.point ?? null;
+    if (!p) {
+      const hit = new THREE.Vector3();
+      if (ray.ray.intersectPlane(new THREE.Plane(new THREE.Vector3(0, 0, 1), 0), hit)) p = hit;
+    }
+    if (!p) return;
+    if (this.measurePts.length >= 2) this.clearMeasure();
+    this.measurePts.push(p.clone());
+    if (!this.measureObj.parent) this.scene.add(this.measureObj);
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(1.2, 16, 12), new THREE.MeshBasicMaterial({ color: 0xf5f4ef, depthTest: false }));
+    dot.renderOrder = 10;
+    dot.position.copy(p);
+    this.measureObj.add(dot);
+    if (this.measurePts.length === 2) {
+      const geo = new THREE.BufferGeometry().setFromPoints(this.measurePts);
+      const line = new THREE.Line(geo, new THREE.LineBasicMaterial({ color: COLOR.selected, depthTest: false }));
+      line.renderOrder = 10;
+      this.measureObj.add(line);
+    }
+    this.invalidate();
     this.emit();
   }
 
@@ -543,6 +773,8 @@ export class Plate {
       m.updateMatrixWorld(true);
       const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
       g.applyMatrix4(m.matrixWorld);
+      // Gespiegelte Modelle: Dreiecksreihenfolge umdrehen, sonst zeigen die Flächen nach innen
+      if (m.matrixWorld.determinant() < 0) flipWinding(g);
       const data = toBinaryStl(g);
       g.dispose();
       return { name: m.name, data };
@@ -658,18 +890,14 @@ function toBinaryStl(g: THREE.BufferGeometry): Uint8Array {
   return new Uint8Array(buf);
 }
 
-/** Oberfläche der Federstahlplatte: fein gekörnt, dezentes Raster, Rahmen und Maßangabe. */
-function plateTexture(w: number, d: number, margin: number): THREE.CanvasTexture {
+/** Druckfläche 220 × 220 mm: PEI-Körnung, dezentes Raster und die originalen KE-Markierungen. */
+function bedTopTexture(onReady: () => void): THREE.CanvasTexture {
   const ppm = 10; // Pixel pro Millimeter
   const c = document.createElement("canvas");
-  c.width = Math.round(w * ppm);
-  c.height = Math.round(d * ppm);
+  c.width = c.height = 220 * ppm;
   const g = c.getContext("2d")!;
-  const X = (mm: number) => (mm + margin) * ppm;
-  const Y = (mm: number) => c.height - (mm + margin) * ppm; // Canvas-Y zeigt nach unten
 
-  // Grundfarbe + Körnung (PEI-Struktur)
-  g.fillStyle = "#1b1b1b";
+  g.fillStyle = "#1c1c1c";
   g.fillRect(0, 0, c.width, c.height);
   const img = g.getImageData(0, 0, c.width, c.height);
   let seed = 7;
@@ -682,43 +910,143 @@ function plateTexture(w: number, d: number, margin: number): THREE.CanvasTexture
   }
   g.putImageData(img, 0, 0);
 
-  // Rand außerhalb des Druckbereichs etwas dunkler
-  g.fillStyle = "rgba(0,0,0,0.28)";
-  g.fillRect(0, 0, c.width, margin * ppm);
-  g.fillRect(0, c.height - margin * ppm, c.width, margin * ppm);
-  g.fillRect(0, margin * ppm, margin * ppm, c.height - 2 * margin * ppm);
-  g.fillRect(c.width - margin * ppm, margin * ppm, margin * ppm, c.height - 2 * margin * ppm);
-
-  // Raster: 10 mm fein, 50 mm kräftiger
+  // Raster: 10 mm fein, 50 mm kräftiger (Canvas-Y zeigt nach unten → von hinten nach vorne)
   for (let v = 0; v <= 220; v += 10) {
     const major = v % 50 === 0;
-    g.strokeStyle = major ? "rgba(255,255,255,0.10)" : "rgba(255,255,255,0.045)";
+    g.strokeStyle = major ? "rgba(255,255,255,0.09)" : "rgba(255,255,255,0.04)";
     g.lineWidth = major ? 2 : 1.5;
     g.beginPath();
-    g.moveTo(X(v), Y(0));
-    g.lineTo(X(v), Y(220));
-    g.moveTo(X(0), Y(v));
-    g.lineTo(X(220), Y(v));
+    g.moveTo(v * ppm, 0);
+    g.lineTo(v * ppm, c.height);
+    g.moveTo(0, c.height - v * ppm);
+    g.lineTo(c.width, c.height - v * ppm);
     g.stroke();
   }
-  // Umriss des Druckbereichs
-  g.strokeStyle = "rgba(255,255,255,0.22)";
-  g.lineWidth = 3;
-  g.strokeRect(X(0), Y(220), 220 * ppm, 220 * ppm);
-
-  // Beschriftung vorne rechts
-  g.fillStyle = "rgba(255,255,255,0.28)";
-  g.font = `600 ${3.2 * ppm}px "Inter Variable", Inter, system-ui, sans-serif`;
-  g.textAlign = "right";
-  g.textBaseline = "alphabetic";
-  g.fillText("ENDER 3 V3 KE", X(216), Y(4));
-  g.font = `500 ${2.6 * ppm}px "Inter Variable", Inter, system-ui, sans-serif`;
-  g.fillStyle = "rgba(255,255,255,0.18)";
-  g.fillText("220 × 220 mm", X(216), Y(8.5));
 
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace;
   t.generateMipmaps = true;
   t.minFilter = THREE.LinearMipmapLinearFilter;
+
+  // Originale Markierungen (SVG 220 × 220, gleiche Ausrichtung wie das Bett)
+  const svg = new Image();
+  svg.onload = () => {
+    g.globalAlpha = 0.85;
+    g.drawImage(svg, 0, 0, c.width, c.height);
+    g.globalAlpha = 1;
+    t.needsUpdate = true;
+    onReady();
+  };
+  svg.src = "data:image/svg+xml;charset=utf-8," + encodeURIComponent(bedTextureSvg);
   return t;
+}
+
+function flipWinding(g: THREE.BufferGeometry) {
+  const p = g.attributes.position as THREE.BufferAttribute;
+  for (let i = 0; i < p.count; i += 3) {
+    const x = p.getX(i + 1), y = p.getY(i + 1), z = p.getZ(i + 1);
+    p.setXYZ(i + 1, p.getX(i + 2), p.getY(i + 2), p.getZ(i + 2));
+    p.setXYZ(i + 2, x, y, z);
+  }
+  p.needsUpdate = true;
+}
+
+/**
+ * Teilt ein (nicht indiziertes) Dreiecksnetz an der Ebene z = h und schließt beide
+ * Schnittflächen mit Deckeln. Liefert null für eine Seite, wenn dort nichts liegt.
+ */
+export function splitAtZ(g: THREE.BufferGeometry, h: number): { lower: THREE.BufferGeometry | null; upper: THREE.BufferGeometry | null } {
+  const pos = g.attributes.position;
+  const lo: number[] = [];
+  const up: number[] = [];
+  const segs: [THREE.Vector3, THREE.Vector3][] = [];
+  const eps = 1e-6;
+  const V = [new THREE.Vector3(), new THREE.Vector3(), new THREE.Vector3()];
+  const lerp = (a: THREE.Vector3, b: THREE.Vector3) => {
+    const t = (h - a.z) / (b.z - a.z);
+    return new THREE.Vector3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t, h);
+  };
+  const push = (arr: number[], ...vs: THREE.Vector3[]) => vs.forEach((v) => arr.push(v.x, v.y, v.z));
+
+  for (let i = 0; i < pos.count; i += 3) {
+    for (let k = 0; k < 3; k++) {
+      V[k].fromBufferAttribute(pos, i + k);
+      if (Math.abs(V[k].z - h) < eps) V[k].z = h + eps; // Ecken genau auf der Ebene leicht anheben
+    }
+    const above = V.map((v) => v.z > h);
+    const n = above.filter(Boolean).length;
+    if (n === 0) { push(lo, V[0], V[1], V[2]); continue; }
+    if (n === 3) { push(up, V[0], V[1], V[2]); continue; }
+    // Die einzelne Ecke auf der anderen Seite finden, Reihenfolge (Umlaufsinn) beibehalten
+    const single = n === 1 ? above.indexOf(true) : above.indexOf(false);
+    const a = V[single], b = V[(single + 1) % 3], c = V[(single + 2) % 3];
+    const ab = lerp(a, b), ac = lerp(a, c);
+    const lonely = n === 1 ? up : lo;
+    const pair = n === 1 ? lo : up;
+    push(lonely, a, ab, ac);
+    push(pair, ab, b, c, ab, c, ac);
+    // Schnittkante – so orientiert, dass der Deckel der unteren Hälfte nach oben zeigt
+    segs.push(n === 1 ? [ab, ac] : [ac, ab]);
+  }
+  if (!lo.length || !up.length || !segs.length) return { lower: null, upper: null };
+
+  // Kanten zu geschlossenen Schleifen verketten
+  const key = (v: THREE.Vector3) => `${Math.round(v.x * 1e4)},${Math.round(v.y * 1e4)}`;
+  const next = new Map<string, [THREE.Vector3, THREE.Vector3][]>();
+  for (const s of segs) {
+    const k = key(s[0]);
+    if (!next.has(k)) next.set(k, []);
+    next.get(k)!.push(s);
+  }
+  const used = new Set<[THREE.Vector3, THREE.Vector3]>();
+  const loops: THREE.Vector2[][] = [];
+  for (const s of segs) {
+    if (used.has(s)) continue;
+    const loop: THREE.Vector2[] = [];
+    let cur = s;
+    while (cur && !used.has(cur)) {
+      used.add(cur);
+      loop.push(new THREE.Vector2(cur[0].x, cur[0].y));
+      const cands = next.get(key(cur[1])) ?? [];
+      cur = cands.find((c) => !used.has(c))!;
+    }
+    if (loop.length >= 3) loops.push(loop);
+  }
+
+  // Außenkonturen und Löcher bestimmen (Verschachtelungstiefe)
+  const inside = (p: THREE.Vector2, poly: THREE.Vector2[]) => {
+    let r = false;
+    for (let i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      const a = poly[i], b = poly[j];
+      if (a.y > p.y !== b.y > p.y && p.x < ((b.x - a.x) * (p.y - a.y)) / (b.y - a.y) + a.x) r = !r;
+    }
+    return r;
+  };
+  const depth = loops.map((l, i) => loops.filter((o, j) => j !== i && inside(l[0], o)).length);
+  const capTop: number[] = [];
+  loops.forEach((outer, i) => {
+    if (depth[i] % 2 === 1) return;
+    const holes = loops.filter((h2, j) => depth[j] === depth[i] + 1 && inside(h2[0], outer));
+    const o = THREE.ShapeUtils.isClockWise(outer) ? [...outer].reverse() : outer;
+    const hs = holes.map((hh) => (THREE.ShapeUtils.isClockWise(hh) ? hh : [...hh].reverse()));
+    const all = [...o, ...hs.flat()];
+    for (const [x, y, z] of THREE.ShapeUtils.triangulateShape(o, hs)) {
+      // Deckeldreiecke immer gegen den Uhrzeigersinn (Normale +Z), unabhängig vom Triangulierer
+      const [p, q, r] = [all[x], all[y], all[z]];
+      const ccw = (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x) > 0;
+      const [b, c] = ccw ? [q, r] : [r, q];
+      capTop.push(p.x, p.y, h, b.x, b.y, h, c.x, c.y, h);
+    }
+  });
+  // Deckel: nach oben zeigend für die untere Hälfte, umgedreht für die obere
+  for (let i = 0; i < capTop.length; i += 9) {
+    lo.push(...capTop.slice(i, i + 9));
+    up.push(...capTop.slice(i, i + 3), ...capTop.slice(i + 6, i + 9), ...capTop.slice(i + 3, i + 6));
+  }
+  const mk = (arr: number[]) => {
+    const b = new THREE.BufferGeometry();
+    b.setAttribute("position", new THREE.Float32BufferAttribute(arr, 3));
+    return b;
+  };
+  return { lower: mk(lo), upper: mk(up) };
 }

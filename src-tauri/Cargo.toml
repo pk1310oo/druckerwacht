@@ -1,6 +1,6 @@
 [package]
 name = "druckerwacht"
-version = "0.2.1"
+version = "0.3.0"
 description = "Live-Überwachung für Creality Ender 3 V3 KE"
 edition = "2021"
 

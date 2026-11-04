@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
-import { RotateCcw, Search } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ChevronDown, RotateCcw, Search } from "lucide-react";
+import { PatternIcon, hasPatternIcon } from "./PatternIcon";
 import {
   ALL_TAB,
   CATALOG,
@@ -132,6 +133,8 @@ function Field({
   if (kind === "bool") {
     const on = value === "1" || value === "true";
     control = <button role="switch" aria-checked={on} aria-label={label} className={`switch ${on ? "on" : ""}`} onClick={() => set(on ? "0" : "1")} />;
+  } else if (kind === "enum" && PATTERN_KEYS.has(key)) {
+    control = <PatternPicker value={value} options={e!.enum!} onChange={set} label={label} />;
   } else if (kind === "enum") {
     const opts = e!.enum!;
     control = (
@@ -233,6 +236,68 @@ function TextInput(props: { value: string; onCommit: (v: string) => void; unit?:
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
       />
       {props.unit && <span className="sp-unit">{props.unit}</span>}
+    </span>
+  );
+}
+
+const PATTERN_KEYS = new Set(["sparse_infill_pattern", "top_surface_pattern", "bottom_surface_pattern", "internal_solid_infill_pattern"]);
+
+/** Auswahl eines Füllmusters mit Vorschaubild je Muster. */
+function PatternPicker(props: { value: string; options: { value: string; label: string }[]; onChange: (v: string) => void; label: string }) {
+  const [open, setOpen] = useState(false);
+  const [pos, setPos] = useState<{ left: number; top?: number; bottom?: number; maxHeight: number } | null>(null);
+  const ref = useRef<HTMLSpanElement>(null);
+  const toggle = () => {
+    if (open) return setOpen(false);
+    // Frei schwebend positionieren (der Einstellungsbereich scrollt und würde abschneiden)
+    const r = ref.current!.getBoundingClientRect();
+    const width = 3 * 104 + 2 * 4 + 16 + 2;
+    const left = Math.max(8, Math.min(r.right - width, window.innerWidth - width - 8));
+    const below = window.innerHeight - r.bottom - 12;
+    const above = r.top - 12;
+    setPos(below >= 280 || below >= above ? { left, top: r.bottom + 6, maxHeight: Math.min(420, below) } : { left, bottom: window.innerHeight - r.top + 6, maxHeight: Math.min(420, above) });
+    setOpen(true);
+  };
+  useEffect(() => {
+    if (!open) return;
+    const close = (e: MouseEvent) => {
+      if (!ref.current?.contains(e.target as Node)) setOpen(false);
+    };
+    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
+    window.addEventListener("mousedown", close);
+    window.addEventListener("keydown", esc);
+    return () => {
+      window.removeEventListener("mousedown", close);
+      window.removeEventListener("keydown", esc);
+    };
+  }, [open]);
+  const current = props.options.find((o) => o.value === props.value);
+  return (
+    <span className="pattern-pick" ref={ref}>
+      <button className="input sp-select pattern-btn" aria-label={props.label} aria-expanded={open} onClick={toggle}>
+        {hasPatternIcon(props.value) && <PatternIcon value={props.value} size={20} />}
+        <span>{current?.label ?? props.value}</span>
+        <ChevronDown size={12} />
+      </button>
+      {open && pos && (
+        <div className="pattern-pop card" role="listbox" aria-label={props.label} style={pos}>
+          {props.options.map((o) => (
+            <button
+              key={o.value}
+              role="option"
+              aria-selected={o.value === props.value}
+              className={o.value === props.value ? "on" : ""}
+              onClick={() => {
+                props.onChange(o.value);
+                setOpen(false);
+              }}
+            >
+              <PatternIcon value={o.value} size={48} />
+              <span>{o.label}</span>
+            </button>
+          ))}
+        </div>
+      )}
     </span>
   );
 }

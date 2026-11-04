@@ -131,3 +131,14 @@ export async function onFileDrop(fn: (paths: string[]) => void, hover: (on: bool
     }
   });
 }
+
+/** G-Code an den Drucker senden; mit `start` wird der Druck sofort gestartet. Liefert den Dateinamen am Drucker. */
+export async function printerSend(path: string, start: boolean): Promise<string> {
+  if (!isTauri) throw "Drucken ist nur in der App möglich.";
+  return invoke<string>("printer_send", { path, start });
+}
+
+export async function onUploadProgress(fn: (pct: number) => void) {
+  if (!isTauri) return () => {};
+  return listen<number>("printer://upload", (e) => fn(e.payload));
+}

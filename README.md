@@ -109,7 +109,7 @@ npm install
 npm run tauri build -- --bundles dmg
 ```
 
-Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.2.1_aarch64.dmg`
+Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.3.0_aarch64.dmg`
 
 Die App ist nicht signiert. Beim ersten Start deshalb im Finder per **Rechtsklick → Öffnen** starten,
 oder das Quarantäne-Flag entfernen:
@@ -127,19 +127,19 @@ npm run tauri build -- --bundles deb appimage
 
 Ergebnisse:
 
-- `src-tauri/target/release/bundle/deb/Druckerwacht_0.2.1_amd64.deb`
-- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.2.1_amd64.AppImage`
+- `src-tauri/target/release/bundle/deb/Druckerwacht_0.3.0_amd64.deb`
+- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.3.0_amd64.AppImage`
 
 Installation:
 
 ```bash
-sudo apt install ./Druckerwacht_0.2.1_amd64.deb
+sudo apt install ./Druckerwacht_0.3.0_amd64.deb
 ```
 
 Die AppImage-Datei kann man stattdessen auch direkt ausführen:
 
 ```bash
-chmod +x Druckerwacht_0.2.1_amd64.AppImage && ./Druckerwacht_0.2.1_amd64.AppImage
+chmod +x Druckerwacht_0.3.0_amd64.AppImage && ./Druckerwacht_0.3.0_amd64.AppImage
 ```
 
 > Für den AppImage-Build lädt Tauri beim ersten Mal `linuxdeploy` von GitHub herunter. Dafür ist eine Internetverbindung nötig.
@@ -177,16 +177,29 @@ OrcaSlicer selbst muss man nie öffnen.
 
 **Bedienung**
 
-| Aktion | So geht's |
+*Leiste oben:* Drucker, Düse (0,4 mm), **Druckbett-Typ** (glatte oder texturierte PEI usw., bestimmt die Bett-Temperatur), **Filament** und **Qualität**.
+
+*Werkzeugleiste über der Platte:*
+
+| Werkzeug | Funktion |
 |---|---|
-| Modell laden | „Öffnen“ oder Datei ins Fenster ziehen (STL, OBJ, 3MF) |
-| Verschieben / Drehen | Werkzeug wählen (M / R) und am Griff ziehen, oder Werte im Objekt-Panel eingeben |
-| Auf Fläche legen | Werkzeug (F) wählen und die Fläche anklicken, die unten liegen soll |
-| Anordnen / Duplizieren / Löschen | A, Werkzeugleiste, Entf |
-| Einstellungen | Reiter Qualität · Festigkeit · Geschwindigkeit · Stützen · Haftung · Filament · Sonstiges · **Alle** (alle Orca-Einstellungen mit Suche) |
-| Eigenes Profil | Werte ändern (orangefarbener Punkt), dann „Als Profil“ |
-| Slicen | Druckzeit, Filament und Schichten erscheinen. Die Vorschau zeigt jede Schicht nach Linientyp eingefärbt |
-| G-Code | „G-Code speichern“. „Drucken“ (direkt an den Drucker) folgt in der nächsten Ausbaustufe |
+| ＋ Hinzufügen | STL, OBJ oder 3MF laden. Dateien lassen sich auch ins Fenster ziehen |
+| Automatisch ausrichten | sucht die Lage mit der größten Auflagefläche und dem wenigsten Überhang |
+| Anordnen (A) | verteilt alle Modelle mittig auf der Platte |
+| Verschieben (M) · Drehen (R) · Skalieren (S) | am Griff ziehen oder Werte im Objekt-Panel eingeben |
+| Spiegeln | entlang X, Y oder Z |
+| Auf Fläche legen (F) | die Fläche anklicken, die unten liegen soll |
+| Schneiden (C) | waagerecht in beliebiger Höhe. Beide Teile oder nur eines behalten, das obere Teil auf Wunsch umgedreht. Die Schnittflächen werden geschlossen |
+| Messen | zwei Punkte auf Modell oder Bett anklicken |
+| Duplizieren · Löschen (Entf) | |
+
+*Einstellungen:* Die Reiter Qualität · Festigkeit · Geschwindigkeit · Stützen · Haftung · Filament · Sonstiges entsprechen Creality Print. Füllmuster werden mit Vorschaubild gewählt. Unter **Alle** finden sich alle Orca-Einstellungen mit Suche. Geänderte Werte sind orange markiert und lassen sich als eigenes Profil speichern.
+
+*Slicen und Vorschau:* Angezeigt werden Druckzeit, Filament und Schichten. Die Vorschau zeigt die Bahnen als runde Filament-Stränge in echter Breite, nach Linientyp eingefärbt und schichtweise durchblätterbar.
+
+*Drucken:* Die Datei wird per Upload an den Drucker geschickt (`http://<IP>/upload/…`) und dort per WebSocket gestartet (`opGcodeFile`), so wie es Creality Print und OrcaSlicer tun. Vorher fragt die App ab, ob die Druckplatte frei ist. Gesperrt ist das Starten, solange ein Druck läuft. „Nur hochladen“ legt die Datei auf dem Drucker ab, ohne zu starten.
+
+Noch nicht enthalten: Stützen bzw. Naht von Hand malen und Text-Prägung. Dafür müsste das Projekt als 3MF an Orca übergeben werden.
 
 Die Profile (4 Qualitäten, 20 Filamente für den Ender 3 V3 KE) stammen aus OrcaSlicer und liegen aufgelöst in `src-tauri/resources/profiles`.
 Aktualisieren lassen sie sich so:

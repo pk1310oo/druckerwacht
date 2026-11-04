@@ -2,7 +2,16 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Box,
+  Check,
   Copy,
+  FlipHorizontal2,
+  Plus,
+  Printer,
+  Ruler,
+  Scaling,
+  Scissors,
+  Thermometer,
+  Wand2,
   Download,
   Eye,
   FolderOpen,
@@ -30,7 +39,9 @@ import {
   loadPresets,
   onFileDrop,
   onSliceProgress,
+  onUploadProgress,
   pickModels,
+  printerSend,
   readGcode,
   readModel,
   saveGcodeAs,
@@ -41,10 +52,11 @@ import {
   type SliceResult,
   type SlicerInfo,
 } from "../slicer/api";
-import { buildConfig, CATALOG, groupOf, type Group, type Overrides, type Preset } from "../slicer/settings";
+import { buildConfig, CATALOG, effective, groupOf, type Group, type Overrides, type Preset } from "../slicer/settings";
 import { isTauri } from "../lib/api";
 import { fmtDuration, fmtNum } from "../lib/format";
 import { EmptyState } from "../components/ui";
+import { useStore } from "../lib/store";
 import type { ViewId } from "../components/Shell";
 
 // Die Druckplatte lebt über Ansichtswechsel hinweg weiter (WebGL-Kontext, geladene Modelle).
@@ -81,6 +93,9 @@ type Phase =
 export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   const plate = getPlate();
   const host = useRef<HTMLDivElement>(null);
+  const connection = useStore((st) => st.connection);
+  const status = useStore((st) => st.status);
+  const printerName = useStore((st) => st.settings.printerName);
   const [models, setModels] = useState<ModelInfo[]>(() => plate.list());
   const [selected, setSelected] = useState<number | null>(() => plate.selectedId());
   const [tool, setToolState] = useState<Tool>(() => plate.getTool());
@@ -204,7 +219,8 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
     });
   };
 
-  const changedCount = Object.keys(overrides).length;
+  // Mitgesetzte Bett-Temperaturen anderer Platten-Typen zählen nicht als eigene Änderung
+  const changedCount = Object.keys(overrides).filter((k) => !HIDDEN_ALIASES.has(k)).length;
   const [saveAs, setSaveAs] = useState<string | null>(null);
   const doSavePreset = async () => {
     if (!active || !saveAs?.trim()) return;
@@ -318,6 +334,8 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       else if (e.key === "m" || e.key === "g") plate.setTool("move");
       else if (e.key === "r") plate.setTool("rotate");
       else if (e.key === "f") plate.setTool("layflat");
+      else if (e.key === "s") plate.setTool("scale");
+      else if (e.key === "c") plate.setTool("cut");
       else if (e.key === "a") plate.arrange();
       else if (e.key === "Escape") plate.select(null);
       else return;
@@ -333,39 +351,140 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
     plate.setTool(t);
   };
 
+  const busy = status?.state === "printing" || status?.state === "paused";
+  const [printOpen, setPrintOpen] = useState(false);
+  const [mirrorOpen, setMirrorOpen] = useState(false);
+  const measure = plate.getMeasure();
+  const bedType = overrides.curr_bed_type ?? "Cool Plate";
+
   // --------------------------------------------------------------- Darstellung
   return (
     <div className="slicer">
-      <div className="slicer-stage">
-        <div className="slicer-toolbar">
-          <button className="btn sm" onClick={() => void openDialog()}>
-            <FolderOpen size={14} /> Öffnen
-          </button>
-          <span className="tb-sep" />
-          <ToolBtn icon={Move3d} label="Verschieben (M)" on={tool === "move" && !preview} onClick={() => setTool("move")} />
-          <ToolBtn icon={RotateCw} label="Drehen (R)" on={tool === "rotate" && !preview} onClick={() => setTool("rotate")} />
-          <ToolBtn icon={SquareDashedBottom} label="Auf Fläche legen (F)" on={tool === "layflat" && !preview} onClick={() => setTool("layflat")} />
-          <span className="tb-sep" />
-          <ToolBtn icon={LayoutGrid} label="Anordnen (A)" onClick={() => plate.arrange()} disabled={!models.length} />
-          <ToolBtn icon={Copy} label="Duplizieren" onClick={() => plate.duplicate()} disabled={!sel} />
-          <ToolBtn icon={Trash2} label="Löschen (Entf)" onClick={() => plate.remove()} disabled={!sel} />
-          <span className="tb-spacer" />
-          {preview && (
-            <button className="btn sm ghost" onClick={closePreview}>
-              <Box size={14} /> Modelle
-            </button>
-          )}
-          {!preview && phase.kind === "done" && !phase.stale && (
-            <button className="btn sm ghost" onClick={() => void openPreview(phase.result.gcodePath)}>
-              <Eye size={14} /> Vorschau
-            </button>
-          )}
-          <ToolBtn icon={Scan} label="Ansicht zurücksetzen" onClick={() => plate.resetView()} />
-          <ToolBtn icon={Grid3x3} label="Draufsicht" onClick={() => plate.topView()} />
+      {/* Leiste oben: Drucker, Düse, Druckbett, Filament, Qualität */}
+      <div className="slicer-top">
+        <div className="top-field">
+          <span className="label">Drucker</span>
+          <span className="top-static">
+            <Printer size={14} /> Ender 3 V3 KE
+          </span>
         </div>
+        <div className="top-field">
+          <span className="label">Düse Ø</span>
+          <span className="top-static num">0,4 mm</span>
+        </div>
+        <TempField
+          label="Düse °C"
+          value={active ? effective("nozzle_temperature", active, overrides) : ""}
+          max={300}
+          onCommit={(v) => onSetting("nozzle_temperature", v, ["nozzle_temperature_initial_layer"])}
+        />
+        <TempField
+          label="Bett °C"
+          value={active ? effective("cool_plate_temp", active, overrides) : ""}
+          max={110}
+          onCommit={(v) => onSetting("cool_plate_temp", v, BED_TEMP_KEYS)}
+        />
+        <div className="top-field">
+          <span className="label">Druckbett</span>
+          <select className="input sp-select" value={bedType} aria-label="Druckbett" onChange={(e) => onSetting("curr_bed_type", e.target.value === "Cool Plate" ? null : e.target.value)}>
+            {BED_TYPES.map((b) => (
+              <option key={b.value} value={b.value}>
+                {b.label}
+              </option>
+            ))}
+          </select>
+        </div>
+        <PresetSelect
+          label="Filament"
+          value={filamentPreset?.name ?? ""}
+          options={allFilament}
+          userNames={presets?.userFilament.map((p) => p.name) ?? []}
+          onChange={setFilamentName}
+          onDelete={
+            isUser("filament", filamentPreset?.name)
+              ? async () => {
+                  await deletePreset("filament", filamentPreset!.name);
+                  setFilamentName("Generic PLA @Creality Ender-3V3-all");
+                  await refreshPresets();
+                }
+              : undefined
+          }
+        />
+        <PresetSelect
+          label="Qualität"
+          value={processPreset?.name ?? ""}
+          options={allProcess}
+          userNames={presets?.userProcess.map((p) => p.name) ?? []}
+          onChange={setProcessName}
+          onDelete={
+            isUser("process", processPreset?.name)
+              ? async () => {
+                  await deletePreset("process", processPreset!.name);
+                  setProcessName("0.20mm Standard @Creality Ender3V3KE");
+                  await refreshPresets();
+                }
+              : undefined
+          }
+        />
+      </div>
 
+      <div className="slicer-stage">
         <div className="slicer-canvas" ref={host}>
-          {!models.length && !loading && (
+          {/* Werkzeugleiste über der Platte */}
+          <div className="plate-tools card" role="toolbar" aria-label="Werkzeuge">
+            <ToolBtn icon={Plus} label="Hinzufügen" onClick={() => void openDialog()} />
+            <span className="tb-sep" />
+            <ToolBtn icon={Wand2} label="Automatisch ausrichten" onClick={() => plate.autoOrient()} disabled={!sel || !!preview} />
+            <ToolBtn icon={LayoutGrid} label="Anordnen (A)" onClick={() => plate.arrange()} disabled={!models.length || !!preview} />
+            <span className="tb-sep" />
+            <ToolBtn icon={Move3d} label="Verschieben (M)" on={tool === "move" && !preview} onClick={() => setTool("move")} />
+            <ToolBtn icon={RotateCw} label="Drehen (R)" on={tool === "rotate" && !preview} onClick={() => setTool("rotate")} />
+            <ToolBtn icon={Scaling} label="Skalieren (S)" on={tool === "scale" && !preview} onClick={() => setTool("scale")} />
+            <span className="tool-wrap">
+              <ToolBtn icon={FlipHorizontal2} label="Spiegeln" on={mirrorOpen} onClick={() => setMirrorOpen((o) => !o)} disabled={!sel || !!preview} />
+              {mirrorOpen && sel && (
+                <span className="tool-menu card">
+                  {(["X", "Y", "Z"] as const).map((a, i) => (
+                    <button
+                      key={a}
+                      className="btn sm ghost"
+                      onClick={() => {
+                        plate.mirror(i as 0 | 1 | 2);
+                        setMirrorOpen(false);
+                      }}
+                    >
+                      <i className={`ax ax-${a.toLowerCase()}`}>{a}</i> spiegeln
+                    </button>
+                  ))}
+                </span>
+              )}
+            </span>
+            <ToolBtn icon={SquareDashedBottom} label="Auf Fläche legen (F)" on={tool === "layflat" && !preview} onClick={() => setTool("layflat")} />
+            <ToolBtn icon={Scissors} label="Schneiden (C)" on={tool === "cut" && !preview} onClick={() => setTool("cut")} disabled={!sel} />
+            <ToolBtn icon={Ruler} label="Messen" on={tool === "measure" && !preview} onClick={() => setTool("measure")} />
+            <span className="tb-sep" />
+            <ToolBtn icon={Copy} label="Duplizieren" onClick={() => plate.duplicate()} disabled={!sel || !!preview} />
+            <ToolBtn icon={Trash2} label="Löschen (Entf)" onClick={() => plate.remove()} disabled={!sel || !!preview} />
+          </div>
+
+          <div className="view-tools card">
+            {preview ? (
+              <button className="btn sm ghost" onClick={closePreview}>
+                <Box size={14} /> Modelle
+              </button>
+            ) : (
+              phase.kind === "done" &&
+              !phase.stale && (
+                <button className="btn sm ghost" onClick={() => void openPreview(phase.result.gcodePath)}>
+                  <Eye size={14} /> Vorschau
+                </button>
+              )
+            )}
+            <ToolBtn icon={Scan} label="Ansicht zurücksetzen" onClick={() => plate.resetView()} />
+            <ToolBtn icon={Grid3x3} label="Draufsicht" onClick={() => plate.topView()} />
+          </div>
+
+          {!models.length && !loading && !preview && (
             <div className="slicer-empty">
               <EmptyState
                 icon={Upload}
@@ -387,7 +506,29 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           )}
           {dropHover && <div className="drop-overlay">Loslassen zum Hinzufügen</div>}
 
-          {sel && !preview && <ObjectPanel m={sel} plate={plate} />}
+          {tool === "cut" && sel && !preview && <CutPanel plate={plate} onError={setLoadError} />}
+          {tool === "measure" && !preview && (
+            <div className="tool-panel card">
+              <span className="label">Messen</span>
+              {measure.distance == null ? (
+                <span className="hint">
+                  {measure.points.length === 0 ? "Ersten Punkt auf Modell oder Druckbett anklicken." : "Zweiten Punkt anklicken."}
+                </span>
+              ) : (
+                <>
+                  <span className="big num">
+                    {fmtNum(measure.distance, 2)}
+                    <span className="unit">mm</span>
+                  </span>
+                  <span className="small muted num">
+                    ΔX {fmtNum(measure.delta![0], 2)} · ΔY {fmtNum(measure.delta![1], 2)} · ΔZ {fmtNum(measure.delta![2], 2)} mm
+                  </span>
+                  <span className="hint">Weiter klicken für eine neue Messung.</span>
+                </>
+              )}
+            </div>
+          )}
+          {sel && !preview && tool !== "cut" && tool !== "measure" && <ObjectPanel m={sel} plate={plate} />}
 
           {preview && (
             <>
@@ -438,41 +579,6 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
 
       <aside className="slicer-side">
         {info && !info.found && <OrcaMissing go={go} />}
-
-        <div className="side-presets">
-          <PresetSelect
-            label="Qualität"
-            value={processPreset?.name ?? ""}
-            options={allProcess}
-            userNames={presets?.userProcess.map((p) => p.name) ?? []}
-            onChange={setProcessName}
-            onDelete={
-              isUser("process", processPreset?.name)
-                ? async () => {
-                    await deletePreset("process", processPreset!.name);
-                    setProcessName("0.20mm Standard @Creality Ender3V3KE");
-                    await refreshPresets();
-                  }
-                : undefined
-            }
-          />
-          <PresetSelect
-            label="Filament"
-            value={filamentPreset?.name ?? ""}
-            options={allFilament}
-            userNames={presets?.userFilament.map((p) => p.name) ?? []}
-            onChange={setFilamentName}
-            onDelete={
-              isUser("filament", filamentPreset?.name)
-                ? async () => {
-                    await deletePreset("filament", filamentPreset!.name);
-                    setFilamentName("Generic PLA @Creality Ender-3V3-all");
-                    await refreshPresets();
-                  }
-                : undefined
-            }
-          />
-        </div>
 
         {active ? (
           <SettingsPanel presets={active} overrides={overrides} onChange={onSetting} />
@@ -538,21 +644,287 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
               <button className="btn" onClick={() => void saveGcodeAs(phase.result.gcodePath, phase.result.fileName)}>
                 <Download size={16} /> G-Code speichern
               </button>
-              <button className="btn" disabled title="Kommt in der nächsten Etappe: Datei direkt an den Drucker senden und starten.">
+              <button className="btn" onClick={() => setPrintOpen(true)}>
                 <Send size={16} /> Drucken
               </button>
             </div>
           )}
         </div>
       </aside>
+
+      {printOpen && phase.kind === "done" && (
+        <PrintDialog
+          result={phase.result}
+          printerName={printerName}
+          host={connection.kind === "unconfigured" ? null : connection.host}
+          connected={connection.kind === "connected"}
+          busy={busy}
+          onClose={() => setPrintOpen(false)}
+          onStarted={() => {
+            setPrintOpen(false);
+            go("dashboard");
+          }}
+          go={go}
+        />
+      )}
+    </div>
+  );
+}
+
+const HIDDEN_ALIASES = new Set(
+  ["hot_plate_temp", "textured_plate_temp", "eng_plate_temp", "supertack_plate_temp", "textured_cool_plate_temp"].flatMap((k) => [k, `${k}_initial_layer`]),
+);
+
+/** Alle Bett-Temperaturen (jeder Druckbett-Typ, erste und weitere Schichten) */
+const BED_TEMP_KEYS = ["hot_plate_temp", "textured_plate_temp", "eng_plate_temp", "supertack_plate_temp", "textured_cool_plate_temp"]
+  .flatMap((k) => [k, `${k}_initial_layer`])
+  .concat(["cool_plate_temp_initial_layer"]);
+
+/** Schnellfeld für eine Temperatur – gilt für alle Schichten und bleibt gespeichert. */
+function TempField({ label, value, max, onCommit }: { label: string; value: string; max: number; onCommit: (v: string) => void }) {
+  const [draft, setDraft] = useState<string | null>(null);
+  const commit = () => {
+    if (draft == null) return;
+    const n = Math.round(Number(draft.replace(",", ".")));
+    if (Number.isFinite(n) && n >= 0 && n <= max) onCommit(String(n));
+    setDraft(null);
+  };
+  return (
+    <div className="top-field">
+      <span className="label">{label}</span>
+      <span className="sp-num temp-field">
+        <Thermometer size={14} />
+        <input
+          className="input num"
+          inputMode="numeric"
+          aria-label={`${label.replace(" °C", "")}-Temperatur`}
+          value={draft ?? value}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") (e.target as HTMLInputElement).blur();
+            if (e.key === "Escape") setDraft(null);
+          }}
+        />
+        <span className="sp-unit">°C</span>
+      </span>
+    </div>
+  );
+}
+
+const BED_TYPES = [
+  { value: "Cool Plate", label: "Glatte PEI-Platte" },
+  { value: "Textured PEI Plate", label: "Texturierte PEI-Platte" },
+  { value: "High Temp Plate", label: "Hochtemperatur-Platte" },
+  { value: "Engineering Plate", label: "Engineering-Platte" },
+  { value: "Textured Cool Plate", label: "Texturierte Cool Plate" },
+  { value: "Supertack Plate", label: "Supertack-Platte" },
+];
+
+function CutPanel({ plate, onError }: { plate: Plate; onError: (m: string | null) => void }) {
+  const height = plate.selectedHeight();
+  const [h, setH] = useState(() => Math.round((height / 2) * 10) / 10);
+  const [keep, setKeep] = useState<"both" | "upper" | "lower">("both");
+  const [flip, setFlip] = useState(true);
+  useEffect(() => plate.setCutHeight(h), [h, plate]);
+  return (
+    <div className="tool-panel card">
+      <span className="label">Schneiden</span>
+      <div className="cut-row">
+        <input type="range" min={0.2} max={Math.max(0.2, height - 0.2)} step={0.1} value={h} onChange={(e) => setH(Number(e.target.value))} aria-label="Schnitthöhe" />
+        <span className="sp-num">
+          <input
+            className="input num"
+            value={String(h).replace(".", ",")}
+            onChange={(e) => {
+              const v = Number(e.target.value.replace(",", "."));
+              if (Number.isFinite(v)) setH(Math.min(Math.max(v, 0.2), height - 0.2));
+            }}
+            aria-label="Schnitthöhe in mm"
+          />
+          <span className="sp-unit">mm</span>
+        </span>
+      </div>
+      <div className="seg" role="radiogroup" aria-label="Behalten">
+        {(
+          [
+            ["both", "Beide Teile"],
+            ["upper", "Nur oben"],
+            ["lower", "Nur unten"],
+          ] as const
+        ).map(([v, l]) => (
+          <button key={v} role="radio" aria-checked={keep === v} className={keep === v ? "on" : ""} onClick={() => setKeep(v)}>
+            {l}
+          </button>
+        ))}
+      </div>
+      <label className="op-uniform">
+        <input type="checkbox" checked={flip} onChange={(e) => setFlip(e.target.checked)} disabled={keep === "lower"} /> Oberes Teil umdrehen (Schnittfläche aufs Bett)
+      </label>
+      <button
+        className="btn primary"
+        onClick={() => {
+          onError(plate.cut(keep, flip));
+        }}
+      >
+        <Scissors size={16} /> Schneiden
+      </button>
+    </div>
+  );
+}
+
+function PrintDialog(props: {
+  result: SliceResult;
+  printerName: string;
+  host: string | null;
+  connected: boolean;
+  busy: boolean;
+  onClose: () => void;
+  onStarted: () => void;
+  go: (v: ViewId) => void;
+}) {
+  const [plateFree, setPlateFree] = useState(false);
+  const [state, setState] = useState<{ kind: "idle" } | { kind: "uploading"; pct: number; start: boolean } | { kind: "done"; start: boolean; name: string } | { kind: "error"; msg: string }>({ kind: "idle" });
+
+  useEffect(() => {
+    let off: (() => void) | undefined;
+    void onUploadProgress((pct) => setState((s) => (s.kind === "uploading" ? { ...s, pct } : s))).then((f) => (off = f));
+    return () => off?.();
+  }, []);
+
+  useEffect(() => {
+    if (state.kind === "done" && state.start) {
+      const t = setTimeout(props.onStarted, 1200);
+      return () => clearTimeout(t);
+    }
+  }, [state, props.onStarted]);
+
+  const send = async (start: boolean) => {
+    setState({ kind: "uploading", pct: 0, start });
+    try {
+      const name = await printerSend(props.result.gcodePath, start);
+      setState({ kind: "done", start, name });
+    } catch (e) {
+      setState({ kind: "error", msg: typeof e === "string" ? e : "Senden fehlgeschlagen." });
+    }
+  };
+
+  const working = state.kind === "uploading";
+  const blocker = !props.host
+    ? "Keine Drucker-IP eingetragen."
+    : !props.connected
+      ? "Der Drucker ist gerade nicht verbunden."
+      : props.busy
+        ? "Der Drucker druckt gerade. Bitte warten, bis der aktuelle Druck fertig ist."
+        : null;
+
+  return (
+    <div className="modal-backdrop" onMouseDown={(e) => e.target === e.currentTarget && !working && props.onClose()}>
+      <div className="modal card" role="dialog" aria-modal="true" aria-labelledby="print-title">
+        <div className="modal-head">
+          <span id="print-title" style={{ fontWeight: 600 }}>
+            An Drucker senden
+          </span>
+          <button className="sp-reset" aria-label="Schließen" onClick={props.onClose} disabled={working}>
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="modal-facts">
+          <div>
+            <span className="label">Datei</span>
+            <span className="file-name" title={props.result.fileName}>
+              {props.result.fileName}
+            </span>
+          </div>
+          <div>
+            <span className="label">Drucker</span>
+            <span>
+              {props.printerName}
+              {props.host && <span className="muted num"> · {props.host}</span>}
+            </span>
+          </div>
+          <div>
+            <span className="label">Druckzeit</span>
+            <span className="num">{fmtDuration(props.result.timeS)}</span>
+          </div>
+          <div>
+            <span className="label">Filament</span>
+            <span className="num">{props.result.filamentG != null ? `${fmtNum(props.result.filamentG, 1)} g` : "–"}</span>
+          </div>
+        </div>
+
+        {state.kind === "uploading" && (
+          <div className="modal-progress">
+            <div className="bar">
+              <i style={{ width: `${state.pct}%` }} />
+            </div>
+            <span className="small muted num">
+              {state.pct < 100 ? `Übertrage … ${state.pct} %` : state.start ? "Starte Druck …" : "Abschließen …"}
+            </span>
+          </div>
+        )}
+        {state.kind === "done" && (
+          <div className="modal-ok">
+            <Check size={16} /> {state.start ? "Druck gestartet – zum Dashboard …" : `Auf dem Drucker gespeichert als „${state.name}“.`}
+          </div>
+        )}
+        {state.kind === "error" && (
+          <div className="result error">
+            <AlertTriangle size={16} />
+            <span>{state.msg}</span>
+          </div>
+        )}
+        {blocker && state.kind !== "done" && (
+          <div className="result error" style={{ color: "var(--warning)", borderColor: "rgba(224,164,58,0.35)", background: "rgba(224,164,58,0.08)" }}>
+            <AlertTriangle size={16} />
+            <span>
+              {blocker}{" "}
+              {!props.host && (
+                <button className="link" onClick={() => props.go("settings")}>
+                  Zu den Einstellungen
+                </button>
+              )}
+            </span>
+          </div>
+        )}
+
+        {state.kind !== "done" && (
+          <>
+            <label className="op-uniform plate-check">
+              <input type="checkbox" checked={plateFree} onChange={(e) => setPlateFree(e.target.checked)} disabled={working} />
+              Die Druckplatte ist frei und sauber.
+            </label>
+            <div className="modal-actions">
+              <button className="btn ghost" onClick={props.onClose} disabled={working}>
+                Abbrechen
+              </button>
+              <button className="btn" onClick={() => void send(false)} disabled={working || !props.host || !props.connected}>
+                <Upload size={16} /> Nur hochladen
+              </button>
+              <button className="btn primary" onClick={() => void send(true)} disabled={working || !!blocker || !plateFree}>
+                <Send size={16} /> Hochladen & drucken
+              </button>
+            </div>
+          </>
+        )}
+        {state.kind === "done" && !state.start && (
+          <div className="modal-actions">
+            <button className="btn primary" onClick={props.onClose}>
+              Fertig
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }
 
 function ToolBtn({ icon: Icon, label, on, onClick, disabled }: { icon: typeof Move3d; label: string; on?: boolean; onClick: () => void; disabled?: boolean }) {
   return (
-    <button className={`tool-btn ${on ? "on" : ""}`} onClick={onClick} disabled={disabled} aria-label={label} title={label} aria-pressed={on}>
-      <Icon size={16} strokeWidth={1.75} />
+    <button className={`tool-btn ${on ? "on" : ""}`} onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={on}>
+      <Icon size={18} strokeWidth={1.75} />
+      <span className="tip">{label}</span>
     </button>
   );
 }
