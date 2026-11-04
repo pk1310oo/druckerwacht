@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1024" height="1024" viewBox="100 100 824 824">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#232323"/><stop offset="1" stop-color="#121212"/>
+    </linearGradient>
+  </defs>
+  <rect x="100" y="100" width="824" height="824" rx="190" fill="#1A1A1A" stroke="#2A2A2A" stroke-width="16"/>
+  <!-- Düse -->
+  <path d="M432 250 h160 v70 l-40 60 h-80 l-40 -60 z" fill="#F5F4EF"/>
+  <rect x="496" y="380" width="32" height="44" rx="8" fill="#F5F4EF"/>
+  <!-- gedruckte Schichten -->
+  <rect x="300" y="520" width="424" height="56" rx="28" fill="#D97757"/>
+  <rect x="300" y="604" width="424" height="56" rx="28" fill="#D97757" opacity="0.75"/>
+  <rect x="300" y="688" width="424" height="56" rx="28" fill="#D97757" opacity="0.5"/>
+</svg>
