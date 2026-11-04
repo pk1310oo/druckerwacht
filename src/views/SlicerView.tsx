@@ -10,6 +10,7 @@ import {
   Ruler,
   Scaling,
   Scissors,
+  SquareDashedMousePointer,
   Thermometer,
   Wand2,
   Download,
@@ -98,6 +99,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   const printerName = useStore((st) => st.settings.printerName);
   const [models, setModels] = useState<ModelInfo[]>(() => plate.list());
   const [selected, setSelected] = useState<number | null>(() => plate.selectedId());
+  const [selectedIds, setSelectedIds] = useState<number[]>(() => plate.selectedIds());
   const [tool, setToolState] = useState<Tool>(() => plate.getTool());
   const [info, setInfo] = useState<SlicerInfo | null>(null);
   const [presets, setPresets] = useState<Presets | null>(null);
@@ -121,6 +123,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
     const off = plate.onChange(() => {
       setModels(plate.list());
       setSelected(plate.selectedId());
+      setSelectedIds(plate.selectedIds());
       setToolState(plate.getTool());
     });
     return () => {
@@ -330,7 +333,9 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest("input, select, textarea")) return;
-      if (e.key === "Delete" || e.key === "Backspace") plate.remove();
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") plate.selectAll();
+      else if (e.key === "Delete" || e.key === "Backspace") plate.remove();
+      else if (e.key === "v") plate.setTool("select");
       else if (e.key === "m" || e.key === "g") plate.setTool("move");
       else if (e.key === "r") plate.setTool("rotate");
       else if (e.key === "f") plate.setTool("layflat");
@@ -434,15 +439,16 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           <div className="plate-tools card" role="toolbar" aria-label="Werkzeuge">
             <ToolBtn icon={Plus} label="Hinzufügen" onClick={() => void openDialog()} />
             <span className="tb-sep" />
-            <ToolBtn icon={Wand2} label="Automatisch ausrichten" onClick={() => plate.autoOrient()} disabled={!sel || !!preview} />
+            <ToolBtn icon={SquareDashedMousePointer} label="Auswählen – Rechteck ziehen (V)" on={tool === "select" && !preview} onClick={() => setTool("select")} />
+            <ToolBtn icon={Wand2} label="Automatisch ausrichten" onClick={() => plate.autoOrient()} disabled={!selectedIds.length || !!preview} />
             <ToolBtn icon={LayoutGrid} label="Anordnen (A)" onClick={() => plate.arrange()} disabled={!models.length || !!preview} />
             <span className="tb-sep" />
             <ToolBtn icon={Move3d} label="Verschieben (M)" on={tool === "move" && !preview} onClick={() => setTool("move")} />
             <ToolBtn icon={RotateCw} label="Drehen (R)" on={tool === "rotate" && !preview} onClick={() => setTool("rotate")} />
             <ToolBtn icon={Scaling} label="Skalieren (S)" on={tool === "scale" && !preview} onClick={() => setTool("scale")} />
             <span className="tool-wrap">
-              <ToolBtn icon={FlipHorizontal2} label="Spiegeln" on={mirrorOpen} onClick={() => setMirrorOpen((o) => !o)} disabled={!sel || !!preview} />
-              {mirrorOpen && sel && (
+              <ToolBtn icon={FlipHorizontal2} label="Spiegeln" on={mirrorOpen} onClick={() => setMirrorOpen((o) => !o)} disabled={!selectedIds.length || !!preview} />
+              {mirrorOpen && selectedIds.length > 0 && (
                 <span className="tool-menu card">
                   {(["X", "Y", "Z"] as const).map((a, i) => (
                     <button
@@ -463,8 +469,8 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
             <ToolBtn icon={Scissors} label="Schneiden (C)" on={tool === "cut" && !preview} onClick={() => setTool("cut")} disabled={!sel} />
             <ToolBtn icon={Ruler} label="Messen" on={tool === "measure" && !preview} onClick={() => setTool("measure")} />
             <span className="tb-sep" />
-            <ToolBtn icon={Copy} label="Duplizieren" onClick={() => plate.duplicate()} disabled={!sel || !!preview} />
-            <ToolBtn icon={Trash2} label="Löschen (Entf)" onClick={() => plate.remove()} disabled={!sel || !!preview} />
+            <ToolBtn icon={Copy} label="Duplizieren" onClick={() => plate.duplicate()} disabled={!selectedIds.length || !!preview} />
+            <ToolBtn icon={Trash2} label="Löschen (Entf)" onClick={() => plate.remove()} disabled={!selectedIds.length || !!preview} />
           </div>
 
           <div className="view-tools card">
@@ -529,6 +535,10 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
             </div>
           )}
           {sel && !preview && tool !== "cut" && tool !== "measure" && <ObjectPanel m={sel} plate={plate} />}
+          {selectedIds.length > 1 && !preview && tool !== "measure" && <GroupPanel count={selectedIds.length} plate={plate} />}
+          {tool === "select" && !preview && selectedIds.length <= 1 && (
+            <div className="hint-chip">Rechteck aufziehen, um mehrere Teile zu wählen · Ansicht drehen mit rechter Maustaste</div>
+          )}
 
           {preview && (
             <>
@@ -720,6 +730,65 @@ const BED_TYPES = [
   { value: "Textured Cool Plate", label: "Texturierte Cool Plate" },
   { value: "Supertack Plate", label: "Supertack-Platte" },
 ];
+
+/** Gemeinsame Bearbeitung mehrerer ausgewählter Teile */
+function GroupPanel({ count, plate }: { count: number; plate: Plate }) {
+  const size = plate.selectionSize();
+  const [pct, setPct] = useState<string | null>(null);
+  const apply = () => {
+    if (pct == null) return;
+    const v = Number(pct.replace(",", "."));
+    if (Number.isFinite(v) && v > 0 && v !== 100) plate.scaleSelection(v / 100);
+    setPct(null);
+  };
+  return (
+    <div className="object-panel card">
+      <div className="op-head">
+        <span className="file-name">{count} Teile ausgewählt</span>
+        {size && (
+          <span className="small muted num">
+            {fmtNum(size[0], 1)} × {fmtNum(size[1], 1)} × {fmtNum(size[2], 1)} mm
+          </span>
+        )}
+      </div>
+      <div className="group-row">
+        <span className="label">Skalieren</span>
+        <span className="sp-num">
+          <input
+            className="input num"
+            aria-label="Auswahl skalieren in Prozent"
+            value={pct ?? "100"}
+            onChange={(e) => setPct(e.target.value)}
+            onBlur={apply}
+            onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}
+          />
+          <span className="sp-unit">%</span>
+        </span>
+        <span className="group-quick">
+          {[50, 75, 150, 200].map((v) => (
+            <button key={v} className="btn sm ghost num" onClick={() => plate.scaleSelection(v / 100)}>
+              {v} %
+            </button>
+          ))}
+        </span>
+      </div>
+      <div className="group-row">
+        <button className="btn sm" onClick={() => plate.arrange()}>
+          <LayoutGrid size={14} /> Anordnen
+        </button>
+        <button className="btn sm" onClick={() => plate.duplicate()}>
+          <Copy size={14} /> Duplizieren
+        </button>
+        <button className="btn sm" onClick={() => plate.remove()}>
+          <Trash2 size={14} /> Löschen
+        </button>
+      </div>
+      <p className="hint" style={{ margin: 0 }}>
+        Am Griff ziehen bewegt, dreht oder skaliert alle gemeinsam. Shift/Strg-Klick nimmt Teile hinzu oder heraus.
+      </p>
+    </div>
+  );
+}
 
 function CutPanel({ plate, onError }: { plate: Plate; onError: (m: string | null) => void }) {
   const height = plate.selectedHeight();

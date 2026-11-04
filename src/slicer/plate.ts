@@ -39,7 +39,7 @@ export interface ModelInfo {
   outside: boolean;
 }
 
-export type Tool = "move" | "rotate" | "scale" | "layflat" | "cut" | "measure" | null;
+export type Tool = "select" | "move" | "rotate" | "scale" | "layflat" | "cut" | "measure" | null;
 
 export interface Measure {
   points: THREE.Vector3[];
@@ -54,7 +54,16 @@ export class Plate {
   readonly orbit: OrbitControls;
   readonly gizmo: TransformControls;
   private models: THREE.Mesh[] = [];
-  private selected: THREE.Mesh | null = null;
+  /** Alle ausgewählten Modelle (Mehrfachauswahl per Rechteck oder Shift/Strg-Klick) */
+  private selection = new Set<THREE.Mesh>();
+  /** Das eine ausgewählte Modell – null bei keiner oder mehreren Auswahlen */
+  private get selected(): THREE.Mesh | null {
+    return this.selection.size === 1 ? [...this.selection][0] : null;
+  }
+  /** Drehpunkt für gemeinsames Verschieben/Drehen/Skalieren mehrerer Modelle */
+  private pivot = new THREE.Object3D();
+  private pivotStart = new THREE.Matrix4();
+  private groupStart = new Map<THREE.Mesh, THREE.Matrix4>();
   private nextId = 1;
   private tool: Tool = "move";
   private raf = 0;
@@ -89,20 +98,33 @@ export class Plate {
     this.gizmo = new TransformControls(this.camera, this.renderer.domElement);
     this.gizmo.setSize(0.8);
     this.gizmo.addEventListener("dragging-changed", (e) => {
-      this.orbit.enabled = !(e as unknown as { value: boolean }).value;
-      if (!(e as unknown as { value: boolean }).value) {
-        if (this.selected) this.dropToBed(this.selected);
+      const dragging = (e as unknown as { value: boolean }).value;
+      this.orbit.enabled = !dragging;
+      if (dragging && this.gizmo.object === this.pivot) {
+        this.pivot.updateMatrixWorld(true);
+        this.pivotStart.copy(this.pivot.matrixWorld).invert();
+        this.groupStart.clear();
+        for (const m of this.selection) {
+          m.updateMatrixWorld(true);
+          this.groupStart.set(m, m.matrixWorld.clone());
+        }
+      }
+      if (!dragging) {
+        for (const m of this.selection) this.dropToBed(m);
+        this.placePivot();
         this.emit();
       }
     });
     this.gizmo.addEventListener("objectChange", () => {
-      if (this.selected && this.gizmo.getMode() === "translate") this.selected.position.z = this.zOffset(this.selected);
+      if (this.gizmo.object === this.pivot) this.applyGroupTransform();
+      else if (this.selected && this.gizmo.getMode() === "translate") this.selected.position.z = this.zOffset(this.selected);
       this.updateColors();
       this.invalidate();
       this.emit();
     });
     this.gizmo.addEventListener("change", () => this.invalidate());
     this.scene.add(this.gizmo.getHelper());
+    this.scene.add(this.pivot);
 
     this.buildBed();
     this.scene.add(this.modelGroup);
@@ -122,7 +144,8 @@ export class Plate {
     this.scene.add(rim);
 
     this.ro = new ResizeObserver(() => this.resize());
-    this.renderer.domElement.addEventListener("pointerdown", this.onPointerDown);
+    // Vor OrbitControls ausführen (Capture), damit das Auswahlrechteck die Ansicht nicht dreht
+    this.renderer.domElement.addEventListener("pointerdown", this.onPointerDown, { capture: true });
     this.renderer.domElement.addEventListener("pointerup", this.onPointerUp);
     this.loop();
   }
@@ -310,19 +333,77 @@ export class Plate {
   }
 
   private syncGizmo() {
-    if (this.selected && (this.tool === "move" || this.tool === "rotate" || this.tool === "scale") && !this.preview) {
-      this.gizmo.attach(this.selected);
-      this.gizmo.setMode(this.tool === "move" ? "translate" : this.tool === "rotate" ? "rotate" : "scale");
-      this.gizmo.showZ = this.tool !== "move";
-      this.gizmo.setSpace(this.tool === "scale" ? "local" : "world");
+    const transformTool = this.tool === "select" || this.tool === "move" || this.tool === "rotate" || this.tool === "scale";
+    if (this.selection.size && transformTool && !this.preview) {
+      const group = this.selection.size > 1;
+      if (group) this.placePivot();
+      this.gizmo.attach(group ? this.pivot : this.selected!);
+      this.gizmo.setMode(this.tool === "rotate" ? "rotate" : this.tool === "scale" ? "scale" : "translate");
+      this.gizmo.showZ = this.tool === "rotate" || this.tool === "scale";
+      this.gizmo.setSpace(this.tool === "scale" && !group ? "local" : "world");
     } else {
       this.gizmo.detach();
     }
+    // Im Auswahl-Werkzeug zieht die linke Maustaste ein Rechteck auf; gedreht wird mit rechts
+    this.orbit.mouseButtons =
+      this.tool === "select"
+        ? { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE }
+        : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
     this.invalidate();
   }
 
-  select(mesh: THREE.Mesh | null) {
-    this.selected = mesh;
+  /** Drehpunkt in die Mitte der Auswahl (auf Bettebene) setzen. */
+  private placePivot() {
+    const box = new THREE.Box3();
+    for (const m of this.selection) box.expandByObject(m, true);
+    if (box.isEmpty()) return;
+    const c = box.getCenter(new THREE.Vector3());
+    this.pivot.position.set(c.x, c.y, 0);
+    this.pivot.quaternion.identity();
+    this.pivot.scale.set(1, 1, 1);
+    this.pivot.updateMatrixWorld(true);
+  }
+
+  /** Überträgt die Bewegung des Drehpunkts auf alle ausgewählten Modelle. */
+  private applyGroupTransform() {
+    if (this.gizmo.getMode() === "scale") {
+      // Gruppen nur gleichmäßig skalieren (sonst verzerren gedrehte Teile)
+      const s = this.pivot.scale;
+      const f = [s.x, s.y, s.z].reduce((a, v) => (Math.abs(v - 1) > Math.abs(a - 1) ? v : a), 1);
+      s.setScalar(Math.max(0.01, f));
+    }
+    this.pivot.updateMatrixWorld(true);
+    const delta = this.pivot.matrixWorld.clone().multiply(this.pivotStart);
+    for (const [m, start] of this.groupStart) {
+      const mw = delta.clone().multiply(start);
+      mw.decompose(m.position, m.quaternion, m.scale);
+      if (this.gizmo.getMode() === "translate") m.position.z = this.zOffset(m);
+      m.updateMatrixWorld(true);
+    }
+  }
+
+  /** Auswahl ändern: ersetzen (Standard), hinzufügen oder umschalten. */
+  select(mesh: THREE.Mesh | null, mode: "replace" | "add" | "toggle" = "replace") {
+    if (mode === "replace") this.selection.clear();
+    if (mesh) {
+      if (mode === "toggle" && this.selection.has(mesh)) this.selection.delete(mesh);
+      else this.selection.add(mesh);
+    }
+    this.afterSelect();
+  }
+
+  selectMany(meshes: THREE.Mesh[], add: boolean) {
+    if (!add) this.selection.clear();
+    meshes.forEach((m) => this.selection.add(m));
+    this.afterSelect();
+  }
+
+  selectAll() {
+    this.selectMany(this.models, false);
+  }
+
+  private afterSelect() {
+    this.updateCutPlane();
     this.syncGizmo();
     this.updateColors();
     this.emit();
@@ -332,16 +413,103 @@ export class Plate {
     this.select(this.models.find((m) => m.userData.id === id) ?? null);
   }
 
+  /** Id des einen ausgewählten Modells (null bei keiner oder Mehrfachauswahl) */
   selectedId(): number | null {
     return this.selected?.userData.id ?? null;
   }
 
+  selectedIds(): number[] {
+    return [...this.selection].map((m) => m.userData.id);
+  }
+
+  /** Abmessungen der gesamten Auswahl */
+  selectionSize(): [number, number, number] | null {
+    if (!this.selection.size) return null;
+    const box = new THREE.Box3();
+    for (const m of this.selection) box.expandByObject(m, true);
+    const s = box.getSize(new THREE.Vector3());
+    return [s.x, s.y, s.z];
+  }
+
+  /** Auswahl gemeinsam um ihren Mittelpunkt skalieren (Faktor, z. B. 0.5 = halb so groß). */
+  scaleSelection(f: number) {
+    if (!this.selection.size || !(f > 0)) return;
+    this.placePivot();
+    const c = this.pivot.position;
+    for (const m of this.selection) {
+      m.position.x = c.x + (m.position.x - c.x) * f;
+      m.position.y = c.y + (m.position.y - c.y) * f;
+      m.scale.multiplyScalar(f);
+      this.dropToBed(m);
+    }
+    this.placePivot();
+    this.emit();
+  }
+
   private down = { x: 0, y: 0 };
+  private box: { el: HTMLDivElement; x: number; y: number; add: boolean } | null = null;
+
   private onPointerDown = (e: PointerEvent) => {
     this.down = { x: e.clientX, y: e.clientY };
+    if (e.button !== 0 || this.preview || !this.host) return;
+    if (this.tool !== "select" && !e.shiftKey) return;
+    if ((this.gizmo as unknown as { axis: string | null }).axis) return; // Griff des Gizmos
+    if (this.tool !== "select" && this.pick(e)) return; // Shift-Klick auf ein Modell = Auswahl umschalten
+    // Auswahlrechteck starten; die Ansicht bleibt dabei stehen
+    this.orbit.enabled = false;
+    const el = document.createElement("div");
+    el.className = "select-box";
+    this.host.appendChild(el);
+    this.box = { el, x: e.clientX, y: e.clientY, add: e.shiftKey || e.ctrlKey || e.metaKey };
+    window.addEventListener("pointermove", this.onBoxMove);
+    window.addEventListener("pointerup", this.onBoxUp, { once: true });
   };
+
+  private boxRect(e: PointerEvent) {
+    const b = this.box!;
+    return { x1: Math.min(b.x, e.clientX), y1: Math.min(b.y, e.clientY), x2: Math.max(b.x, e.clientX), y2: Math.max(b.y, e.clientY) };
+  }
+
+  private onBoxMove = (e: PointerEvent) => {
+    if (!this.box || !this.host) return;
+    const r = this.boxRect(e);
+    const h = this.host.getBoundingClientRect();
+    Object.assign(this.box.el.style, { left: `${r.x1 - h.left}px`, top: `${r.y1 - h.top}px`, width: `${r.x2 - r.x1}px`, height: `${r.y2 - r.y1}px` });
+  };
+
+  private onBoxUp = (e: PointerEvent) => {
+    window.removeEventListener("pointermove", this.onBoxMove);
+    const b = this.box;
+    this.box = null;
+    this.orbit.enabled = true;
+    if (!b) return;
+    b.el.remove();
+    const r = { x1: Math.min(b.x, e.clientX), y1: Math.min(b.y, e.clientY), x2: Math.max(b.x, e.clientX), y2: Math.max(b.y, e.clientY) };
+    if (r.x2 - r.x1 < 4 && r.y2 - r.y1 < 4) {
+      // nur geklickt: auf leere Fläche → Auswahl aufheben, sonst Modell wählen
+      const hit = this.pick(e);
+      if (hit) this.select(hit.object as THREE.Mesh, b.add ? "toggle" : "replace");
+      else if (!b.add) this.select(null);
+      return;
+    }
+    // Alle Modelle, deren Umriss auf dem Bildschirm das Rechteck berührt
+    const canvas = this.renderer.domElement.getBoundingClientRect();
+    const hits = this.models.filter((m) => {
+      const bb = new THREE.Box3().setFromObject(m, true);
+      let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity;
+      for (let i = 0; i < 8; i++) {
+        const p = new THREE.Vector3(i & 1 ? bb.max.x : bb.min.x, i & 2 ? bb.max.y : bb.min.y, i & 4 ? bb.max.z : bb.min.z).project(this.camera);
+        const sx = canvas.left + ((p.x + 1) / 2) * canvas.width;
+        const sy = canvas.top + ((1 - p.y) / 2) * canvas.height;
+        x1 = Math.min(x1, sx); y1 = Math.min(y1, sy); x2 = Math.max(x2, sx); y2 = Math.max(y2, sy);
+      }
+      return x2 >= r.x1 && x1 <= r.x2 && y2 >= r.y1 && y1 <= r.y2;
+    });
+    this.selectMany(hits, b.add);
+  };
+
   private onPointerUp = (e: PointerEvent) => {
-    if (e.button !== 0 || this.preview) return;
+    if (e.button !== 0 || this.preview || this.box) return;
     if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 4) return; // war ein Drehen der Ansicht
     if ((this.gizmo as unknown as { dragging: boolean }).dragging) return;
     if (this.tool === "measure") {
@@ -353,8 +521,9 @@ export class Plate {
       this.layFlat(hit.object as THREE.Mesh, hit.face.normal);
       return;
     }
-    if (hit) this.select(hit.object as THREE.Mesh);
-    else if (!(this.gizmo as unknown as { axis: string | null }).axis) this.select(null);
+    const multi = e.shiftKey || e.ctrlKey || e.metaKey;
+    if (hit) this.select(hit.object as THREE.Mesh, multi ? "toggle" : "replace");
+    else if (!multi && !(this.gizmo as unknown as { axis: string | null }).axis) this.select(null);
   };
 
   private pick(e: PointerEvent) {
@@ -380,10 +549,11 @@ export class Plate {
   // ------------------------------------------------------------------ Spiegeln, Ausrichten
 
   mirror(axis: 0 | 1 | 2) {
-    if (!this.selected) return;
-    const s = this.selected.scale;
-    s.setComponent(axis, -s.getComponent(axis));
-    this.dropToBed(this.selected);
+    for (const m of this.selection) {
+      m.scale.setComponent(axis, -m.scale.getComponent(axis));
+      this.dropToBed(m);
+    }
+    this.placePivot();
     this.emit();
   }
 
@@ -393,8 +563,12 @@ export class Plate {
    * und der kleinsten Überhangfläche.
    */
   autoOrient() {
-    const m = this.selected;
-    if (!m) return;
+    for (const m of [...this.selection]) this.autoOrientOne(m);
+    this.placePivot();
+    this.emit();
+  }
+
+  private autoOrientOne(m: THREE.Mesh) {
     m.updateMatrixWorld(true);
     const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry;
     const pos = g.attributes.position;
@@ -461,7 +635,6 @@ export class Plate {
     if (best) {
       m.quaternion.copy(best.q);
       this.dropToBed(m);
-      this.emit();
     }
   }
 
@@ -653,16 +826,18 @@ export class Plate {
     this.emit();
   }
 
+  /** Löscht das Modell mit `id` – ohne id alle ausgewählten. */
   remove(id?: number) {
-    const m = id != null ? this.models.find((x) => x.userData.id === id) : this.selected;
-    if (!m) return;
-    this.models = this.models.filter((x) => x !== m);
-    this.modelGroup.remove(m);
-    m.geometry.dispose();
-    (m.material as THREE.Material).dispose();
-    if (this.selected === m) this.select(null);
-    this.invalidate();
-    this.emit();
+    const list = id != null ? this.models.filter((x) => x.userData.id === id) : [...this.selection];
+    if (!list.length) return;
+    for (const m of list) {
+      this.models = this.models.filter((x) => x !== m);
+      this.modelGroup.remove(m);
+      m.geometry.dispose();
+      (m.material as THREE.Material).dispose();
+      this.selection.delete(m);
+    }
+    this.afterSelect();
   }
 
   clear() {
@@ -670,19 +845,22 @@ export class Plate {
   }
 
   duplicate() {
-    const m = this.selected;
-    if (!m) return;
-    const c = new THREE.Mesh(m.geometry.clone(), (m.material as THREE.Material).clone());
-    c.name = m.name;
-    c.castShadow = true;
-    c.userData.id = this.nextId++;
-    c.position.copy(m.position);
-    c.quaternion.copy(m.quaternion);
-    c.scale.copy(m.scale);
-    this.modelGroup.add(c);
-    this.models.push(c);
+    const copies: THREE.Mesh[] = [];
+    for (const m of this.selection) {
+      const c = new THREE.Mesh(m.geometry.clone(), (m.material as THREE.Material).clone());
+      c.name = m.name;
+      c.castShadow = true;
+      c.userData.id = this.nextId++;
+      c.position.copy(m.position);
+      c.quaternion.copy(m.quaternion);
+      c.scale.copy(m.scale);
+      this.modelGroup.add(c);
+      this.models.push(c);
+      copies.push(c);
+    }
+    if (!copies.length) return;
     this.arrange();
-    this.select(c);
+    this.selectMany(copies, false);
   }
 
   /** Einfache Regal-Anordnung, mittig auf dem Bett, 6 mm Abstand. */
@@ -727,7 +905,7 @@ export class Plate {
     for (const m of this.models) {
       const mat = m.material as THREE.MeshStandardMaterial;
       const outside = this.isOutside(m);
-      mat.color.setHex(outside ? COLOR.outside : m === this.selected ? COLOR.selected : COLOR.model);
+      mat.color.setHex(outside ? COLOR.outside : this.selection.has(m) ? COLOR.selected : COLOR.model);
     }
     this.invalidate();
   }

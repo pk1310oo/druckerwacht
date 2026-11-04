@@ -2116,3 +2116,46 @@ code.path {
   height: 36px;
   padding-left: 30px;
 }
+
+/* Auswahlrechteck und Gruppen-Panel */
+.select-box {
+  position: absolute;
+  z-index: 6;
+  border: 1px solid var(--accent);
+  border-radius: 2px;
+  background: rgba(217, 119, 87, 0.12);
+  pointer-events: none;
+}
+
+.group-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.group-row .sp-num .input {
+  width: 88px;
+  height: 32px;
+}
+
+.group-quick {
+  display: flex;
+  gap: 2px;
+}
+
+.hint-chip {
+  position: absolute;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(26, 26, 26, 0.94);
+  color: var(--text-2);
+  font-size: var(--fs-s);
+  white-space: nowrap;
+  pointer-events: none;
+  animation: fade-in 150ms var(--ease);
+}

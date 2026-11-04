@@ -109,7 +109,7 @@ npm install
 npm run tauri build -- --bundles dmg
 ```
 
-Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.3.0_aarch64.dmg`
+Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.3.1_aarch64.dmg`
 
 Die App ist nicht signiert. Beim ersten Start deshalb im Finder per **Rechtsklick → Öffnen** starten,
 oder das Quarantäne-Flag entfernen:
@@ -127,19 +127,19 @@ npm run tauri build -- --bundles deb appimage
 
 Ergebnisse:
 
-- `src-tauri/target/release/bundle/deb/Druckerwacht_0.3.0_amd64.deb`
-- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.3.0_amd64.AppImage`
+- `src-tauri/target/release/bundle/deb/Druckerwacht_0.3.1_amd64.deb`
+- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.3.1_amd64.AppImage`
 
 Installation:
 
 ```bash
-sudo apt install ./Druckerwacht_0.3.0_amd64.deb
+sudo apt install ./Druckerwacht_0.3.1_amd64.deb
 ```
 
 Die AppImage-Datei kann man stattdessen auch direkt ausführen:
 
 ```bash
-chmod +x Druckerwacht_0.3.0_amd64.AppImage && ./Druckerwacht_0.3.0_amd64.AppImage
+chmod +x Druckerwacht_0.3.1_amd64.AppImage && ./Druckerwacht_0.3.1_amd64.AppImage
 ```
 
 > Für den AppImage-Build lädt Tauri beim ersten Mal `linuxdeploy` von GitHub herunter. Dafür ist eine Internetverbindung nötig.
@@ -183,6 +183,7 @@ OrcaSlicer selbst muss man nie öffnen.
 
 | Werkzeug | Funktion |
 |---|---|
+| Auswählen (V) | Rechteck aufziehen, um mehrere Teile zu wählen (auch mit **Shift + Ziehen** in jedem Werkzeug). Shift/Strg/Cmd-Klick nimmt Teile hinzu oder heraus, **Strg/Cmd + A** wählt alle. Mehrere Teile lassen sich gemeinsam verschieben, drehen, gleichmäßig skalieren, spiegeln, duplizieren und löschen |
 | ＋ Hinzufügen | STL, OBJ oder 3MF laden. Dateien lassen sich auch ins Fenster ziehen |
 | Automatisch ausrichten | sucht die Lage mit der größten Auflagefläche und dem wenigsten Überhang |
 | Anordnen (A) | verteilt alle Modelle mittig auf der Platte |
