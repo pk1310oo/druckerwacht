@@ -4,3 +4,5 @@ src-tauri/target
 src-tauri/gen
 dist-out
 *.log
+scripts/video/cache/
+scripts/video/out/

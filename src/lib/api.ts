@@ -71,8 +71,11 @@ export async function clearJobs() {
   setState({ jobs: [] });
 }
 
+/** Nur Browser-Entwicklung: Demo-Drucker für Videoaufnahmen (siehe scripts/video/). In der App nie aktiv. */
+export const demo = () => (isTauri ? undefined : (window as unknown as { __dwDemo?: Record<string, (...a: never[]) => unknown> }).__dwDemo);
+
 export async function discoverPrinters(): Promise<FoundPrinter[]> {
-  if (!isTauri) return [];
+  if (!isTauri) return ((await demo()?.discover?.()) as FoundPrinter[] | undefined) ?? [];
   return invoke<FoundPrinter[]>("discover_printers");
 }
 
@@ -92,6 +95,7 @@ export function thumbnailUrl(fileName: string | null): string | null {
 export async function printerControl(action: "pause" | "resume" | "stop"): Promise<void> {
   if (!isTauri) {
     (window as unknown as { __dwLastControl: string }).__dwLastControl = action;
+    (demo()?.control as ((a: string) => void) | undefined)?.(action);
     return;
   }
   await invoke("printer_control", { action });

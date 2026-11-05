@@ -1,0 +1,263 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<title>Druckerwacht – Videoschnitt</title>
+<style>
+  @font-face { font-family: "Inter Display"; src: local("Inter Display SemiBold"), local("InterDisplay-SemiBold"); font-weight: 600; }
+  :root { --bg:#0F0F0F; --card:#1A1A1A; --line:#2A2A2A; --accent:#D97757; --accent-hi:#E68A6B; --fg:#F5F4EF; --muted:#A3A3A3; --ok:#4CAF7A; }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { overflow: hidden; background: var(--bg); color: var(--fg); font-family: "Inter", sans-serif; }
+  #stage { position: relative; overflow: hidden; background: var(--bg); }
+  .glow { position: absolute; border-radius: 50%; filter: blur(120px); opacity: .3; will-change: transform; }
+  .grid { position: absolute; inset: 0; opacity: .5;
+    background-image: linear-gradient(rgba(255,255,255,.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.035) 1px, transparent 1px);
+    background-size: 64px 64px; mask-image: radial-gradient(ellipse at 50% 40%, #000 30%, transparent 75%); }
+  .layer { position: absolute; inset: 0; opacity: 0; }
+  .screen { position: absolute; overflow: hidden; border-radius: 22px; border: 2px solid var(--line); background: #111;
+    box-shadow: 0 50px 120px -30px rgba(0,0,0,.9), 0 0 0 1px rgba(255,255,255,.03), 0 0 120px -40px rgba(217,119,87,.45); }
+  .screen video, .screen .shot { position: absolute; left: 0; top: 0; width: 1920px; height: 1080px; transform-origin: 0 0; }
+  .bar { position: absolute; left: 0; right: 0; top: 0; height: 34px; background: #151515; border-bottom: 1px solid var(--line); z-index: 2; display: flex; gap: 9px; align-items: center; padding-left: 16px; }
+  .bar i { width: 12px; height: 12px; border-radius: 50%; background: #3a3835; }
+  .cap { position: absolute; }
+  .kicker { display: inline-flex; align-items: center; gap: 12px; color: var(--accent-hi); font: 600 26px/1 "Inter"; letter-spacing: .14em; text-transform: uppercase; }
+  .kicker::before { content: ""; width: 34px; height: 3px; border-radius: 2px; background: var(--accent); }
+  .title { font: 700 68px/1.05 "Inter Display", "Inter"; letter-spacing: -.035em; margin-top: 18px; }
+  .title em { font-style: normal; color: var(--accent); }
+  .sub { color: var(--muted); font: 400 30px/1.4 "Inter"; margin-top: 18px; }
+  .center { text-align: center; }
+  .center .kicker { justify-content: center; }
+  .big { font: 700 150px/0.95 "Inter Display", "Inter"; letter-spacing: -.05em; }
+  .logo { display: block; margin: 0 auto; width: 150px; height: 150px; border-radius: 36px; box-shadow: 0 30px 80px -20px rgba(217,119,87,.6); }
+  .chips { display: flex; gap: 18px; justify-content: center; flex-wrap: wrap; }
+  .chip { padding: 16px 28px; border-radius: 999px; border: 2px solid rgba(217,119,87,.45); background: rgba(217,119,87,.08); color: var(--accent-hi); font: 600 30px/1 "Inter"; }
+  .chip.n { color: var(--fg); border-color: var(--line); background: var(--card); }
+  .url { color: var(--muted); font: 500 34px/1.3 "Inter"; }
+  .url b { color: var(--fg); font-weight: 600; }
+  .cta { display: inline-block; padding: 26px 52px; border-radius: 20px; background: var(--accent); color: #151515; font: 700 40px/1 "Inter"; }
+  .step { position: absolute; display: flex; align-items: center; gap: 22px; }
+  .step .num { width: 74px; height: 74px; border-radius: 22px; display: grid; place-items: center; background: var(--accent); color: #151515; font: 700 40px/1 "Inter"; }
+  .term { position: absolute; border-radius: 18px; border: 2px solid var(--line); background: #0b0b0b; overflow: hidden; box-shadow: 0 40px 100px -30px rgba(0,0,0,.9); }
+  .term .tb { height: 40px; background: #161616; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 9px; padding-left: 16px; color: var(--muted); font: 500 18px "Inter"; }
+  .term .tb i { width: 12px; height: 12px; border-radius: 50%; background: #3a3835; }
+  .term pre { padding: 28px 30px; font: 500 30px/1.6 "JetBrains Mono", "DejaVu Sans Mono", monospace; color: #dcdad3; white-space: pre-wrap; }
+  .term .p { color: var(--ok); }
+  .term .caret { display: inline-block; width: 14px; height: 32px; background: var(--accent-hi); vertical-align: -6px; }
+  .finder { position: absolute; border-radius: 18px; border: 2px solid var(--line); background: #1b1b1b; overflow: hidden; box-shadow: 0 40px 100px -30px rgba(0,0,0,.9); }
+  .finder .tb { height: 44px; background: #222; border-bottom: 1px solid var(--line); display: flex; align-items: center; gap: 9px; padding-left: 16px; color: var(--muted); font: 600 19px "Inter"; }
+  .finder .tb i { width: 12px; height: 12px; border-radius: 50%; background: #3a3835; }
+  .ficon { position: absolute; width: 170px; text-align: center; font: 500 22px/1.3 "Inter"; color: var(--fg); }
+  .ficon .im { width: 128px; height: 128px; margin: 0 auto 12px; border-radius: 30px; display: grid; place-items: center; }
+  .folder { background: linear-gradient(#5B8DEF, #3E6BCB); }
+  .arrow { position: absolute; height: 6px; border-radius: 3px; background: repeating-linear-gradient(90deg, var(--muted) 0 18px, transparent 18px 30px); }
+  .progress { position: absolute; left: 0; bottom: 0; height: 6px; background: var(--accent); }
+</style>
+</head>
+<body>
+<div id="stage"></div>
+<script>
+/*
+ * Zeitleiste: window.setup(cfg) baut die Szenen, window.render(t) zeichnet Zeitpunkt t (Sekunden).
+ * cfg = { w, h, logo, segments: [...] }, Segmente:
+ *   { type: "title", dur, kicker?, title, sub? }                         Intro/Zwischentitel
+ *   { type: "clip", src, from, dur, speed?, caps: [{t, dur, kicker, title, sub}], cam: [{t, x, y, z}] }
+ *   { type: "outro", dur, title, chips: [..], cta, url }
+ *   { type: "terminal", dur, step?, cmds: [..], title?, sub? }           Installations-Erklärung
+ *   { type: "finder", dur, step?, title?, sub? }                          Mac: in „Programme“ ziehen
+ */
+const clamp = (v, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+const ease = (t) => 1 - Math.pow(1 - clamp(t), 3);
+const inOut = (t) => { t = clamp(t); return t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2; };
+const el = (tag, cls, html) => { const e = document.createElement(tag); if (cls) e.className = cls; if (html != null) e.innerHTML = html; return e; };
+const XF = 0.45; // Überblendung in Sekunden
+
+let C, segs = [], total = 0, glows = [];
+
+window.setup = async (cfg) => {
+  C = cfg;
+  const stage = document.getElementById("stage");
+  Object.assign(stage.style, { width: cfg.w + "px", height: cfg.h + "px" });
+  document.documentElement.style.width = cfg.w + "px";
+  const portrait = cfg.h > cfg.w;
+  // Hintergrund
+  [["#D97757", .75, .2, 1], ["#B4553A", .2, .85, .8], ["#E68A6B", .9, .9, .5]].forEach(([c, x, y, s]) => {
+    const g = el("div", "glow");
+    const d = Math.max(cfg.w, cfg.h) * 0.55 * s;
+    Object.assign(g.style, { width: d + "px", height: d + "px", background: c, left: x * cfg.w - d / 2 + "px", top: y * cfg.h - d / 2 + "px" });
+    stage.appendChild(g); glows.push({ g, x, y });
+  });
+  stage.appendChild(el("div", "grid"));
+  let t0 = 0;
+  for (const s of cfg.segments) {
+    const L = el("div", "layer");
+    stage.appendChild(L);
+    s.layer = L; s.t0 = t0; t0 += s.dur;
+    if (s.type === "clip") buildClip(s, L, portrait);
+    else if (s.type === "title") buildTitle(s, L, portrait);
+    else if (s.type === "outro") buildOutro(s, L, portrait);
+    else if (s.type === "terminal") buildTerminal(s, L, portrait);
+    else if (s.type === "finder") buildFinder(s, L, portrait);
+    segs.push(s);
+  }
+  total = t0;
+  if (cfg.progress) { const p = el("div", "progress"); stage.appendChild(p); C.progressEl = p; }
+  // Videos laden
+  await Promise.all(segs.filter((s) => s.video).map((s) => new Promise((r) => {
+    if (s.video.readyState >= 2) return r();
+    s.video.addEventListener("loadeddata", r, { once: true });
+    s.video.addEventListener("error", () => r(), { once: true });
+  })));
+  return total;
+};
+
+function capBox(s, L, portrait) {
+  // Bildschirmfenster und Textbereich je nach Format
+  if (portrait) return { screen: { x: 40, y: 640, w: C.w - 80, h: 1040 }, cap: { x: 70, y: 210, w: C.w - 140 } };
+  return { screen: { x: 220, y: 212, w: 1480, h: 832 }, cap: { x: 220, y: 44, w: 1480 } };
+}
+
+function buildClip(s, L, portrait) {
+  const box = capBox(s, L, portrait);
+  const scr = el("div", "screen");
+  Object.assign(scr.style, { left: box.screen.x + "px", top: box.screen.y + "px", width: box.screen.w + "px", height: box.screen.h + "px" });
+  if (!portrait) scr.appendChild(el("div", "bar", "<i></i><i></i><i></i>"));
+  const v = document.createElement("video");
+  v.src = s.src; v.muted = true; v.preload = "auto";
+  scr.appendChild(v);
+  L.appendChild(scr);
+  s.video = v; s.scr = scr; s.box = box;
+  s.capEls = (s.caps || []).map((c) => {
+    const e = el("div", "cap" + (c.center ? " center" : ""));
+    Object.assign(e.style, { left: box.cap.x + "px", top: box.cap.y + "px", width: box.cap.w + "px" });
+    if (c.kicker) e.appendChild(el("div", "kicker", c.kicker));
+    e.appendChild(el("div", "title", c.title));
+    if (c.sub && portrait) e.appendChild(el("div", "sub", c.sub));
+    if (portrait) e.querySelector(".title").style.fontSize = "76px";
+    L.appendChild(e);
+    return e;
+  });
+}
+
+function buildTitle(s, L, portrait) {
+  const e = el("div", "cap center");
+  Object.assign(e.style, { left: "0", width: C.w + "px", top: (portrait ? 620 : 300) + "px" });
+  const img = el("img", "logo"); img.src = C.logo; e.appendChild(img);
+  if (s.kicker) { const k = el("div", "kicker", s.kicker); k.style.marginTop = "48px"; e.appendChild(k); }
+  const t = el("div", "big", s.title); t.style.marginTop = "28px"; if (portrait) t.style.fontSize = "120px"; e.appendChild(t);
+  if (s.sub) { const u = el("div", "sub", s.sub); u.style.fontSize = portrait ? "40px" : "38px"; u.style.padding = "0 80px"; e.appendChild(u); }
+  L.appendChild(e); s.box = e; s.logoEl = img;
+}
+
+function buildOutro(s, L, portrait) {
+  const e = el("div", "cap center");
+  Object.assign(e.style, { left: "0", width: C.w + "px", top: (portrait ? 480 : 170) + "px" });
+  const img = el("img", "logo"); img.src = C.logo; e.appendChild(img);
+  const t = el("div", "big", s.title); t.style.margin = "30px 0 40px"; if (portrait) t.style.fontSize = "112px"; e.appendChild(t);
+  const ch = el("div", "chips"); (s.chips || []).forEach((c, i) => ch.appendChild(el("span", "chip" + (i ? " n" : ""), c))); e.appendChild(ch);
+  const cta = el("div", "cta", s.cta); cta.style.marginTop = "56px"; e.appendChild(cta);
+  const u = el("div", "url", s.url); u.style.marginTop = "36px"; e.appendChild(u);
+  L.appendChild(e); s.box = e; s.ctaEl = cta; s.logoEl = img;
+}
+
+function stepHead(s, L, portrait, y) {
+  if (!s.step) return;
+  const h = el("div", "step", `<span class="num">${s.step}</span><div><div class="title" style="margin:0;font-size:${portrait ? 64 : 60}px">${s.title}</div>${s.sub ? `<div class="sub" style="margin-top:8px">${s.sub}</div>` : ""}</div>`);
+  Object.assign(h.style, { left: (portrait ? 70 : 300) + "px", top: y + "px", width: (portrait ? C.w - 140 : 1320) + "px" });
+  L.appendChild(h);
+}
+
+function buildTerminal(s, L, portrait) {
+  stepHead(s, L, portrait, portrait ? 260 : 90);
+  const t = el("div", "term");
+  Object.assign(t.style, portrait ? { left: "50px", top: "700px", width: C.w - 100 + "px", height: "620px" } : { left: "300px", top: "300px", width: "1320px", height: "560px" });
+  t.innerHTML = `<div class="tb"><i></i><i></i><i></i><span style="margin-left:14px">${s.os || "Terminal"}</span></div><pre></pre>`;
+  L.appendChild(t); s.pre = t.querySelector("pre");
+}
+
+function buildFinder(s, L, portrait) {
+  stepHead(s, L, portrait, portrait ? 260 : 90);
+  const f = el("div", "finder");
+  const W = portrait ? C.w - 100 : 1320, Hh = portrait ? 560 : 560;
+  Object.assign(f.style, { left: (portrait ? 50 : 300) + "px", top: (portrait ? 760 : 300) + "px", width: W + "px", height: Hh + "px" });
+  f.innerHTML = `<div class="tb"><i></i><i></i><i></i><span style="margin-left:14px">Druckerwacht</span></div>`;
+  const app = el("div", "ficon", `<div class="im"><img src="${C.logo}" style="width:128px;height:128px;border-radius:30px"></div>Druckerwacht`);
+  const dst = el("div", "ficon", `<div class="im folder"><svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="1.6"><path d="M12 3 4 7v10l8 4 8-4V7z"/><path d="M4 7l8 4 8-4M12 11v10"/></svg></div>${s.dest || "Programme"}`);
+  const ax = W * 0.2, bx = W * 0.8 - 170;
+  app.style.left = ax + "px"; app.style.top = "170px"; dst.style.left = bx + "px"; dst.style.top = "170px";
+  const arr = el("div", "arrow"); Object.assign(arr.style, { left: ax + 200 + "px", width: bx - ax - 230 + "px", top: "234px" });
+  f.append(arr, dst, app); L.appendChild(f);
+  s.app = app; s.ax = ax; s.bx = bx;
+}
+
+// ------------------------------------------------------------------ Zeichnen
+function camAt(cams, t) {
+  if (!cams || !cams.length) return { x: .5, y: .5, z: 1 };
+  let a = cams[0], b = cams[0];
+  for (const c of cams) { if (c.t <= t) a = c; if (c.t >= t) { b = c; break; } b = c; }
+  if (a === b || b.t === a.t) return a;
+  const k = inOut((t - a.t) / (b.t - a.t));
+  return { x: a.x + (b.x - a.x) * k, y: a.y + (b.y - a.y) * k, z: a.z + (b.z - a.z) * k };
+}
+
+window.render = async (t) => {
+  // Hintergrund bewegt sich langsam
+  glows.forEach((g, i) => { g.g.style.transform = `translate(${Math.sin(t * .25 + i * 2) * 60}px, ${Math.cos(t * .2 + i) * 50}px)`; });
+  const waits = [];
+  for (const s of segs) {
+    const lt = t - s.t0;
+    const vis = lt > -XF && lt < s.dur + XF;
+    s.layer.style.display = vis ? "block" : "none";
+    if (!vis) continue;
+    const fin = ease((lt + XF) / (XF * 2)), fout = 1 - clamp((lt - s.dur + XF) / (XF * 2));
+    const first = s === segs[0], last = s === segs[segs.length - 1];
+    s.layer.style.opacity = String(Math.min(first ? 1 : fin, last ? 1 : fout));
+    const k = clamp(lt / s.dur);
+    if (s.type === "clip") {
+      const vt = Math.min(s.from + Math.max(0, lt) * (s.speed || 1), s.video.duration - 0.05 || 1e9);
+      if (Math.abs(s.video.currentTime - vt) > 0.001) {
+        waits.push(new Promise((r) => { s.video.addEventListener("seeked", r, { once: true }); s.video.currentTime = vt; }));
+      }
+      const cam = camAt(s.cam, lt);
+      const b = s.box.screen, top = C.h > C.w ? 0 : 34, ah = b.h - top;
+      const sc = Math.max(b.w / 1920, ah / 1080) * cam.z;
+      let tx = b.w / 2 - cam.x * 1920 * sc, ty = top + ah / 2 - cam.y * 1080 * sc;
+      tx = Math.min(0, Math.max(b.w - 1920 * sc, tx)); ty = Math.min(top, Math.max(top + ah - 1080 * sc, ty));
+      s.video.style.transform = `translate(${tx}px, ${ty}px) scale(${sc})`;
+      // Fenster schwebt leicht
+      s.scr.style.transform = `translateY(${(1 - ease((lt + XF) / 1.1)) * 50}px) rotateX(0deg)`;
+      (s.caps || []).forEach((c, i) => {
+        const e = s.capEls[i], ct = lt - c.t;
+        const a = ease(ct / 0.5) * (1 - clamp((ct - c.dur + 0.35) / 0.35));
+        e.style.opacity = String(ct < 0 ? 0 : a);
+        e.style.transform = `translateY(${(1 - ease(ct / 0.6)) * 30}px)`;
+      });
+    } else if (s.type === "title" || s.type === "outro") {
+      s.box.style.transform = `translateY(${(1 - ease(lt / 0.8)) * 40}px)`;
+      s.logoEl.style.transform = `scale(${0.8 + 0.2 * ease(lt / 0.7)}) rotate(${(1 - ease(lt / 0.8)) * -8}deg)`;
+      if (s.ctaEl) s.ctaEl.style.transform = `scale(${1 + 0.035 * Math.sin(Math.max(0, lt - 1) * 4)})`;
+    } else if (s.type === "terminal") {
+      // Befehle werden getippt, Ausgaben erscheinen
+      const per = (s.dur - 1) / s.cmds.length; let html = "";
+      s.cmds.forEach((c, i) => {
+        const ct = lt - 0.5 - i * per; if (ct < 0) return;
+        const typed = c.cmd.slice(0, Math.floor(clamp(ct / (per * 0.55)) * c.cmd.length));
+        html += `<span class="p">$</span> ${typed}`;
+        if (typed.length < c.cmd.length) html += `<span class="caret"></span>`;
+        else if (c.out && ct > per * 0.62) html += `\n<span style="color:#8a8a8a">${c.out}</span>`;
+        html += "\n";
+      });
+      s.pre.innerHTML = html;
+    } else if (s.type === "finder") {
+      const m = inOut((lt - 0.8) / 1.8);
+      s.app.style.left = s.ax + (s.bx - s.ax) * m + "px";
+      s.app.style.transform = `scale(${1 + 0.08 * Math.sin(Math.PI * m)})`;
+      s.app.style.opacity = String(1 - clamp((lt - 2.7) / 0.4) * 0.9);
+    }
+  }
+  if (C.progressEl) C.progressEl.style.width = (t / total) * 100 + "%";
+  await Promise.all(waits);
+  await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));
+};
+</script>
+</body>
+</html>

@@ -1039,12 +1039,19 @@ function PrintDialog(props: {
     if (state.kind !== "done" || !state.start) return;
     if (props.busy) {
       setStartConfirmed(true);
-      const t = setTimeout(props.onStarted, 1200);
-      return () => clearTimeout(t);
+      return;
     }
-    const t = setTimeout(() => setStartTimeout(true), 45_000);
-    return () => clearTimeout(t);
-  }, [state, props.busy, props.onStarted]);
+    const timer = setTimeout(() => setStartTimeout(true), 45_000);
+    return () => clearTimeout(timer);
+  }, [state, props.busy]);
+  // Nach bestätigtem Start zum Dashboard – unabhängig von weiteren Statusmeldungen
+  const onStarted = useRef(props.onStarted);
+  onStarted.current = props.onStarted;
+  useEffect(() => {
+    if (!startConfirmed) return;
+    const timer = setTimeout(() => onStarted.current(), 1200);
+    return () => clearTimeout(timer);
+  }, [startConfirmed]);
 
   const send = async (start: boolean) => {
     setState({ kind: "uploading", pct: 0, start });

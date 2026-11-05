@@ -1,6 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
-import { isTauri } from "../lib/api";
+import { demo, isTauri } from "../lib/api";
 import type { Preset } from "./settings";
 import { t } from "../lib/i18n";
 
@@ -76,6 +76,8 @@ export async function slice(job: {
   if (!isTauri) {
     // Browser-Entwicklung: Auftrag zur Kontrolle ablegen statt zu slicen
     (window as unknown as { __dwLastJob: unknown }).__dwLastJob = job;
+    const d = demo()?.slice as ((j: unknown) => Promise<SliceResult>) | undefined;
+    if (d) return d(job);
     throw t("Slicen ist nur in der App möglich.");
   }
   return invoke<SliceResult>("slicer_slice", { job });
@@ -86,6 +88,8 @@ export async function cancelSlice() {
 }
 
 export async function readGcode(path: string): Promise<string> {
+  const d = demo()?.gcode as ((p: string) => Promise<string>) | undefined;
+  if (d) return d(path);
   return invoke<string>("read_gcode", { path });
 }
 
@@ -113,8 +117,15 @@ export async function saveGcodeAs(from: string, suggested: string): Promise<bool
   return true;
 }
 
+/** Browser-Demo: Fortschritt kommt als DOM-Ereignis */
+function demoEvents(name: string, fn: (pct: number) => void) {
+  const h = (e: Event) => fn((e as CustomEvent<number>).detail);
+  window.addEventListener(name, h);
+  return () => window.removeEventListener(name, h);
+}
+
 export async function onSliceProgress(fn: (pct: number) => void) {
-  if (!isTauri) return () => {};
+  if (!isTauri) return demoEvents("dw-demo-slice", fn);
   return listen<number>("slicer://progress", (e) => fn(e.payload));
 }
 
@@ -135,12 +146,16 @@ export async function onFileDrop(fn: (paths: string[]) => void, hover: (on: bool
 
 /** G-Code an den Drucker senden; mit `start` wird der Druck sofort gestartet. Liefert den Dateinamen am Drucker. */
 export async function printerSend(path: string, start: boolean): Promise<string> {
-  if (!isTauri) throw t("Drucken ist nur in der App möglich.");
+  if (!isTauri) {
+    const d = demo()?.send as ((p: string, s: boolean) => Promise<string>) | undefined;
+    if (d) return d(path, start);
+    throw t("Drucken ist nur in der App möglich.");
+  }
   return invoke<string>("printer_send", { path, start });
 }
 
 export async function onUploadProgress(fn: (pct: number) => void) {
-  if (!isTauri) return () => {};
+  if (!isTauri) return demoEvents("dw-demo-upload", fn);
   return listen<number>("printer://upload", (e) => fn(e.payload));
 }
 

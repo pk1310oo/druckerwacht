@@ -3,7 +3,7 @@
  * Wird nie in die App gebaut und nie verwendet, wenn die App in Tauri läuft.
  * Die Werte sind erfunden und dienen ausschließlich dazu, Layout und Zustände zu prüfen.
  */
-import { setState } from "../lib/store";
+import { getState, pushSample, setState } from "../lib/store";
 import type { PrinterStatus, Sample } from "../lib/types";
 import { DEFAULT_SETTINGS } from "../lib/types";
 
@@ -58,6 +58,8 @@ function heating(): Sample[] {
 }
 
 export function installPreview() {
+  // Für Demo-Aufnahmen (scripts/video/): Zugriff auf den Zustand
+  (window as unknown as { __dwStore: unknown }).__dwStore = { getState, setState, pushSample };
   if (new URLSearchParams(location.search).has("orca")) (window as unknown as { __dwOrca: string }).__dwOrca = "/Applications/OrcaSlicer.app";
   const mode = new URLSearchParams(location.search).get("preview");
   if (!mode) return;
