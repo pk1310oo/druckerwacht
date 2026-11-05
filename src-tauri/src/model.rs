@@ -77,6 +77,8 @@ pub struct PrinterStatus {
     pub max_bed_temp: Option<f64>,
     /// Verbrauchtes Filament des aktuellen Drucks in mm
     pub used_material_mm: Option<f64>,
+    /// Position des Druckkopfs [X, Y, Z] in mm (aus `curPosition`, z. B. "X:110.00 Y:83.00 Z:1.24")
+    pub position: Option<[f64; 3]>,
 }
 
 /// Führt eine eingehende Nachricht in den bisherigen Zustand zusammen.
@@ -205,7 +207,24 @@ pub fn parse(map: &Map<String, Value>) -> PrinterStatus {
         max_nozzle_temp: num(map, &["maxNozzleTemp"]).filter(|t| *t > 0.0),
         max_bed_temp: num(map, &["maxBedTemp"]).filter(|t| *t > 0.0),
         used_material_mm: num(map, &["usedMaterialLength"]).filter(|m| *m > 0.0),
+        position: text(map, &["curPosition"]).and_then(|p| parse_position(&p)),
     }
+}
+
+/// "X:110.00 Y:83.00 Z:1.24" → [110.0, 83.0, 1.24]
+fn parse_position(s: &str) -> Option<[f64; 3]> {
+    let mut out = [None; 3];
+    for part in s.split_whitespace() {
+        let (k, v) = part.split_once(':')?;
+        let i = match k.trim().to_ascii_uppercase().as_str() {
+            "X" => 0,
+            "Y" => 1,
+            "Z" => 2,
+            _ => continue,
+        };
+        out[i] = v.trim().parse::<f64>().ok().filter(|f| f.is_finite());
+    }
+    Some([out[0]?, out[1]?, out[2]?])
 }
 
 /// Ein Eintrag aus dem Druckverlauf, den der Drucker selbst speichert (`historyList`).
@@ -308,6 +327,8 @@ mod tests {
         assert_eq!(s.fan_pct, Some(0.0));
         assert_eq!(s.max_nozzle_temp, Some(300.0));
         assert_eq!(s.max_bed_temp, Some(100.0));
+        assert_eq!(parse_position("X:110.00 Y:83.00 Z:1.24"), Some([110.0, 83.0, 1.24]));
+        assert_eq!(parse_position("kaputt"), None);
         assert_eq!(s.error_code, Some(0));
     }
 

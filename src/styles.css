@@ -9,9 +9,14 @@
   --card-hover: #1e1e1e;
   --line: #2a2a2a;
   --line-soft: #222222;
+  /* Akzentfarbe – wird von lib/theme.ts je nach gewähltem Farbthema überschrieben */
   --accent: #d97757;
   --accent-hover: #e68a6b;
-  --accent-soft: rgba(217, 119, 87, 0.12);
+  --accent-light: #ffd2bf;
+  --accent-deep: #b85e40;
+  --accent-rgb: 217 119 87;
+  --accent-deep-rgb: 140 61 38;
+  --accent-soft: rgb(var(--accent-rgb) / 0.12);
   --text: #f5f4ef;
   --text-2: #a3a3a3;
   --text-3: #6b6b6b;
@@ -1281,7 +1286,7 @@ code.path {
   place-items: center;
   border: 2px dashed var(--accent);
   border-radius: var(--radius);
-  background: rgba(217, 119, 87, 0.08);
+  background: rgb(var(--accent-rgb) / 0.08);
   color: var(--accent);
   font-weight: 600;
   pointer-events: none;
@@ -2125,7 +2130,7 @@ code.path {
   z-index: 6;
   border: 1px solid var(--accent);
   border-radius: 2px;
-  background: rgba(217, 119, 87, 0.12);
+  background: rgb(var(--accent-rgb) / 0.12);
   pointer-events: none;
 }
 
@@ -2284,7 +2289,7 @@ code.path {
   margin-left: 8px;
   padding: 0 8px;
   border-radius: 999px;
-  border: 1px solid rgba(217, 119, 87, 0.4);
+  border: 1px solid rgb(var(--accent-rgb) / 0.4);
   color: var(--accent);
   font-size: 12px;
   line-height: 20px;

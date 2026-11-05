@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Header, Sidebar, type ViewId } from "./components/Shell";
 import { Dashboard } from "./views/Dashboard";
 import { CameraView } from "./views/CameraView";
@@ -8,6 +8,8 @@ import { SlicerView } from "./views/SlicerView";
 import { useStore } from "./lib/store";
 import { resolveLang, setLang } from "./lib/i18n";
 import { setBackendLanguage } from "./lib/api";
+import { applyTheme, resolveTheme } from "./lib/theme";
+import { Intro } from "./components/Fx";
 
 export default function App() {
   const [view, setView] = useState<ViewId>("dashboard");
@@ -15,8 +17,10 @@ export default function App() {
   const hasCamera = useStore((s) => s.settings.cameraUrl.trim() !== "");
   const langSetting = useStore((s) => s.settings.language);
   const lang = resolveLang(langSetting);
-  // vor dem Rendern der Kinder setzen, damit t() sofort die richtige Sprache liefert
+  // vor dem Rendern der Kinder setzen, damit t() und die Farben sofort stimmen
   setLang(lang);
+  const theme = resolveTheme(useStore((s) => s.settings.accent));
+  applyTheme(theme);
   useEffect(() => {
     void setBackendLanguage(lang);
   }, [lang]);
@@ -26,16 +30,28 @@ export default function App() {
     if (view === "camera" && !hasCamera) setView("dashboard");
   }, [view, hasCamera]);
 
+  // Richtung des Ansichtswechsels (nach unten in der Seitenleiste → Inhalt gleitet von unten herein)
+  const order: ViewId[] = ["dashboard", "slicer", "camera", "history", "settings"];
+  const prevView = useRef(view);
+  const dir = order.indexOf(view) >= order.indexOf(prevView.current) ? "down" : "up";
+  useEffect(() => {
+    prevView.current = view;
+  }, [view]);
+
   return (
-    <div className="app" key={lang}>
+    <>
+    {/* außerhalb des neu aufgebauten Bereichs: läuft nur beim Start, nicht beim Farb-/Sprachwechsel */}
+    <Intro />
+    <div className="app" key={`${lang}-${theme}`}>
       <Sidebar view={view} onChange={setView} />
       <div className="main">
         <div className="ambient" aria-hidden>
           <i />
           <i />
+          <i />
         </div>
         <Header />
-        <main className={`content ${view === "slicer" ? "flush" : ""}`}>
+        <main className={`content ${view === "slicer" ? "flush" : ""}`} data-dir={dir} key={view}>
           {!ready ? null : view === "dashboard" ? (
             <Dashboard go={setView} />
           ) : view === "slicer" ? (
@@ -50,5 +66,6 @@ export default function App() {
         </main>
       </div>
     </div>
+    </>
   );
 }

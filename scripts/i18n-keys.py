@@ -23,6 +23,10 @@ for dp, _, fs in os.walk(root):
             keys |= set(re.findall(r'label: ' + STR, s))
         if f == "settings.ts":
             keys |= set(re.findall(r'(?:label|title): ' + STR, s))
+        if f == "SettingsView.tsx":
+            m = re.search(r'THEME_NAMES[^=]*= \{([^}]*)\}', s)
+            if m:
+                keys |= set(re.findall(r':\s*' + STR, m.group(1)))
         if f == "Shell.tsx":
             keys |= set(re.findall(r'label: ' + STR, s))
 keys = {json.loads('"' + k + '"') for k in keys}

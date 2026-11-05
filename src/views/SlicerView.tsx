@@ -67,6 +67,7 @@ import { EmptyState } from "../components/ui";
 import { useStore } from "../lib/store";
 import type { ViewId } from "../components/Shell";
 import { fmtDec, t } from "../lib/i18n";
+import { rememberSentPrint } from "../components/Printer3D";
 
 // Die Druckplatte lebt über Ansichtswechsel hinweg weiter (WebGL-Kontext, geladene Modelle).
 let plateSingleton: Plate | null = null;
@@ -1057,6 +1058,7 @@ function PrintDialog(props: {
     setState({ kind: "uploading", pct: 0, start });
     try {
       const name = await printerSend(props.result.gcodePath, start);
+      if (start) rememberSentPrint(name, props.result.gcodePath);
       setState({ kind: "done", start, name });
     } catch (e) {
       setState({ kind: "error", msg: typeof e === "string" ? e : t("Senden fehlgeschlagen.") });

@@ -1413,7 +1413,7 @@ function toBinaryStl(g: THREE.BufferGeometry): Uint8Array {
 }
 
 /** Druckfläche 220 × 220 mm: PEI-Körnung, dezentes Raster und die originalen KE-Markierungen. */
-function bedTopTexture(onReady: () => void): THREE.CanvasTexture {
+export function bedTopTexture(onReady: () => void): THREE.CanvasTexture {
   const ppm = 10; // Pixel pro Millimeter
   const c = document.createElement("canvas");
   c.width = c.height = 220 * ppm;

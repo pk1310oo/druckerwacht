@@ -6,8 +6,11 @@ import { connectionLabel } from "../lib/format";
 import type { FoundPrinter, Settings } from "../lib/types";
 import { Card, Segmented, Switch } from "../components/ui";
 import { t } from "../lib/i18n";
+import { THEMES, THEME_IDS } from "../lib/theme";
 import { slicerInfo, type SlicerInfo } from "../slicer/api";
 import { APP_VERSION, REPO_URL, checkForUpdate, openProjectLink, type UpdateInfo } from "../lib/update";
+
+const THEME_NAMES: Record<(typeof THEME_IDS)[number], string> = { orange: "Orange", blue: "Blau", green: "Grün", purple: "Lila", pink: "Pink" };
 
 const HOST_RE = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?!$)|$)){4}$|^[a-zA-Z0-9][a-zA-Z0-9.-]*$/;
 
@@ -73,6 +76,30 @@ export function SettingsView() {
 
   return (
     <div className="view settings">
+      <Card className="form-section">
+        <span className="label">{t("Darstellung")}</span>
+        <div className="toggle-row" style={{ borderTop: 0, paddingTop: 0 }}>
+          <div>
+            <div>{t("Akzentfarbe")}</div>
+            <div className="hint">{t("Farbe der Knöpfe, Balken, Diagramme und Effekte.")}</div>
+          </div>
+          <div className="accent-swatches" role="radiogroup" aria-label={t("Akzentfarbe")}>
+            {THEME_IDS.map((id) => (
+              <button
+                key={id}
+                role="radio"
+                aria-checked={saved.accent === id}
+                aria-label={t(THEME_NAMES[id])}
+                title={t(THEME_NAMES[id])}
+                className={`accent-swatch ${saved.accent === id ? "on" : ""}`}
+                style={{ ["--sw" as string]: THEMES[id].accent }}
+                onClick={() => void saveSettings({ ...saved, accent: id })}
+              />
+            ))}
+          </div>
+        </div>
+      </Card>
+
       <Card className="form-section">
         <span className="label">{t("Sprache")}</span>
         <div className="toggle-row" style={{ borderTop: 0, paddingTop: 0 }}>

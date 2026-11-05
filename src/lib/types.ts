@@ -29,6 +29,8 @@ export interface PrinterStatus {
   maxNozzleTemp: number | null;
   maxBedTemp: number | null;
   usedMaterialMm: number | null;
+  /** Druckkopf [X, Y, Z] in mm */
+  position: [number, number, number] | null;
 }
 
 export type Connection =
@@ -59,6 +61,8 @@ export interface Settings {
   orcaPath: string;
   /** "" = wie das System, "de" oder "en" */
   language: "" | "de" | "en";
+  /** Farbthema der Akzentfarbe */
+  accent: "orange" | "blue" | "green" | "purple" | "pink";
 }
 
 export interface JobRecord {
@@ -103,4 +107,5 @@ export const DEFAULT_SETTINGS: Settings = {
   rawLog: false,
   orcaPath: "",
   language: "",
+  accent: "orange",
 };

@@ -16,6 +16,8 @@ pub struct Settings {
     pub orca_path: String,
     /// Sprache der Oberfläche: "" = wie das System, "de" oder "en"
     pub language: String,
+    /// Farbthema (Akzentfarbe): orange, blue, green, purple, pink
+    pub accent: String,
 }
 
 impl Default for Settings {
@@ -30,6 +32,7 @@ impl Default for Settings {
             raw_log: false,
             orca_path: String::new(),
             language: String::new(),
+            accent: "orange".into(),
         }
     }
 }
@@ -55,6 +58,9 @@ impl Settings {
     pub fn normalized(mut self) -> Self {
         if !matches!(self.language.as_str(), "" | "de" | "en") {
             self.language.clear();
+        }
+        if !matches!(self.accent.as_str(), "orange" | "blue" | "green" | "purple" | "pink") {
+            self.accent = "orange".into();
         }
         self.printer_name = self.printer_name.trim().to_string();
         if self.printer_name.is_empty() {

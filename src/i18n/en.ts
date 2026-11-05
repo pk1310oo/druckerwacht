@@ -44,6 +44,8 @@ export const EN: Record<string, string> = {
   "Trage die IP-Adresse deines Ender 3 V3 KE ein oder lass das Netzwerk automatisch durchsuchen.":
     "Enter the IP address of your Ender 3 V3 KE or let the app search your network automatically.",
   "Diagramme": "Charts",
+  "Drucker live": "Printer live",
+  "Ziehen zum Drehen": "Drag to rotate",
   "Zeitraum": "Time range",
   "Temperatur": "Temperature",
   "Geschwindigkeit": "Speed",
@@ -116,6 +118,14 @@ export const EN: Record<string, string> = {
 
   // ---------------------------------------------------------------- Einstellungen
   "Sprache": "Language",
+  "Darstellung": "Appearance",
+  "Akzentfarbe": "Accent color",
+  "Farbe der Knöpfe, Balken, Diagramme und Effekte.": "Color of buttons, bars, charts and effects.",
+  "Orange": "Orange",
+  "Blau": "Blue",
+  "Grün": "Green",
+  "Lila": "Purple",
+  "Pink": "Pink",
   "Sprache der App": "App language",
   "„System“ folgt der Sprache deines Computers.": "“System” follows your computer’s language.",
   "System": "System",

@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Box, Gauge, Layers, Loader2, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
 import { useStore } from "../lib/store";
 import { printerControl, reconnect, thumbnailUrl } from "../lib/api";
@@ -7,18 +7,22 @@ import type { PrinterStatus } from "../lib/types";
 import { Badge, Card, EmptyState, Segmented, StatCard } from "../components/ui";
 import { Chart, type SeriesDef } from "../components/Chart";
 import { CameraFrame } from "../components/Camera";
+import { Confetti } from "../components/Fx";
+
+const Printer3D = lazy(() => import("../components/Printer3D"));
 import type { ViewId } from "../components/Shell";
 import { t } from "../lib/i18n";
+import { accentHex } from "../lib/theme";
 
 const TEMP_SERIES = (): SeriesDef[] => [
-  { key: "nozzle", label: t("Düse"), color: "#D97757", unit: "°C" },
-  { key: "nozzleTarget", label: t("Düse Soll"), color: "#D97757", unit: "°C", dashed: true, hideInLegend: true },
+  { key: "nozzle", label: t("Düse"), color: accentHex(), unit: "°C" },
+  { key: "nozzleTarget", label: t("Düse Soll"), color: accentHex(), unit: "°C", dashed: true, hideInLegend: true },
   { key: "bed", label: t("Bett"), color: "#C9C7BF", unit: "°C" },
   { key: "bedTarget", label: t("Bett Soll"), color: "#C9C7BF", unit: "°C", dashed: true, hideInLegend: true },
 ];
 
 const MOTION_SERIES = (): SeriesDef[] => [
-  { key: "speed", label: t("Geschw."), color: "#D97757", unit: "mm/s" },
+  { key: "speed", label: t("Geschw."), color: accentHex(), unit: "mm/s" },
   { key: "flow", label: "Flow", color: "#C9C7BF", unit: "%", scale: "pct" },
   { key: "fan", label: t("Lüfter"), color: "#7C7C7C", unit: "%", scale: "pct" },
 ];
@@ -47,12 +51,14 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
   const tempSeries = useMemo(TEMP_SERIES, []);
   // Kurzes grünes Leuchten, wenn ein Druck fertig wird
   const [celebrate, setCelebrate] = useState(false);
+  const [confetti, setConfetti] = useState(0);
   const prevState = useRef(status?.state);
   useEffect(() => {
     const was = prevState.current;
     prevState.current = status?.state;
     if (was && was !== "finished" && status?.state === "finished") {
       setCelebrate(true);
+      setConfetti((n) => n + 1);
       const timer = setTimeout(() => setCelebrate(false), 1900);
       return () => clearTimeout(timer);
     }
@@ -91,7 +97,19 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
 
   return (
     <div className="view">
-      <Stats status={status} />
+      <Confetti fire={confetti} />
+      <div className="top-row">
+        <Card className="printer-card">
+          <div className="chart-head">
+            <span className="label">{t("Drucker live")}</span>
+            <span className="small muted">{t("Ziehen zum Drehen")}</span>
+          </div>
+          <Suspense fallback={null}>
+            <Printer3D />
+          </Suspense>
+        </Card>
+        <Stats status={status} />
+      </div>
 
       <div className={`row-progress ${cameraUrl ? "with-camera" : ""}`}>
         <Card className={celebrate ? "celebrate" : ""}>{status ? <ProgressPanel s={status} /> : <WaitingPanel />}</Card>
@@ -126,6 +144,13 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
   );
 }
 
+/** Temperatur als Bogen: Skala bis zur Maximaltemperatur, Punkt = Solltemperatur, Glühen beim Aufheizen. */
+function tempGauge(temp: number | null, target: number | null, max: number) {
+  if (temp == null) return { pct: 0 };
+  const heating = !!target && target > 0 && temp < target - 2;
+  return { pct: (temp / max) * 100, target: target ? (target / max) * 100 : null, hot: heating || (!!target && target > 0) };
+}
+
 function heatMeter(temp: number | null, target: number | null, max: number) {
   if (temp == null) return { pct: 0 };
   if (target && target > 0) return { pct: (temp / target) * 100, active: temp < target - 2 };
@@ -143,6 +168,7 @@ function Stats({ status: s }: { status: PrinterStatus | null }) {
         value={s?.nozzleTemp ?? null}
         unit="°C"
         meter={heatMeter(s?.nozzleTemp ?? null, s?.nozzleTarget ?? null, s?.maxNozzleTemp ?? 300)}
+        gauge={tempGauge(s?.nozzleTemp ?? null, s?.nozzleTarget ?? null, s?.maxNozzleTemp ?? 300)}
         sub={
           <span>
             {t("Soll")} <b className="num">{target(s?.nozzleTarget)}</b>
@@ -155,6 +181,7 @@ function Stats({ status: s }: { status: PrinterStatus | null }) {
         value={s?.bedTemp ?? null}
         unit="°C"
         meter={heatMeter(s?.bedTemp ?? null, s?.bedTarget ?? null, s?.maxBedTemp ?? 100)}
+        gauge={tempGauge(s?.bedTemp ?? null, s?.bedTarget ?? null, s?.maxBedTemp ?? 100)}
         sub={
           <span>
             {t("Soll")} <b className="num">{target(s?.bedTarget)}</b>
@@ -167,6 +194,7 @@ function Stats({ status: s }: { status: PrinterStatus | null }) {
         value={s?.speedMmS ?? null}
         unit="mm/s"
         meter={null}
+        gauge={{ pct: ((s?.speedMmS ?? 0) / 500) * 100, hot: (s?.speedMmS ?? 0) > 0 && s?.state === "printing" }}
         sub={
           <>
             <span>
@@ -184,6 +212,7 @@ function Stats({ status: s }: { status: PrinterStatus | null }) {
         value={s && isJob(s) ? s.progress : null}
         unit="%"
         meter={s && isJob(s) ? { pct: s.progress ?? 0, active: s.state === "printing" } : null}
+        gauge={{ pct: s && isJob(s) ? s.progress ?? 0 : 0, kind: "ring", hot: s?.state === "printing" && !s.preparing }}
         sub={
           <span>
             {t("Schicht")}{" "}
@@ -246,7 +275,7 @@ function PrintAnim() {
     const w = width(i), x0 = 44 - w / 2;
     const done = i < cur ? 1 : along;
     const rtl = i % 2 === 1;
-    rows.push(<rect key={i} x={rtl ? x0 + w * (1 - done) : x0} y={y(i)} width={w * done} height={4} rx={2} fill={i % 2 ? "#c76a4b" : "#d97757"} />);
+    rows.push(<rect key={i} x={rtl ? x0 + w * (1 - done) : x0} y={y(i)} width={w * done} height={4} rx={2} fill={i % 2 ? "var(--accent-deep)" : "var(--accent)"} />);
   }
   const w = width(cur), x0 = 44 - w / 2;
   const nx = cur % 2 ? x0 + w * (1 - along) : x0 + w * along;
@@ -288,13 +317,19 @@ function ProgressPanel({ s }: { s: PrinterStatus }) {
   }
   const pct = s.progress ?? 0;
   const barClass =
-    s.state === "paused" ? "paused" : s.state === "finished" ? "done" : s.state === "failed" ? "failed" : s.preparing ? "" : "live";
+    s.state === "paused" ? "paused" : s.state === "finished" ? "done" : s.state === "failed" ? "failed" : s.preparing ? "" : "is-live";
   const eta =
     s.state === "printing" ? fmtEta(s.remainingS) : s.state === "paused" ? t("pausiert") : s.state === "finished" ? t("fertig") : DASH;
 
   return (
     <div className="progress">
-      <Thumbnail file={s.fileName} printing={s.state === "printing" && !s.preparing} />
+      <div className="thumb-ring">
+        <svg viewBox="0 0 144 144" aria-hidden>
+          <rect x={3} y={3} width={138} height={138} rx={16} className="tr-track" pathLength={100} />
+          <rect x={3} y={3} width={138} height={138} rx={16} className={`tr-fill ${barClass}`} pathLength={100} strokeDasharray={`${pct} 100`} />
+        </svg>
+        <Thumbnail file={s.fileName} printing={s.state === "printing" && !s.preparing} />
+      </div>
       <div className="progress-body">
         <div className="progress-top">
           <div style={{ minWidth: 0 }}>
