@@ -1239,7 +1239,7 @@ code.path {
 }
 
 .tool-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.5;
   cursor: default;
 }
 
@@ -1890,10 +1890,12 @@ code.path {
 .plate-tools {
   position: absolute;
   top: 16px;
-  left: 50%;
-  transform: translateX(-50%);
+  left: 16px;
+  /* Platz für die Ansicht-Knöpfe rechts lassen; bei schmalen Fenstern umbrechen statt verdecken */
+  max-width: calc(100% - 136px);
   z-index: 5;
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 2px;
   padding: 4px;
