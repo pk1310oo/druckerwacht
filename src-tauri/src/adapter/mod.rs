@@ -7,7 +7,7 @@
 
 pub mod creality;
 
-use crate::model::PrinterStatus;
+use crate::model::{PrinterHistory, PrinterStatus};
 use futures_util::future::BoxFuture;
 use serde::Serialize;
 use tokio::sync::{mpsc, watch};
@@ -41,6 +41,8 @@ impl ConnectionState {
 pub enum AdapterEvent {
     Connection(ConnectionState),
     Status(PrinterStatus),
+    /// Druckverlauf des Druckers (kommt nach Druckende oder auf Anfrage)
+    History(PrinterHistory),
     /// Rohe Nachricht (für optionalen Mitschnitt)
     Raw { incoming: bool, text: String },
 }

@@ -208,6 +208,59 @@ pub fn parse(map: &Map<String, Value>) -> PrinterStatus {
     }
 }
 
+/// Ein Eintrag aus dem Druckverlauf, den der Drucker selbst speichert (`historyList`).
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PrinterJob {
+    pub id: i64,
+    pub file: String,
+    /// Start (Unix-Sekunden)
+    pub started_s: i64,
+    pub duration_s: f64,
+    pub material_mm: f64,
+    /// `printfinish == 1` → fertig gedruckt, sonst abgebrochen/fehlgeschlagen
+    pub finished: bool,
+    /// Pfad des Vorschaubilds auf dem Drucker
+    pub thumbnail: Option<String>,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct PrinterHistory {
+    pub total_jobs: Option<i64>,
+    pub total_time_s: Option<f64>,
+    pub total_material_mm: Option<f64>,
+    pub jobs: Vec<PrinterJob>,
+}
+
+/// Liest `historyList` (+ Gesamtwerte) aus einer Nachricht – None, wenn keine Liste enthalten ist.
+pub fn parse_history(msg: &Map<String, Value>) -> Option<PrinterHistory> {
+    let list = msg.get("historyList")?.as_array()?;
+    let mut jobs: Vec<PrinterJob> = list
+        .iter()
+        .filter_map(|e| {
+            let o = e.as_object()?;
+            let file = text(o, &["filename", "fileName", "name"]).map(clean_file_name)?;
+            Some(PrinterJob {
+                id: int(o, &["id"]).unwrap_or(0),
+                file,
+                started_s: int(o, &["starttime", "startTime", "ctime"]).unwrap_or(0),
+                duration_s: num(o, &["usagetime", "usageTime"]).unwrap_or(0.0).max(0.0),
+                material_mm: num(o, &["usagematerial", "usageMaterial"]).unwrap_or(0.0).max(0.0),
+                finished: int(o, &["printfinish", "printFinish"]) == Some(1),
+                thumbnail: text(o, &["thumbnail"]),
+            })
+        })
+        .collect();
+    jobs.sort_by(|a, b| b.started_s.cmp(&a.started_s));
+    Some(PrinterHistory {
+        total_jobs: int(msg, &["totalJob"]),
+        total_time_s: num(msg, &["totalUsageTime"]),
+        total_material_mm: num(msg, &["totalUsageMaterial"]),
+        jobs,
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -285,6 +338,25 @@ mod tests {
         assert_eq!(s.progress, Some(100.0));
         assert_eq!(s.elapsed_s, Some(305.0));
         assert_eq!(s.used_material_mm, Some(803.0));
+    }
+
+    #[test]
+    fn real_ke_history() {
+        let line = include_str!("../fixtures/ke-print.jsonl")
+            .lines()
+            .find(|l| l.contains("historyList"))
+            .unwrap();
+        let v: Value = serde_json::from_str(line).unwrap();
+        let h = parse_history(v["msg"].as_object().unwrap()).unwrap();
+        assert_eq!(h.jobs.len(), 50);
+        assert_eq!(h.total_jobs, Some(50));
+        assert_eq!(h.total_time_s, Some(144225.0));
+        assert_eq!(h.jobs.iter().filter(|j| j.finished).count(), 30);
+        let first = &h.jobs[0];
+        assert_eq!(first.file, "1st_Layer_test.stl_PLA_5m18s");
+        assert_eq!(first.duration_s, 305.0);
+        assert!(first.thumbnail.as_deref().unwrap().ends_with("/1793803870.png"));
+        assert!(parse_history(&Map::new()).is_none());
     }
 
     #[test]

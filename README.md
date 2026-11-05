@@ -109,7 +109,7 @@ npm install
 npm run tauri build -- --bundles dmg
 ```
 
-Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.3.1_aarch64.dmg`
+Ergebnis: `src-tauri/target/release/bundle/dmg/Druckerwacht_0.4.0_aarch64.dmg`
 
 Die App ist nicht signiert. Beim ersten Start deshalb im Finder per **Rechtsklick → Öffnen** starten,
 oder das Quarantäne-Flag entfernen:
@@ -127,19 +127,19 @@ npm run tauri build -- --bundles deb appimage
 
 Ergebnisse:
 
-- `src-tauri/target/release/bundle/deb/Druckerwacht_0.3.1_amd64.deb`
-- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.3.1_amd64.AppImage`
+- `src-tauri/target/release/bundle/deb/Druckerwacht_0.4.0_amd64.deb`
+- `src-tauri/target/release/bundle/appimage/Druckerwacht_0.4.0_amd64.AppImage`
 
 Installation:
 
 ```bash
-sudo apt install ./Druckerwacht_0.3.1_amd64.deb
+sudo apt install ./Druckerwacht_0.4.0_amd64.deb
 ```
 
 Die AppImage-Datei kann man stattdessen auch direkt ausführen:
 
 ```bash
-chmod +x Druckerwacht_0.3.1_amd64.AppImage && ./Druckerwacht_0.3.1_amd64.AppImage
+chmod +x Druckerwacht_0.4.0_amd64.AppImage && ./Druckerwacht_0.4.0_amd64.AppImage
 ```
 
 > Für den AppImage-Build lädt Tauri beim ersten Mal `linuxdeploy` von GitHub herunter. Dafür ist eine Internetverbindung nötig.
@@ -164,7 +164,13 @@ Gibt es das Bild nicht, erscheint ein neutraler Platzhalter.
 
 ---
 
-## 5. Slicer
+## 5. Druck steuern & Druckerverlauf
+
+**Pause / Fortsetzen / Abbrechen** stehen im Dashboard unter dem Fortschrittsbalken, sobald ein Druck läuft. Abbrechen fragt vorher nach. Befehle (wie Creality Print bzw. die Home-Assistant-Integration für K1/KE): `{"method":"set","params":{"pause":1}}`, `{"pause":0}`, `{"stop":1}`. Während Heizen und Leveling ist „Pause“ gesperrt, weil der Drucker sie dort ignoriert.
+
+**Druckverlauf → „Vom Drucker“** zeigt die Liste, die der Drucker selbst speichert (letzte 50 Drucke mit Datum, Dauer, Filament, Ergebnis) und die Gesamtwerte (Anzahl, Druckzeit, Filament). Die Liste kommt nach jedem Druckende (bestätigt) und wird beim Verbinden angefragt (`reqHistory`); sie bleibt lokal gespeichert. Vorschaubilder werden unter `http://<IP>/downloads/history/humbnail/<id>.png` bzw. `…/downloads/humbnail/<datei>.png` gesucht – fehlen sie, erscheint ein Platzhalter.
+
+## 6. Slicer
 
 Druckerwacht benutzt **OrcaSlicer als unsichtbaren Motor**, also die gleiche Rechenlogik, auf der auch Creality Print aufbaut. Die Oberfläche ist unsere eigene.
 
@@ -192,6 +198,8 @@ OrcaSlicer selbst muss man nie öffnen.
 | Auf Fläche legen (F) | die Fläche anklicken, die unten liegen soll |
 | Schneiden (C) | waagerecht in beliebiger Höhe. Beide Teile oder nur eines behalten, das obere Teil auf Wunsch umgedreht. Die Schnittflächen werden geschlossen |
 | Messen | zwei Punkte auf Modell oder Bett anklicken |
+| Stützen & Naht malen (P) | Pinsel mit Größenregler: Stützen **erzwingen** (grün) oder **blockieren** (rot), Naht **hier** (blau) oder **nicht hier** (gelb), Radierer. Das Modell wird beim ersten Strich automatisch fein unterteilt (Kanten ≤ 1,5 mm), bleibt dabei geschlossen. Gemalte Stützen wirken nur mit eingeschalteten Stützen; Typ „Normal (manuell)“/„Baum (manuell)“ = nur gemalte Stützen |
+| Rückgängig / Wiederholen | Strg/Cmd+Z, Strg/Cmd+Shift+Z (auch Strg+Y) – für alle Änderungen auf der Platte inkl. Bemalung |
 | Duplizieren · Löschen (Entf) | |
 
 *Einstellungen:* Die Reiter Qualität · Festigkeit · Geschwindigkeit · Stützen · Haftung · Filament · Sonstiges entsprechen Creality Print. Füllmuster werden mit Vorschaubild gewählt. Unter **Alle** finden sich alle Orca-Einstellungen mit Suche. Geänderte Werte sind orange markiert und lassen sich als eigenes Profil speichern.
@@ -200,7 +208,11 @@ OrcaSlicer selbst muss man nie öffnen.
 
 *Drucken:* Die Datei wird per Upload an den Drucker geschickt (`http://<IP>/upload/…`) und dort per WebSocket gestartet (`opGcodeFile`), so wie es Creality Print und OrcaSlicer tun. Vorher fragt die App ab, ob die Druckplatte frei ist. Gesperrt ist das Starten, solange ein Druck läuft. „Nur hochladen“ legt die Datei auf dem Drucker ab, ohne zu starten.
 
-Noch nicht enthalten: Stützen bzw. Naht von Hand malen und Text-Prägung. Dafür müsste das Projekt als 3MF an Orca übergeben werden.
+*Projekte:* Oben rechts **öffnen/speichern** (Strg/Cmd+S) – eine `.druckerwacht`-Datei enthält alle Modelle mit Lage, Bemalung, gewählten Profilen und Änderungen. Projektdateien lassen sich auch ins Fenster ziehen.
+
+*Technik der Bemalung:* Sind Stützen oder Naht gemalt, übergibt Druckerwacht die Platte als 3MF an Orca – mit den Attributen `paint_supports`/`paint_seam` je Dreieck im Orca-Format (geprüft: gemalte Stützen entstehen genau dort, blockierte verschwinden, die Naht liegt zu 100 % auf der bemalten Seite).
+
+Noch nicht enthalten: Text-Prägung und Modifier (andere Einstellungen nur für einen Bereich).
 
 Die Profile (4 Qualitäten, 20 Filamente für den Ender 3 V3 KE) stammen aus OrcaSlicer und liegen aufgelöst in `src-tauri/resources/profiles`.
 Aktualisieren lassen sie sich so:
@@ -212,7 +224,7 @@ python3 scripts/build-settings-catalog.py <orcaslicer> <export-settings.json>
 
 OrcaSlicer und seine Profile stehen unter der AGPL-3.0.
 
-## 6. Aufbau
+## 7. Aufbau
 
 ```
 src-tauri/src/

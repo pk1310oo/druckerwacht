@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getState, pushSample, setState } from "./store";
-import type { Connection, FoundPrinter, JobRecord, PrinterStatus, Sample, Settings } from "./types";
+import type { Connection, FoundPrinter, JobRecord, PrinterHistory, PrinterStatus, Sample, Settings } from "./types";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -22,13 +22,15 @@ export async function init() {
       listen<PrinterStatus | null>("printer://status", (e) => setState({ status: e.payload })),
       listen<Sample>("printer://sample", (e) => pushSample(e.payload)),
       listen("printer://jobs", () => void refreshJobs()),
+      listen<PrinterHistory>("printer://history", (e) => setState({ printerHistory: e.payload })),
     ]);
-    const [snap, settings, jobs] = await Promise.all([
+    const [snap, settings, jobs, printerHistory] = await Promise.all([
       invoke<Snapshot>("get_snapshot"),
       invoke<Settings>("get_settings"),
       invoke<JobRecord[]>("get_jobs"),
+      invoke<PrinterHistory | null>("get_printer_history"),
     ]);
-    setState({ ...snap, settings, jobs, ready: true });
+    setState({ ...snap, settings, jobs, printerHistory, ready: true });
     void ensureNotificationPermission();
   } catch (err) {
     console.error("Initialisierung fehlgeschlagen", err);
@@ -84,4 +86,29 @@ export function thumbnailUrl(fileName: string | null): string | null {
   const host = getState().settings.printerIp;
   if (!host || !fileName) return null;
   return `http://${host}/downloads/original/current_print_image.png?f=${encodeURIComponent(fileName)}`;
+}
+
+/** Pause, Fortsetzen oder Abbrechen des laufenden Drucks. */
+export async function printerControl(action: "pause" | "resume" | "stop"): Promise<void> {
+  if (!isTauri) {
+    (window as unknown as { __dwLastControl: string }).__dwLastControl = action;
+    return;
+  }
+  await invoke("printer_control", { action });
+}
+
+/**
+ * Mögliche Adressen eines Verlaufs-Vorschaubilds. Der Drucker speichert sie unter
+ * /usr/data/creality/userdata/history/humbnail/<id>.png; welcher Web-Pfad darauf zeigt,
+ * ist nicht dokumentiert – deshalb mehrere Kandidaten, die nacheinander probiert werden.
+ */
+export function historyThumbCandidates(job: { thumbnail: string | null; file: string }): string[] {
+  const host = getState().settings.printerIp;
+  if (!host) return [];
+  const out: string[] = [];
+  const t = job.thumbnail ?? "";
+  const m = /\/creality\/userdata\/(.+)$/.exec(t);
+  if (m) out.push(`http://${host}/downloads/${m[1]}`);
+  out.push(`http://${host}/downloads/humbnail/${encodeURIComponent(job.file)}.png`);
+  return out;
 }

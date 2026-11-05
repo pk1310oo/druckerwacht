@@ -65,7 +65,7 @@ export async function deletePreset(kind: "process" | "filament", name: string) {
 }
 
 export async function slice(job: {
-  models: { name: string; stl: string }[];
+  models: { name: string; stl: string; support?: string; seam?: string }[];
   machine: Record<string, unknown>;
   process: Record<string, unknown>;
   filament: Record<string, unknown>;
@@ -127,7 +127,7 @@ export async function onFileDrop(fn: (paths: string[]) => void, hover: (on: bool
     else if (p.type === "leave") hover(false);
     else if (p.type === "drop") {
       hover(false);
-      fn(p.paths.filter((x) => /\.(stl|obj|3mf)$/i.test(x)));
+      fn(p.paths.filter((x) => /\.(stl|obj|3mf|druckerwacht)$/i.test(x)));
     }
   });
 }
@@ -141,4 +141,27 @@ export async function printerSend(path: string, start: boolean): Promise<string>
 export async function onUploadProgress(fn: (pct: number) => void) {
   if (!isTauri) return () => {};
   return listen<number>("printer://upload", (e) => fn(e.payload));
+}
+
+/** Projekt speichern: fragt nach dem Ort; liefert false, wenn abgebrochen. */
+export async function saveProjectAs(contents: string, suggested: string): Promise<boolean> {
+  if (!isTauri) {
+    (window as unknown as { __dwLastProject: string }).__dwLastProject = contents;
+    return true;
+  }
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const path = await save({ title: "Projekt speichern", defaultPath: suggested, filters: [{ name: "Druckerwacht-Projekt", extensions: ["druckerwacht"] }] });
+  if (!path) return false;
+  await invoke("save_project", { path: path.endsWith(".druckerwacht") ? path : `${path}.druckerwacht`, contents });
+  return true;
+}
+
+export async function pickProject(): Promise<string | null> {
+  const { open } = await import("@tauri-apps/plugin-dialog");
+  const res = await open({ multiple: false, title: "Projekt öffnen", filters: [{ name: "Druckerwacht-Projekt", extensions: ["druckerwacht"] }] });
+  return typeof res === "string" ? res : null;
+}
+
+export async function readProject(path: string): Promise<string> {
+  return invoke<string>("read_project", { path });
 }

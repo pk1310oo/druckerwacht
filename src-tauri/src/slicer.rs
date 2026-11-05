@@ -51,6 +51,12 @@ pub struct SliceModel {
     name: String,
     /// binäre STL, base64
     stl: String,
+    /// Gemalte Stützen je Dreieck (0/1/2), base64 – fehlt, wenn nichts gemalt wurde
+    #[serde(default)]
+    support: Option<String>,
+    /// Gemalte Naht je Dreieck (0/1/2), base64
+    #[serde(default)]
+    seam: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -325,10 +331,35 @@ pub async fn run_orca(
     let filament = write_json("filament.json", &job.filament)?;
 
     let mut model_paths = Vec::new();
-    for (i, m) in job.models.iter().enumerate() {
-        let p = input.join(format!("{:02}_{}.stl", i + 1, safe_name(&m.name)));
-        std::fs::write(&p, b64(&m.stl)?).map_err(|e| e.to_string())?;
+    let painted = job.models.iter().any(|m| m.support.is_some() || m.seam.is_some());
+    if painted {
+        // Gemalte Stützen/Naht → alle Modelle als eine 3MF mit Mal-Daten übergeben
+        let decoded: Vec<(Vec<u8>, Vec<u8>, Vec<u8>)> = job
+            .models
+            .iter()
+            .map(|m| {
+                Ok((
+                    b64(&m.stl)?,
+                    m.support.as_deref().map(b64).transpose()?.unwrap_or_default(),
+                    m.seam.as_deref().map(b64).transpose()?.unwrap_or_default(),
+                ))
+            })
+            .collect::<Result<_, String>>()?;
+        let models: Vec<crate::threemf::PaintedModel> = job
+            .models
+            .iter()
+            .zip(&decoded)
+            .map(|(m, (stl, support, seam))| crate::threemf::PaintedModel { name: &m.name, stl, support, seam })
+            .collect();
+        let p = input.join("platte.3mf");
+        crate::threemf::write(&p, &models)?;
         model_paths.push(p);
+    } else {
+        for (i, m) in job.models.iter().enumerate() {
+            let p = input.join(format!("{:02}_{}.stl", i + 1, safe_name(&m.name)));
+            std::fs::write(&p, b64(&m.stl)?).map_err(|e| e.to_string())?;
+            model_paths.push(p);
+        }
     }
 
     let mut cmd = tokio::process::Command::new(orca);
@@ -459,6 +490,82 @@ pub fn cancel(app: &AppHandle) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// T-förmiges Modell (Säule + waagerechter Arm in 15 mm Höhe) als STL mit Dreiecksliste;
+    /// liefert außerdem die Indizes der nach unten zeigenden Arm-Unterseite.
+    fn t_shape() -> (Vec<u8>, Vec<usize>) {
+        let mut tris: Vec<[[f32; 3]; 3]> = Vec::new();
+        let mut boxq = |x0: f32, y0: f32, z0: f32, x1: f32, y1: f32, z1: f32| {
+            let p = |x, y, z| [x, y, z];
+            let c = [p(x0, y0, z0), p(x1, y0, z0), p(x1, y1, z0), p(x0, y1, z0), p(x0, y0, z1), p(x1, y0, z1), p(x1, y1, z1), p(x0, y1, z1)];
+            let start = tris.len();
+            for f in [[0, 2, 1], [0, 3, 2], [4, 5, 6], [4, 6, 7], [0, 1, 5], [0, 5, 4], [1, 2, 6], [1, 6, 5], [2, 3, 7], [2, 7, 6], [3, 0, 4], [3, 4, 7]] {
+                tris.push([c[f[0]], c[f[1]], c[f[2]]]);
+            }
+            start
+        };
+        boxq(100.0, 100.0, 0.0, 110.0, 110.0, 20.0); // Säule
+        let arm = boxq(110.0, 100.0, 15.0, 140.0, 110.0, 20.0); // Arm (schwebt, Unterseite bei 15 mm)
+        let mut b = vec![0u8; 80];
+        b.extend_from_slice(&(tris.len() as u32).to_le_bytes());
+        for t in &tris {
+            b.extend_from_slice(&[0u8; 12]);
+            for c in t {
+                for x in c {
+                    b.extend_from_slice(&x.to_le_bytes());
+                }
+            }
+            b.extend_from_slice(&[0, 0]);
+        }
+        (b, vec![arm, arm + 1])
+    }
+
+    /// Prüft am echten OrcaSlicer, dass gemalte Stützen ankommen (ORCA_BIN + DW_PROFILES setzen).
+    #[tokio::test]
+    async fn real_orca_painted_supports() {
+        let (Ok(orca), Ok(prof)) = (std::env::var("ORCA_BIN"), std::env::var("DW_PROFILES")) else { return };
+        let load = |p: &str| -> Map<String, Value> { serde_json::from_str(&std::fs::read_to_string(format!("{prof}/{p}")).unwrap()).unwrap() };
+        let machine = load("machine/Creality Ender-3 V3 KE 0.4 nozzle.json");
+        let filament = load("filament/Generic PLA @Creality Ender-3V3-all.json");
+        let (stl, bottom) = t_shape();
+        let enc = |v: &[u8]| base64::engine::general_purpose::STANDARD.encode(v);
+        let mut paint = vec![0u8; 24];
+        let mut run = |support_type: &str, enable: bool, state: Option<u8>| {
+            let mut process = load("process/0.20mm Standard @Creality Ender3V3KE.json");
+            process.insert("enable_support".into(), Value::String(if enable { "1" } else { "0" }.into()));
+            process.insert("support_type".into(), Value::String(support_type.into()));
+            if let Some(st) = state {
+                for &i in &bottom {
+                    paint[i] = st;
+                }
+            }
+            let support = state.map(|_| enc(&paint));
+            let job = SliceJob {
+                models: vec![SliceModel { name: "T".into(), stl: enc(&stl), support, seam: None }],
+                machine: machine.clone(),
+                process,
+                filament: filament.clone(),
+                thumbnails: vec![],
+                file_name: "t".into(),
+            };
+            let orca = orca.clone();
+            async move {
+                let tmp = std::env::temp_dir().join("dw-paint-test");
+                let r = run_orca(Path::new(&orca), &tmp.join("work"), &tmp.join("data"), &job, |_| {}, |_| {}).await.unwrap();
+                let g = std::fs::read_to_string(&r.gcode_path).unwrap();
+                g.matches(";TYPE:Support").count() + g.matches(";TYPE:Support interface").count()
+            }
+        };
+        let manual_none = run("normal(manual)", true, None).await;
+        let manual_painted = run("normal(manual)", true, Some(1)).await;
+        let auto_free = run("normal(auto)", true, None).await;
+        let auto_blocked = run("normal(auto)", true, Some(2)).await;
+        println!("STUETZEN manuell ohne: {manual_none}, manuell gemalt: {manual_painted}, auto: {auto_free}, auto blockiert: {auto_blocked}");
+        assert_eq!(manual_none, 0, "ohne Malen keine Stützen im manuellen Modus");
+        assert!(manual_painted > 0, "gemalte Stützen müssen entstehen");
+        assert!(auto_free > 0, "automatisch: Arm braucht Stützen");
+        assert_eq!(auto_blocked, 0, "blockiert: keine Stützen");
+    }
 
     /// Echter Ende-zu-Ende-Test mit OrcaSlicer. Läuft nur, wenn ORCA_BIN und DW_JOB gesetzt sind:
     /// DW_JOB ist ein von der Oberfläche exportierter Auftrag (Modelle, Profile, Vorschaubilder).

@@ -9,7 +9,7 @@
 //!   Das ist eine reine Leseanfrage.
 
 use super::{AdapterEvent, ConnectionState, PrinterAdapter};
-use crate::model::{merge, parse, PrinterStatus};
+use crate::model::{merge, parse, parse_history, PrinterStatus};
 use futures_util::{future::BoxFuture, FutureExt, SinkExt, StreamExt};
 use serde_json::{Map, Value};
 use std::time::Duration;
@@ -26,6 +26,10 @@ const REFRESH_EVERY: Duration = Duration::from_secs(20);
 const MAX_BACKOFF_S: u64 = 15;
 
 const REQUEST_STATUS: &str = r#"{"method":"get","params":{"reqPrinterPara":1}}"#;
+/// Verlauf anfordern (reine Leseanfrage). Bestätigt ist, dass der KE `historyList` nach jedem
+/// Druckende schickt; ob er diese Anfrage beantwortet, ist am Gerät noch zu prüfen – sonst
+/// wird sie einfach ignoriert und die Liste kommt mit dem nächsten Druckende.
+const REQUEST_HISTORY: &str = r#"{"method":"get","params":{"reqHistory":1}}"#;
 
 pub struct CrealityWsAdapter;
 
@@ -112,6 +116,7 @@ async fn session(
     if sink.send(send(REQUEST_STATUS)).await.is_err() {
         return Some("Verbindung sofort wieder getrennt".into());
     }
+    let _ = sink.send(send(REQUEST_HISTORY)).await;
 
     let mut refresh = tokio::time::interval(REFRESH_EVERY);
     refresh.tick().await; // erster Tick sofort – überspringen
@@ -150,6 +155,23 @@ async fn session(
                 if value.get("ModeCode").and_then(Value::as_str) == Some("heart_beat") {
                     if sink.send(send("ok")).await.is_err() {
                         return Some("Verbindung unterbrochen".into());
+                    }
+                    continue;
+                }
+
+                if let Some(h) = value.as_object().and_then(parse_history) {
+                    let _ = tx.send(AdapterEvent::History(h));
+                    // Die lange Liste nicht in den Live-Zustand übernehmen
+                    if let Some(o) = value.as_object() {
+                        let mut rest = o.clone();
+                        rest.remove("historyList");
+                        if merge(&mut merged, &Value::Object(rest)) {
+                            let status = parse(&merged);
+                            if last.as_ref() != Some(&status) {
+                                last = Some(status.clone());
+                                let _ = tx.send(AdapterEvent::Status(status));
+                            }
+                        }
                     }
                     continue;
                 }

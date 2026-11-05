@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
-import { Box, Gauge, Layers, Loader2, PlugZap, Printer, Thermometer, WifiOff } from "lucide-react";
+import { AlertTriangle, Box, Gauge, Layers, Loader2, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
 import { useStore } from "../lib/store";
-import { reconnect, thumbnailUrl } from "../lib/api";
+import { printerControl, reconnect, thumbnailUrl } from "../lib/api";
 import { DASH, fmtDuration, fmtEta, fmtNum, STATE_LABEL, STATE_TONE } from "../lib/format";
 import type { PrinterStatus } from "../lib/types";
 import { Badge, Card, EmptyState, Segmented, StatCard } from "../components/ui";
@@ -245,6 +245,7 @@ function ProgressPanel({ s }: { s: PrinterStatus }) {
         <div className={`bar ${barClass}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
           <i style={{ width: `${pct}%` }} />
         </div>
+        <JobControls s={s} />
         <div className="times">
           <div>
             <span className="label">Verstrichen</span>
@@ -252,7 +253,7 @@ function ProgressPanel({ s }: { s: PrinterStatus }) {
           </div>
           <div>
             <span className="label">Restzeit</span>
-            <span className="value num">{s.state === "finished" ? DASH : fmtDuration(s.remainingS)}</span>
+            <span className="value num">{s.state === "printing" || s.state === "paused" ? fmtDuration(s.remainingS) : DASH}</span>
           </div>
           <div>
             <span className="label">Fertig um</span>
@@ -290,5 +291,93 @@ function WaitingPanel() {
       title="Verbinde…"
       text={connection.kind === "connected" ? "Warte auf die ersten Daten vom Drucker." : "Verbindung zum Drucker wird aufgebaut."}
     />
+  );
+}
+
+/** Pause / Fortsetzen / Abbrechen – mit Rückmeldung, bis der Drucker den neuen Zustand meldet. */
+function JobControls({ s }: { s: PrinterStatus }) {
+  const [pending, setPending] = useState<null | "pause" | "resume" | "stop">(null);
+  const [error, setError] = useState<string | null>(null);
+  const [confirmStop, setConfirmStop] = useState(false);
+  const active = s.state === "printing" || s.state === "paused";
+
+  // „Wartet auf Drucker“ endet, sobald der Zustand passt – oder nach 20 s mit Hinweis
+  useEffect(() => {
+    if (!pending) return;
+    const done =
+      (pending === "pause" && s.state === "paused") ||
+      (pending === "resume" && s.state === "printing") ||
+      (pending === "stop" && !(s.state === "printing" || s.state === "paused"));
+    if (done) {
+      setPending(null);
+      return;
+    }
+    const t = setTimeout(() => {
+      setPending(null);
+      setError("Der Drucker hat nicht reagiert. Bitte am Display prüfen.");
+    }, 20_000);
+    return () => clearTimeout(t);
+  }, [pending, s.state]);
+
+  if (!active) return null;
+
+  const send = async (a: "pause" | "resume" | "stop") => {
+    setError(null);
+    setConfirmStop(false);
+    setPending(a);
+    try {
+      await printerControl(a);
+    } catch (e) {
+      setPending(null);
+      setError(typeof e === "string" ? e : "Befehl fehlgeschlagen.");
+    }
+  };
+
+  const busyText = pending === "pause" ? "Pausiere …" : pending === "resume" ? "Setze fort …" : pending === "stop" ? "Breche ab …" : null;
+
+  return (
+    <div className="job-controls">
+      {confirmStop ? (
+        <>
+          <span className="small">Druck wirklich abbrechen? Das lässt sich nicht rückgängig machen.</span>
+          <button className="btn sm ghost" onClick={() => setConfirmStop(false)}>
+            <X size={14} /> Nein
+          </button>
+          <button className="btn sm danger" onClick={() => void send("stop")}>
+            <Square size={14} /> Ja, abbrechen
+          </button>
+        </>
+      ) : (
+        <>
+          {s.state === "paused" ? (
+            <button className="btn sm" disabled={!!pending} onClick={() => void send("resume")}>
+              <Play size={14} /> Fortsetzen
+            </button>
+          ) : (
+            <button
+              className="btn sm"
+              disabled={!!pending || s.preparing}
+              title={s.preparing ? "Während Heizen und Leveling nimmt der Drucker keine Pause an." : undefined}
+              onClick={() => void send("pause")}
+            >
+              <Pause size={14} /> Pause
+            </button>
+          )}
+          <button className="btn sm ghost" disabled={!!pending} onClick={() => setConfirmStop(true)}>
+            <Square size={14} /> Abbrechen
+          </button>
+          {busyText && (
+            <span className="small muted">
+              <Loader2 size={12} className="spin" /> {busyText}
+            </span>
+          )}
+          {error && (
+            <span className="small" style={{ color: "var(--warning)" }}>
+              <AlertTriangle size={12} /> {error}
+            </span>
+          )}
+        </>
+      )}
+    </div>
   );
 }

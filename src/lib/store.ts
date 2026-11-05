@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { Connection, JobRecord, PrinterStatus, Sample, Settings } from "./types";
+import type { Connection, JobRecord, PrinterHistory, PrinterStatus, Sample, Settings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 
 export interface AppStore {
@@ -9,6 +9,7 @@ export interface AppStore {
   samples: Sample[];
   settings: Settings;
   jobs: JobRecord[];
+  printerHistory: PrinterHistory | null;
 }
 
 const MAX_SAMPLES = 3600;
@@ -20,6 +21,7 @@ let state: AppStore = {
   samples: [],
   settings: DEFAULT_SETTINGS,
   jobs: [],
+  printerHistory: null,
 };
 const listeners = new Set<() => void>();
 

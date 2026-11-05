@@ -2159,3 +2159,120 @@ code.path {
   pointer-events: none;
   animation: fade-in 150ms var(--ease);
 }
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: auto;
+  padding-bottom: 2px;
+}
+
+.slicer-toast.ok {
+  border-color: rgba(76, 175, 122, 0.35);
+  background: rgba(18, 40, 28, 0.95);
+  color: var(--success);
+}
+
+/* Druck steuern */
+.job-controls {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.job-controls .small {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn.danger {
+  border-color: transparent;
+  background: var(--danger);
+  color: #1a0b0a;
+}
+
+.btn.danger:hover {
+  background: #e8736a;
+}
+
+/* Verlauf vom Drucker */
+.history-stats {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.job.job-printer {
+  grid-template-columns: 40px minmax(0, 1fr) 160px 104px 96px 104px;
+  height: 64px;
+}
+
+.job-thumb {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 8px;
+  background: #141414;
+  border: 1px solid var(--line-soft);
+  color: var(--text-3);
+  overflow: hidden;
+}
+
+.job-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.ok-text {
+  color: var(--success);
+}
+
+@media (max-width: 980px) {
+  .job.job-printer {
+    grid-template-columns: 40px minmax(0, 1fr) 96px 88px 96px;
+  }
+  .history-stats {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+/* Malen */
+.paint-modes {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 4px;
+}
+
+.paint-mode {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 32px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-2);
+  font-size: var(--fs-s);
+  cursor: pointer;
+  transition: background var(--t) var(--ease), border-color var(--t) var(--ease), color var(--t) var(--ease);
+}
+
+.paint-mode:hover {
+  color: var(--text);
+}
+
+.paint-mode.on {
+  border-color: var(--accent);
+  background: var(--accent-soft);
+  color: var(--text);
+}
+
+.paint-mode i {
+  width: 10px;
+  height: 10px;
+  border-radius: 3px;
+}

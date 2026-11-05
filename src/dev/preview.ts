@@ -66,6 +66,18 @@ export function installPreview() {
       break;
     case "history":
       setState({
+        printerHistory: {
+          totalJobs: 50,
+          totalTimeS: 144225,
+          totalMaterialMm: 240194,
+          jobs: [
+            { id: 1793803870, file: "1st_Layer_test.stl_PLA_5m18s", startedS: 1793803870, durationS: 305, materialMm: 803.9, finished: true, thumbnail: "/usr/data/creality/userdata/history/humbnail/1793803870.png" },
+            { id: 1793737074, file: "Halterung_Kabelkanal_v3", startedS: 1793737074, durationS: 7020, materialMm: 9120, finished: true, thumbnail: null },
+            { id: 1793600000, file: "Benchy_PETG", startedS: 1793600000, durationS: 1900, materialMm: 2300, finished: false, thumbnail: null },
+          ],
+        },
+      });
+      setState({
         settings,
         connection: { kind: "connected", host, sinceMs: Date.now() },
         jobs: [

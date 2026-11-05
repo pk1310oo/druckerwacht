@@ -128,10 +128,57 @@ pub async fn start(host: &str, port: Option<u16>, file_name: &str) -> Result<(),
     Ok(())
 }
 
+/// Steuerbefehl an den laufenden Druck (wie Creality Print / Home-Assistant-Integration):
+/// Pause `{"pause":1}`, Fortsetzen `{"pause":0}`, Abbrechen `{"stop":1}`.
+pub fn control_params(action: &str) -> Option<serde_json::Value> {
+    match action {
+        "pause" => Some(serde_json::json!({ "pause": 1 })),
+        "resume" => Some(serde_json::json!({ "pause": 0 })),
+        "stop" => Some(serde_json::json!({ "stop": 1 })),
+        _ => None,
+    }
+}
+
+pub async fn control(host: &str, port: Option<u16>, action: &str) -> Result<(), String> {
+    let params = control_params(action).ok_or("Unbekannter Befehl.")?;
+    let url = format!("ws://{host}:{}", port.unwrap_or(WS_PORT));
+    let (mut ws, _) = tokio::time::timeout(Duration::from_secs(6), connect_async(url.as_str()))
+        .await
+        .map_err(|_| "Drucker antwortet nicht.".to_string())?
+        .map_err(|_| "Verbindung zum Drucker fehlgeschlagen.".to_string())?;
+    let cmd = serde_json::json!({ "method": "set", "params": params });
+    ws.send(Message::text(cmd.to_string()))
+        .await
+        .map_err(|_| "Befehl konnte nicht gesendet werden.".to_string())?;
+    let _ = tokio::time::timeout(Duration::from_millis(1500), ws.next()).await;
+    let _ = ws.close(None).await;
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use tokio::net::TcpListener;
+
+    #[tokio::test]
+    async fn control_commands() {
+        for (action, expected) in [
+            ("pause", r#"{"method":"set","params":{"pause":1}}"#),
+            ("resume", r#"{"method":"set","params":{"pause":0}}"#),
+            ("stop", r#"{"method":"set","params":{"stop":1}}"#),
+        ] {
+            let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+            let port = l.local_addr().unwrap().port();
+            let srv = tokio::spawn(async move {
+                let (sock, _) = l.accept().await.unwrap();
+                let mut ws = tokio_tungstenite::accept_async(sock).await.unwrap();
+                ws.next().await.unwrap().unwrap().into_text().unwrap().to_string()
+            });
+            control("127.0.0.1", Some(port), action).await.unwrap();
+            assert_eq!(srv.await.unwrap(), expected);
+        }
+        assert!(control_params("explode").is_none());
+    }
 
     #[test]
     fn safe_names() {

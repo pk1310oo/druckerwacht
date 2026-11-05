@@ -4,9 +4,10 @@ mod model;
 mod printjob;
 mod settings;
 mod slicer;
+mod threemf;
 
 use adapter::{creality::CrealityWsAdapter, AdapterEvent, ConnectionState, PrinterAdapter};
-use model::{PrintState, PrinterStatus};
+use model::{PrintState, PrinterHistory, PrinterStatus};
 use serde::{Deserialize, Serialize};
 use settings::Settings;
 use std::collections::VecDeque;
@@ -74,6 +75,7 @@ struct Inner {
     active_job: Option<ActiveJob>,
     shutdown: Option<watch::Sender<bool>>,
     disconnect_notified: bool,
+    printer_history: Option<PrinterHistory>,
 }
 
 pub struct AppState {
@@ -88,6 +90,7 @@ pub struct AppState {
 struct Paths {
     settings: PathBuf,
     jobs: PathBuf,
+    printer_history: PathBuf,
     raw_log_dir: PathBuf,
 }
 
@@ -147,6 +150,13 @@ fn restart_connection(app: &AppHandle) {
                 AdapterEvent::Connection(c) => set_connection(&app, &state, c),
                 AdapterEvent::Status(s) => handle_status(&app, &state, s),
                 AdapterEvent::Raw { incoming, text } => write_raw(&state, incoming, &text),
+                AdapterEvent::History(h) => {
+                    if let Ok(data) = serde_json::to_string(&h) {
+                        let _ = std::fs::write(&state.paths.printer_history, data);
+                    }
+                    state.lock().printer_history = Some(h.clone());
+                    let _ = app.emit("printer://history", &h);
+                }
             }
         }
     });
@@ -380,6 +390,11 @@ fn get_jobs(state: State<'_, Arc<AppState>>) -> Vec<JobRecord> {
 }
 
 #[tauri::command]
+fn get_printer_history(state: State<'_, Arc<AppState>>) -> Option<PrinterHistory> {
+    state.lock().printer_history.clone()
+}
+
+#[tauri::command]
 fn clear_jobs(state: State<'_, Arc<AppState>>) {
     state.lock().jobs.clear();
     save_jobs(&state);
@@ -471,6 +486,63 @@ fn export_gcode(app: AppHandle, from: String, to: String) -> Result<(), String> 
     std::fs::copy(&from, &to).map(|_| ()).map_err(|_| "Datei konnte nicht gespeichert werden.".to_string())
 }
 
+/// Pause, Fortsetzen oder Abbrechen – nur wenn der Zustand dazu passt.
+#[tauri::command]
+async fn printer_control(app: AppHandle, action: String) -> Result<(), String> {
+    let (host, state, preparing) = {
+        let st = app.state::<Arc<AppState>>();
+        let inner = st.lock();
+        let s = inner.status.as_ref();
+        (inner.settings.printer_ip.clone(), s.map(|s| s.state), s.map(|s| s.preparing).unwrap_or(false))
+    };
+    if host.is_empty() {
+        return Err("Keine Drucker-IP eingetragen.".into());
+    }
+    let ok = match (action.as_str(), state) {
+        ("pause", Some(PrintState::Printing)) => !preparing,
+        ("resume", Some(PrintState::Paused)) => true,
+        ("stop", Some(PrintState::Printing | PrintState::Paused)) => true,
+        _ => false,
+    };
+    if !ok {
+        return Err(match action.as_str() {
+            "pause" if preparing => "Während Heizen und Leveling nimmt der Drucker keine Pause an.".into(),
+            "pause" => "Pausieren geht nur während eines Drucks.".into(),
+            "resume" => "Der Drucker ist nicht pausiert.".into(),
+            _ => "Es läuft gerade kein Druck.".into(),
+        });
+    }
+    printjob::control(&host, None, &action).await
+}
+
+fn project_path(path: &str) -> Result<std::path::PathBuf, String> {
+    let p = std::path::PathBuf::from(path);
+    match p.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) {
+        Some(e) if e == "druckerwacht" => Ok(p),
+        _ => Err("Projektdateien haben die Endung .druckerwacht.".into()),
+    }
+}
+
+/// Speichert ein Projekt an den vom Nutzer gewählten Ort.
+#[tauri::command]
+fn save_project(path: String, contents: String) -> Result<(), String> {
+    let p = project_path(&path)?;
+    let tmp = p.with_extension("druckerwacht.tmp");
+    std::fs::write(&tmp, contents).map_err(|_| "Projekt konnte nicht gespeichert werden.".to_string())?;
+    std::fs::rename(&tmp, &p).map_err(|_| "Projekt konnte nicht gespeichert werden.".to_string())
+}
+
+/// Liest ein Projekt.
+#[tauri::command]
+fn read_project(path: String) -> Result<String, String> {
+    let p = project_path(&path)?;
+    let meta = std::fs::metadata(&p).map_err(|_| "Projektdatei nicht gefunden.".to_string())?;
+    if meta.len() > 800 * 1024 * 1024 {
+        return Err("Die Projektdatei ist zu groß.".into());
+    }
+    std::fs::read_to_string(&p).map_err(|_| "Projekt konnte nicht gelesen werden.".to_string())
+}
+
 /// Sendet den erzeugten G-Code an den Drucker und startet ihn auf Wunsch.
 #[tauri::command]
 async fn printer_send(app: AppHandle, path: String, start: bool) -> Result<String, String> {
@@ -521,9 +593,13 @@ pub fn run() {
             let paths = Paths {
                 settings: config_dir.join("settings.json"),
                 jobs: data_dir.join("jobs.json"),
+                printer_history: data_dir.join("printer_history.json"),
                 raw_log_dir: log_dir.join("raw"),
             };
             let settings = Settings::load(&paths.settings);
+            let printer_history: Option<PrinterHistory> = std::fs::read_to_string(&paths.printer_history)
+                .ok()
+                .and_then(|s| serde_json::from_str(&s).ok());
             let jobs: Vec<JobRecord> = std::fs::read_to_string(&paths.jobs)
                 .ok()
                 .and_then(|s| serde_json::from_str(&s).ok())
@@ -539,6 +615,7 @@ pub fn run() {
                     active_job: None,
                     shutdown: None,
                     disconnect_notified: false,
+                    printer_history,
                 }),
                 generation: AtomicU64::new(0),
                 disconnect_seq: AtomicU64::new(0),
@@ -555,6 +632,7 @@ pub fn run() {
             reconnect,
             get_snapshot,
             get_jobs,
+            get_printer_history,
             clear_jobs,
             discover_printers,
             raw_log_dir,
@@ -567,7 +645,10 @@ pub fn run() {
             read_model_file,
             read_gcode,
             export_gcode,
-            printer_send
+            printer_send,
+            save_project,
+            read_project,
+            printer_control
         ])
         .run(tauri::generate_context!())
         .expect("Druckerwacht konnte nicht gestartet werden");

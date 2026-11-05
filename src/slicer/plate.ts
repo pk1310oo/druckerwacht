@@ -39,7 +39,33 @@ export interface ModelInfo {
   outside: boolean;
 }
 
-export type Tool = "select" | "move" | "rotate" | "scale" | "layflat" | "cut" | "measure" | null;
+export type Tool = "select" | "move" | "rotate" | "scale" | "layflat" | "cut" | "measure" | "paint" | null;
+
+interface Snap {
+  items: {
+    id: number;
+    name: string;
+    geometry: THREE.BufferGeometry;
+    paint: PaintData | undefined;
+    p: [number, number, number];
+    q: [number, number, number, number];
+    s: [number, number, number];
+  }[];
+  key: string;
+}
+
+/** Gemalte Bereiche je Dreieck (0 = nichts, 1 = erzwingen, 2 = blockieren), getrennt für Stützen und Naht. */
+export type PaintData = { support?: Uint8Array; seam?: Uint8Array };
+export type PaintChannel = "support" | "seam";
+
+export interface ProjectModel {
+  name: string;
+  stl: Uint8Array;
+  position: [number, number, number];
+  quaternion: [number, number, number, number];
+  scale: [number, number, number];
+  paint: PaintData | null;
+}
 
 export interface Measure {
   points: THREE.Vector3[];
@@ -112,7 +138,7 @@ export class Plate {
       if (!dragging) {
         for (const m of this.selection) this.dropToBed(m);
         this.placePivot();
-        this.emit();
+        this.changed();
       }
     });
     this.gizmo.addEventListener("objectChange", () => {
@@ -147,6 +173,7 @@ export class Plate {
     // Vor OrbitControls ausführen (Capture), damit das Auswahlrechteck die Ansicht nicht dreht
     this.renderer.domElement.addEventListener("pointerdown", this.onPointerDown, { capture: true });
     this.renderer.domElement.addEventListener("pointerup", this.onPointerUp);
+    this.renderer.domElement.addEventListener("pointermove", this.onHover);
     this.loop();
   }
 
@@ -168,6 +195,156 @@ export class Plate {
   onChange(fn: () => void) {
     this.listeners.add(fn);
     return () => this.listeners.delete(fn);
+  }
+
+  // ------------------------------------------------------------------ Verlauf (Rückgängig/Wiederholen)
+
+  private history: Snap[] = [{ items: [], key: "[]" }];
+  private hIndex = 0;
+  private restoring = false;
+
+  /** Nach einer Änderung: Zustand merken und Oberfläche benachrichtigen. */
+  private changed() {
+    this.commit();
+    this.emit();
+  }
+
+  private snapshot(): Snap {
+    const items = this.models.map((m) => ({
+      id: m.userData.id as number,
+      name: m.name,
+      geometry: m.geometry,
+      paint: m.userData.paint as PaintData | undefined,
+      p: m.position.toArray() as [number, number, number],
+      q: m.quaternion.toArray() as [number, number, number, number],
+      s: m.scale.toArray() as [number, number, number],
+    }));
+    const r = (v: number) => Math.round(v * 1000) / 1000;
+    const key = JSON.stringify(items.map((i) => [i.id, i.geometry.id, paintVersion(i.paint), ...i.p.map(r), ...i.q.map(r), ...i.s.map(r)]));
+    return { items, key };
+  }
+
+  private commit() {
+    if (this.restoring) return;
+    const snap = this.snapshot();
+    if (snap.key === this.history[this.hIndex].key) return;
+    const dropped = this.history.splice(this.hIndex + 1); // „Wiederholen“-Zweig verwerfen
+    this.history.push(snap);
+    while (this.history.length > 60) dropped.push(this.history.shift()!);
+    this.hIndex = this.history.length - 1;
+    this.freeGeometries(dropped);
+  }
+
+  /** Gibt Geometrien frei, die weder im Verlauf noch auf der Platte vorkommen. */
+  private freeGeometries(dropped: Snap[]) {
+    if (!dropped.length) return;
+    const used = new Set<THREE.BufferGeometry>(this.models.map((m) => m.geometry));
+    for (const h of this.history) for (const i of h.items) used.add(i.geometry);
+    for (const d of dropped) for (const i of d.items) if (!used.has(i.geometry)) i.geometry.dispose();
+  }
+
+  canUndo() {
+    return this.hIndex > 0;
+  }
+
+  canRedo() {
+    return this.hIndex < this.history.length - 1;
+  }
+
+  undo() {
+    if (!this.canUndo()) return;
+    this.hIndex--;
+    this.restore(this.history[this.hIndex]);
+  }
+
+  redo() {
+    if (!this.canRedo()) return;
+    this.hIndex++;
+    this.restore(this.history[this.hIndex]);
+  }
+
+  private restore(snap: Snap) {
+    this.restoring = true;
+    const byId = new Map(this.models.map((m) => [m.userData.id as number, m]));
+    const next: THREE.Mesh[] = [];
+    for (const it of snap.items) {
+      let m = byId.get(it.id);
+      if (!m || m.geometry !== it.geometry) {
+        if (m) {
+          this.modelGroup.remove(m);
+          (m.material as THREE.Material).dispose();
+        }
+        m = new THREE.Mesh(it.geometry, newModelMaterial());
+        m.castShadow = true;
+        m.userData.id = it.id;
+        this.modelGroup.add(m);
+      }
+      m.name = it.name;
+      if (m.userData.paint !== it.paint) {
+        m.userData.paint = it.paint;
+        updatePaintOverlay(m);
+      }
+      m.position.fromArray(it.p);
+      m.quaternion.fromArray(it.q);
+      m.scale.fromArray(it.s);
+      m.updateMatrixWorld(true);
+      next.push(m);
+      byId.delete(it.id);
+    }
+    for (const m of byId.values()) {
+      this.modelGroup.remove(m);
+      (m.material as THREE.Material).dispose();
+    }
+    this.models = next;
+    for (const m of [...this.selection]) if (!next.includes(m)) this.selection.delete(m);
+    this.nextId = Math.max(this.nextId, ...next.map((m) => (m.userData.id as number) + 1));
+    this.restoring = false;
+    this.afterSelect();
+  }
+
+  // ------------------------------------------------------------------ Projekte
+
+  /** Platte als Projektdaten (Modelle als binäre STL in Modellkoordinaten + Lage). */
+  exportProject(): ProjectModel[] {
+    return this.models.map((m) => ({
+      name: m.name,
+      stl: toBinaryStl(m.geometry.index ? m.geometry.toNonIndexed() : m.geometry),
+      position: m.position.toArray() as [number, number, number],
+      quaternion: m.quaternion.toArray() as [number, number, number, number],
+      scale: m.scale.toArray() as [number, number, number],
+      paint: (m.userData.paint as PaintData | undefined) ?? null,
+    }));
+  }
+
+  /** Ersetzt die Platte durch ein gespeichertes Projekt (rückgängig machbar). */
+  loadProject(models: ProjectModel[]) {
+    for (const m of [...this.models]) {
+      this.modelGroup.remove(m);
+      (m.material as THREE.Material).dispose();
+    }
+    this.models = [];
+    this.selection.clear();
+    for (const pm of models) {
+      const g = new STLLoader().parse(pm.stl.buffer.slice(pm.stl.byteOffset, pm.stl.byteOffset + pm.stl.byteLength) as ArrayBuffer);
+      g.computeVertexNormals();
+      g.computeBoundingBox();
+      g.computeBoundingSphere();
+      const m = new THREE.Mesh(g, newModelMaterial());
+      m.name = pm.name;
+      m.castShadow = true;
+      m.userData.id = this.nextId++;
+      if (pm.paint) {
+        m.userData.paint = pm.paint;
+        updatePaintOverlay(m);
+      }
+      m.position.fromArray(pm.position);
+      m.quaternion.fromArray(pm.quaternion);
+      m.scale.fromArray(pm.scale);
+      this.modelGroup.add(m);
+      this.models.push(m);
+    }
+    this.commit();
+    this.afterSelect();
   }
 
   private emit() {
@@ -292,7 +469,7 @@ export class Plate {
     if (!geom.attributes.position || geom.attributes.position.count < 3) throw new Error("Die Datei enthält kein Modell.");
     geom = cleanGeometry(geom);
 
-    const mesh = new THREE.Mesh(geom, new THREE.MeshStandardMaterial({ color: COLOR.model, roughness: 0.55, metalness: 0.05, flatShading: false }));
+    const mesh = new THREE.Mesh(geom, newModelMaterial());
     mesh.name = name.replace(/\.(stl|obj|3mf)$/i, "");
     mesh.castShadow = true;
     mesh.userData.id = this.nextId++;
@@ -307,7 +484,7 @@ export class Plate {
     this.models.push(mesh);
     this.placeFree(mesh);
     this.select(mesh);
-    this.emit();
+    this.changed();
     return this.info(mesh);
   }
 
@@ -322,6 +499,7 @@ export class Plate {
 
   setTool(tool: Tool) {
     this.tool = tool;
+    if (tool !== "paint" && this.cursor) this.cursor.visible = false;
     if (tool !== "measure") this.clearMeasure();
     this.updateCutPlane();
     this.syncGizmo();
@@ -346,7 +524,7 @@ export class Plate {
     }
     // Im Auswahl-Werkzeug zieht die linke Maustaste ein Rechteck auf; gedreht wird mit rechts
     this.orbit.mouseButtons =
-      this.tool === "select"
+      this.tool === "select" || this.tool === "paint"
         ? { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE }
         : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
     this.invalidate();
@@ -443,7 +621,7 @@ export class Plate {
       this.dropToBed(m);
     }
     this.placePivot();
-    this.emit();
+    this.changed();
   }
 
   private down = { x: 0, y: 0 };
@@ -452,6 +630,10 @@ export class Plate {
   private onPointerDown = (e: PointerEvent) => {
     this.down = { x: e.clientX, y: e.clientY };
     if (e.button !== 0 || this.preview || !this.host) return;
+    if (this.tool === "paint") {
+      this.startStroke(e);
+      return;
+    }
     if (this.tool !== "select" && !e.shiftKey) return;
     if ((this.gizmo as unknown as { axis: string | null }).axis) return; // Griff des Gizmos
     if (this.tool !== "select" && this.pick(e)) return; // Shift-Klick auf ein Modell = Auswahl umschalten
@@ -509,7 +691,7 @@ export class Plate {
   };
 
   private onPointerUp = (e: PointerEvent) => {
-    if (e.button !== 0 || this.preview || this.box) return;
+    if (e.button !== 0 || this.preview || this.box || this.tool === "paint") return;
     if (Math.hypot(e.clientX - this.down.x, e.clientY - this.down.y) > 4) return; // war ein Drehen der Ansicht
     if ((this.gizmo as unknown as { dragging: boolean }).dragging) return;
     if (this.tool === "measure") {
@@ -543,8 +725,142 @@ export class Plate {
     this.select(mesh);
     this.tool = "move";
     this.syncGizmo();
+    this.changed();
+  }
+
+  // ------------------------------------------------------------------ Stützen & Naht malen
+
+  private brush = { channel: "support" as PaintChannel, value: 1, radius: 3 };
+  private stroke: { mesh: THREE.Mesh; centroids: Float32Array; normals: Float32Array } | null = null;
+  private cursor: THREE.Mesh | null = null;
+
+  setBrush(b: Partial<{ channel: PaintChannel; value: number; radius: number }>) {
+    Object.assign(this.brush, b);
     this.emit();
   }
+
+  getBrush() {
+    return { ...this.brush };
+  }
+
+  /** Anzahl gemalter Dreiecke des ausgewählten Modells je Art (für Hinweise in der Oberfläche) */
+  paintStats(): { supportEnforce: number; supportBlock: number; seamEnforce: number; seamBlock: number } {
+    const r = { supportEnforce: 0, supportBlock: 0, seamEnforce: 0, seamBlock: 0 };
+    for (const m of this.models) {
+      const p = m.userData.paint as PaintData | undefined;
+      p?.support?.forEach((v) => (v === 1 ? r.supportEnforce++ : v === 2 ? r.supportBlock++ : 0));
+      p?.seam?.forEach((v) => (v === 1 ? r.seamEnforce++ : v === 2 ? r.seamBlock++ : 0));
+    }
+    return r;
+  }
+
+  /** Löscht die gemalten Bereiche einer Art am ausgewählten Modell. */
+  clearPaint(channel: PaintChannel) {
+    const m = this.selected;
+    const p = m?.userData.paint as PaintData | undefined;
+    if (!m || !p?.[channel]) return;
+    m.userData.paint = { ...p, [channel]: undefined };
+    updatePaintOverlay(m);
+    this.changed();
+  }
+
+  private startStroke(e: PointerEvent) {
+    const hit = this.pick(e);
+    if (!hit) return; // auf leere Fläche: Ansicht drehen wie gewohnt
+    const mesh = hit.object as THREE.Mesh;
+    if (this.selected !== mesh) this.select(mesh);
+    this.orbit.enabled = false;
+    refineForPaint(mesh);
+    // Weltkoordinaten der Dreiecksmitten und -normalen einmal je Strich berechnen
+    mesh.updateMatrixWorld(true);
+    const pos = mesh.geometry.attributes.position;
+    const n = pos.count / 3;
+    const centroids = new Float32Array(n * 3);
+    const normals = new Float32Array(n * 3);
+    const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), t = new THREE.Vector3();
+    const flip = mesh.matrixWorld.determinant() < 0 ? -1 : 1;
+    for (let i = 0; i < n; i++) {
+      a.fromBufferAttribute(pos, i * 3).applyMatrix4(mesh.matrixWorld);
+      b.fromBufferAttribute(pos, i * 3 + 1).applyMatrix4(mesh.matrixWorld);
+      c.fromBufferAttribute(pos, i * 3 + 2).applyMatrix4(mesh.matrixWorld);
+      centroids.set([(a.x + b.x + c.x) / 3, (a.y + b.y + c.y) / 3, (a.z + b.z + c.z) / 3], i * 3);
+      t.subVectors(c, b).cross(a.clone().sub(b)).normalize().multiplyScalar(flip);
+      normals.set([t.x, t.y, t.z], i * 3);
+    }
+    // Copy-on-write: der Verlauf behält die alte Fassung
+    const old = (mesh.userData.paint as PaintData | undefined) ?? {};
+    const ch = this.brush.channel;
+    const arr = old[ch] ? new Uint8Array(old[ch]!) : new Uint8Array(n);
+    mesh.userData.paint = { ...old, [ch]: arr };
+    this.stroke = { mesh, centroids, normals };
+    this.paintAt(hit.point);
+    window.addEventListener("pointermove", this.onStrokeMove);
+    window.addEventListener("pointerup", this.onStrokeEnd, { once: true });
+  }
+
+  private onStrokeMove = (e: PointerEvent) => {
+    if (!this.stroke) return;
+    const hit = this.pick(e);
+    if (hit && hit.object === this.stroke.mesh) this.paintAt(hit.point);
+  };
+
+  private onStrokeEnd = () => {
+    window.removeEventListener("pointermove", this.onStrokeMove);
+    this.stroke = null;
+    this.orbit.enabled = true;
+    this.changed();
+  };
+
+  private paintAt(p: THREE.Vector3) {
+    const s = this.stroke!;
+    const arr = (s.mesh.userData.paint as PaintData)[this.brush.channel]!;
+    const r2 = this.brush.radius * this.brush.radius;
+    const view = new THREE.Vector3().subVectors(this.camera.position, p);
+    let changed = false;
+    for (let i = 0; i < arr.length; i++) {
+      const dx = s.centroids[i * 3] - p.x, dy = s.centroids[i * 3 + 1] - p.y, dz = s.centroids[i * 3 + 2] - p.z;
+      if (dx * dx + dy * dy + dz * dz > r2) continue;
+      // nur zur Kamera zeigende Flächen (sonst malt man durch das Modell hindurch)
+      if (s.normals[i * 3] * view.x + s.normals[i * 3 + 1] * view.y + s.normals[i * 3 + 2] * view.z < 0) continue;
+      if (arr[i] !== this.brush.value) {
+        arr[i] = this.brush.value;
+        changed = true;
+      }
+    }
+    if (changed) {
+      (s.mesh.userData.paint as PaintData & { v?: number }).v = (paintCounter += 1);
+      updatePaintOverlay(s.mesh);
+      this.invalidate();
+    }
+  }
+
+  /** Pinselkreis unter dem Mauszeiger (nur im Mal-Werkzeug). */
+  private onHover = (e: PointerEvent) => {
+    if (this.tool !== "paint" || this.preview) {
+      if (this.cursor?.visible) {
+        this.cursor.visible = false;
+        this.invalidate();
+      }
+      return;
+    }
+    const hit = this.pick(e);
+    if (!this.cursor) {
+      this.cursor = new THREE.Mesh(
+        new THREE.RingGeometry(0.92, 1, 48),
+        new THREE.MeshBasicMaterial({ color: 0xf5f4ef, transparent: true, opacity: 0.9, depthTest: false, side: THREE.DoubleSide }),
+      );
+      this.cursor.renderOrder = 20;
+      this.scene.add(this.cursor);
+    }
+    this.cursor.visible = !!hit?.face;
+    if (hit?.face) {
+      const n = hit.face.normal.clone().transformDirection(hit.object.matrixWorld).normalize();
+      this.cursor.position.copy(hit.point).addScaledVector(n, 0.05);
+      this.cursor.quaternion.setFromUnitVectors(new THREE.Vector3(0, 0, 1), n);
+      this.cursor.scale.setScalar(this.brush.radius);
+    }
+    this.invalidate();
+  };
 
   // ------------------------------------------------------------------ Spiegeln, Ausrichten
 
@@ -554,7 +870,7 @@ export class Plate {
       this.dropToBed(m);
     }
     this.placePivot();
-    this.emit();
+    this.changed();
   }
 
   /**
@@ -565,7 +881,7 @@ export class Plate {
   autoOrient() {
     for (const m of [...this.selection]) this.autoOrientOne(m);
     this.placePivot();
-    this.emit();
+    this.changed();
   }
 
   private autoOrientOne(m: THREE.Mesh) {
@@ -694,7 +1010,10 @@ export class Plate {
     if (!lower || !upper) return "An dieser Höhe gibt es nichts zu schneiden.";
     const baseName = m.name;
     const color = (m.material as THREE.MeshStandardMaterial).clone();
-    this.remove(m.userData.id);
+    // Original entfernen, ohne Zwischenschritt im Verlauf
+    this.models = this.models.filter((x) => x !== m);
+    this.modelGroup.remove(m);
+    this.selection.delete(m);
     const add = (geom: THREE.BufferGeometry, suffix: string, flip: boolean) => {
       if (flip) geom.applyMatrix4(new THREE.Matrix4().makeRotationX(Math.PI));
       const mesh = new THREE.Mesh(cleanGeometry(geom), color.clone());
@@ -788,14 +1107,14 @@ export class Plate {
     this.selected.position.x = x;
     this.selected.position.y = y;
     this.dropToBed(this.selected);
-    this.emit();
+    this.changed();
   }
 
   setRotation(deg: [number, number, number]) {
     if (!this.selected) return;
     this.selected.rotation.set(...(deg.map(THREE.MathUtils.degToRad) as [number, number, number]), "XYZ");
     this.dropToBed(this.selected);
-    this.emit();
+    this.changed();
   }
 
   rotateBy(axis: "x" | "y" | "z", deg: number) {
@@ -803,14 +1122,14 @@ export class Plate {
     const a = new THREE.Vector3(axis === "x" ? 1 : 0, axis === "y" ? 1 : 0, axis === "z" ? 1 : 0);
     this.selected.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(a, THREE.MathUtils.degToRad(deg)));
     this.dropToBed(this.selected);
-    this.emit();
+    this.changed();
   }
 
   setScale(s: [number, number, number]) {
     if (!this.selected) return;
     this.selected.scale.set(...s.map((v) => Math.max(0.001, v)) as [number, number, number]);
     this.dropToBed(this.selected);
-    this.emit();
+    this.changed();
   }
 
   /** Setzt die Größe in mm (gleichmäßig, wenn `uniform`). */
@@ -823,7 +1142,7 @@ export class Plate {
     if (uniform) s.multiplyScalar(f);
     else s.setComponent(axis, s.getComponent(axis) * f);
     this.dropToBed(this.selected);
-    this.emit();
+    this.changed();
   }
 
   /** Löscht das Modell mit `id` – ohne id alle ausgewählten. */
@@ -833,15 +1152,17 @@ export class Plate {
     for (const m of list) {
       this.models = this.models.filter((x) => x !== m);
       this.modelGroup.remove(m);
-      m.geometry.dispose();
+      // Geometrie bleibt für „Rückgängig“ erhalten (wird beim Kürzen des Verlaufs freigegeben)
       (m.material as THREE.Material).dispose();
       this.selection.delete(m);
     }
+    this.commit();
     this.afterSelect();
   }
 
   clear() {
-    [...this.models].forEach((m) => this.remove(m.userData.id));
+    this.selection = new Set(this.models);
+    this.remove();
   }
 
   duplicate() {
@@ -854,6 +1175,10 @@ export class Plate {
       c.position.copy(m.position);
       c.quaternion.copy(m.quaternion);
       c.scale.copy(m.scale);
+      if (m.userData.paint) {
+        c.userData.paint = m.userData.paint; // unverändert geteilt; Malen kopiert vorher (copy-on-write)
+        updatePaintOverlay(c);
+      }
       this.modelGroup.add(c);
       this.models.push(c);
       copies.push(c);
@@ -896,7 +1221,7 @@ export class Plate {
       y -= r.d + gap;
     }
     this.models.forEach((m) => this.dropToBed(m));
-    this.emit();
+    this.changed();
   }
 
   // ------------------------------------------------------------------ Zustand
@@ -946,8 +1271,9 @@ export class Plate {
   // ------------------------------------------------------------------ Export
 
   /** Jedes Modell als binäre STL in Bettkoordinaten (für Orca mit --arrange 0). */
-  exportStls(): { name: string; data: Uint8Array }[] {
+  exportStls(): { name: string; data: Uint8Array; support?: Uint8Array; seam?: Uint8Array }[] {
     return this.models.map((m) => {
+      const paint = m.userData.paint as PaintData | undefined;
       m.updateMatrixWorld(true);
       const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
       g.applyMatrix4(m.matrixWorld);
@@ -955,7 +1281,8 @@ export class Plate {
       if (m.matrixWorld.determinant() < 0) flipWinding(g);
       const data = toBinaryStl(g);
       g.dispose();
-      return { name: m.name, data };
+      const used = (a?: Uint8Array) => (a && a.some((v) => v !== 0) ? a : undefined);
+      return { name: m.name, data, support: used(paint?.support), seam: used(paint?.seam) };
     });
   }
 
@@ -1033,6 +1360,8 @@ function groupToGeometry(root: THREE.Object3D): THREE.BufferGeometry {
 
 /** Ursprung unten mittig, Normalen berechnen, nur Positionen behalten. */
 function cleanGeometry(g: THREE.BufferGeometry) {
+  // Ein Dreieck je drei Eckpunkte (nötig fürs Malen: Index = Dreiecksnummer)
+  if (g.index) g = g.toNonIndexed();
   // Normalen immer neu berechnen – viele STL-Dateien enthalten nur Nullvektoren
   for (const k of Object.keys(g.attributes)) if (k !== "position") g.deleteAttribute(k);
   g.computeBoundingBox();
@@ -1227,4 +1556,118 @@ export function splitAtZ(g: THREE.BufferGeometry, h: number): { lower: THREE.Buf
     return b;
   };
   return { lower: mk(lo), upper: mk(up) };
+}
+
+function newModelMaterial() {
+  return new THREE.MeshStandardMaterial({ color: COLOR.model, roughness: 0.55, metalness: 0.05 });
+}
+
+let paintCounter = 0;
+function paintVersion(p: PaintData | undefined): number {
+  return p ? ((p as PaintData & { v?: number }).v ?? 0.5) : 0;
+}
+
+const PAINT_COLORS: Record<string, [number, number, number]> = {
+  "support-1": [0.3, 0.69, 0.48], // erzwingen: grün
+  "support-2": [0.88, 0.35, 0.31], // blockieren: rot
+  "seam-1": [0.36, 0.55, 0.94], // Naht hier: blau
+  "seam-2": [0.88, 0.64, 0.23], // Naht nicht hier: gelb
+};
+
+/** Zeigt die gemalten Dreiecke farbig über dem Modell (eigenes, leicht vorgezogenes Netz). */
+function updatePaintOverlay(m: THREE.Mesh) {
+  const old = m.children.find((c) => c.name === "paint") as THREE.Mesh | undefined;
+  if (old) {
+    m.remove(old);
+    old.geometry.dispose();
+    (old.material as THREE.Material).dispose();
+  }
+  const p = m.userData.paint as PaintData | undefined;
+  if (!p) return;
+  const pos = m.geometry.attributes.position;
+  const verts: number[] = [];
+  const cols: number[] = [];
+  const n = pos.count / 3;
+  for (let i = 0; i < n; i++) {
+    const key = p.seam?.[i] ? `seam-${p.seam[i]}` : p.support?.[i] ? `support-${p.support[i]}` : null;
+    if (!key) continue;
+    const c = PAINT_COLORS[key];
+    for (let k = 0; k < 3; k++) {
+      verts.push(pos.getX(i * 3 + k), pos.getY(i * 3 + k), pos.getZ(i * 3 + k));
+      cols.push(c[0], c[1], c[2]);
+    }
+  }
+  if (!verts.length) return;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute("position", new THREE.Float32BufferAttribute(verts, 3));
+  g.setAttribute("color", new THREE.Float32BufferAttribute(cols, 3));
+  const overlay = new THREE.Mesh(
+    g,
+    new THREE.MeshBasicMaterial({ vertexColors: true, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2, side: THREE.DoubleSide }),
+  );
+  overlay.name = "paint";
+  overlay.raycast = () => {}; // nicht anklickbar
+  m.add(overlay);
+}
+
+/** Feinheit beim Malen: größte Kantenlänge in mm und Obergrenze an Dreiecken. */
+const PAINT_EDGE_MM = 1.5;
+const PAINT_MAX_TRIS = 400_000;
+
+/**
+ * Unterteilt das Modell gleichmäßig (jedes Dreieck → 4), bis die Kanten fein genug zum Malen sind.
+ * Gleichmäßig, damit keine T-Stöße entstehen – der Körper bleibt geschlossen. Bestehende
+ * Bemalung wird auf die Teildreiecke übertragen.
+ */
+function refineForPaint(m: THREE.Mesh) {
+  const scale = Math.max(Math.abs(m.scale.x), Math.abs(m.scale.y), Math.abs(m.scale.z));
+  let g = m.geometry;
+  let paint = m.userData.paint as PaintData | undefined;
+  const maxEdge = (geo: THREE.BufferGeometry) => {
+    const p = geo.attributes.position;
+    const a = new THREE.Vector3(), b = new THREE.Vector3();
+    let mx = 0;
+    for (let i = 0; i < p.count; i += 3)
+      for (let k = 0; k < 3; k++) {
+        a.fromBufferAttribute(p, i + k);
+        b.fromBufferAttribute(p, i + ((k + 1) % 3));
+        mx = Math.max(mx, a.distanceTo(b));
+      }
+    return mx * scale;
+  };
+  let changed = false;
+  while (maxEdge(g) > PAINT_EDGE_MM && (g.attributes.position.count / 3) * 4 <= PAINT_MAX_TRIS) {
+    const src = g.attributes.position.array as ArrayLike<number>;
+    const n = src.length / 9;
+    const out = new Float32Array(n * 36);
+    for (let t = 0; t < n; t++) {
+      const o = t * 9;
+      const A = [src[o], src[o + 1], src[o + 2]], B = [src[o + 3], src[o + 4], src[o + 5]], C = [src[o + 6], src[o + 7], src[o + 8]];
+      const mid = (p: number[], q: number[]) => [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2, (p[2] + q[2]) / 2];
+      const AB = mid(A, B), BC = mid(B, C), CA = mid(C, A);
+      const tris = [A, AB, CA, AB, B, BC, CA, BC, C, AB, BC, CA];
+      for (let k = 0; k < 12; k++) out.set(tris[k], t * 36 + k * 3);
+    }
+    const ng = new THREE.BufferGeometry();
+    ng.setAttribute("position", new THREE.BufferAttribute(out, 3));
+    if (g !== m.geometry) g.dispose();
+    g = ng;
+    if (paint) {
+      const spread = (a?: Uint8Array) => {
+        if (!a) return undefined;
+        const r = new Uint8Array(a.length * 4);
+        for (let i = 0; i < a.length; i++) r.fill(a[i], i * 4, i * 4 + 4);
+        return r;
+      };
+      paint = { support: spread(paint.support), seam: spread(paint.seam) };
+    }
+    changed = true;
+  }
+  if (!changed) return;
+  g.computeVertexNormals();
+  g.computeBoundingBox();
+  g.computeBoundingSphere();
+  m.geometry = g; // alte Geometrie bleibt für „Rückgängig“ im Verlauf
+  if (paint) m.userData.paint = paint;
+  updatePaintOverlay(m);
 }

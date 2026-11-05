@@ -68,6 +68,23 @@ export interface JobRecord {
   layers: number | null;
 }
 
+export interface PrinterJob {
+  id: number;
+  file: string;
+  startedS: number;
+  durationS: number;
+  materialMm: number;
+  finished: boolean;
+  thumbnail: string | null;
+}
+
+export interface PrinterHistory {
+  totalJobs: number | null;
+  totalTimeS: number | null;
+  totalMaterialMm: number | null;
+  jobs: PrinterJob[];
+}
+
 export interface FoundPrinter {
   ip: string;
   model: string | null;

@@ -2,16 +2,19 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   Box,
+  Brush,
   Check,
   Copy,
   FlipHorizontal2,
   Plus,
   Printer,
+  Redo2,
   Ruler,
   Scaling,
   Scissors,
   SquareDashedMousePointer,
   Thermometer,
+  Undo2,
   Wand2,
   Download,
   Eye,
@@ -33,6 +36,7 @@ import {
 import { Plate, BED, type ModelInfo, type Tool } from "../slicer/plate";
 import { parseGcode, defaultVisible, type GcodePreview } from "../slicer/gcode";
 import { SettingsPanel } from "../slicer/SettingsPanel";
+import { parseProject, serializeProject } from "../slicer/project";
 import {
   bytesToBase64,
   cancelSlice,
@@ -42,6 +46,9 @@ import {
   onSliceProgress,
   onUploadProgress,
   pickModels,
+  pickProject,
+  readProject,
+  saveProjectAs,
   printerSend,
   readGcode,
   readModel,
@@ -162,6 +169,10 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       closePreview();
       for (const p of paths) {
         try {
+          if (/\.druckerwacht$/i.test(p)) {
+            await openProjectFile(p);
+            continue;
+          }
           const name = p.split(/[\\/]/).pop() ?? "Modell";
           await plate.addFile(name, await readModel(p));
         } catch (e) {
@@ -173,6 +184,56 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [plate],
   );
+
+  // --------------------------------------------------------------- Projekte
+  async function openProjectFile(path: string) {
+    const proj = parseProject(await readProject(path));
+    applyProject(proj);
+    setProjectName(path.split(/[\\/]/).pop()!.replace(/\.druckerwacht$/i, ""));
+  }
+
+  function applyProject(proj: ReturnType<typeof parseProject>) {
+    closePreview();
+    plate.loadProject(proj.models);
+    if (proj.settings.process) setProcessName(proj.settings.process);
+    if (proj.settings.filament) setFilamentName(proj.settings.filament);
+    setOverrides(proj.settings.overrides);
+  }
+
+  const [projectName, setProjectName] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  useEffect(() => {
+    if (!notice) return;
+    const t = setTimeout(() => setNotice(null), 2500);
+    return () => clearTimeout(t);
+  }, [notice]);
+
+  const saveProject = async () => {
+    if (!plate.count) return;
+    try {
+      const data = serializeProject(plate.exportProject(), { process: processName, filament: filamentName, overrides });
+      const suggested = `${projectName ?? models[0]?.name ?? "Projekt"}.druckerwacht`;
+      if (await saveProjectAs(data, suggested)) setNotice("Projekt gespeichert");
+    } catch (e) {
+      setLoadError(typeof e === "string" ? e : e instanceof Error ? e.message : "Projekt konnte nicht gespeichert werden.");
+    }
+  };
+
+  const openProject = async () => {
+    try {
+      if (!isTauri) return;
+      const path = await pickProject();
+      if (path) await openProjectFile(path);
+    } catch (e) {
+      setLoadError(typeof e === "string" ? e : e instanceof Error ? e.message : "Projekt konnte nicht geöffnet werden.");
+    }
+  };
+
+  // Nur Entwicklung: Projekt-Rundreise im Browser testen
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as unknown as { __dwLoadProject: (t: string) => void }).__dwLoadProject = (t: string) => applyProject(parseProject(t));
+  });
 
   useEffect(() => {
     let off: (() => void) | undefined;
@@ -261,7 +322,12 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
     closePreview();
     setPhase({ kind: "slicing", progress: null });
     try {
-      const stls = plate.exportStls().map((m) => ({ name: m.name, stl: bytesToBase64(m.data) }));
+      const stls = plate.exportStls().map((m) => ({
+        name: m.name,
+        stl: bytesToBase64(m.data),
+        support: m.support ? bytesToBase64(m.support) : undefined,
+        seam: m.seam ? bytesToBase64(m.seam) : undefined,
+      }));
       const thumbs = plate.thumbnails([96, 300]);
       const fileName = `${models[0].name}${models.length > 1 ? `_+${models.length - 1}` : ""}_${active.filament.name.split(" @")[0]}_${Math.round(Number(String(overrides.layer_height ?? active.process.layer_height ?? "0.2")) * 100) / 100}mm`;
       const result = await slice({
@@ -333,7 +399,15 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest("input, select, textarea")) return;
-      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "a") plate.selectAll();
+      const mod = e.ctrlKey || e.metaKey;
+      const k = e.key.toLowerCase();
+      if (mod && k === "z" && e.shiftKey) plate.redo();
+      else if (mod && k === "z") plate.undo();
+      else if (mod && k === "y") plate.redo();
+      else if (mod && k === "s") void saveProjectRef.current();
+      else if (mod && k === "o") void openDialogRef.current();
+      else if (mod && k === "a") plate.selectAll();
+      else if (mod) return;
       else if (e.key === "Delete" || e.key === "Backspace") plate.remove();
       else if (e.key === "v") plate.setTool("select");
       else if (e.key === "m" || e.key === "g") plate.setTool("move");
@@ -341,6 +415,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       else if (e.key === "f") plate.setTool("layflat");
       else if (e.key === "s") plate.setTool("scale");
       else if (e.key === "c") plate.setTool("cut");
+      else if (e.key === "p") plate.setTool("paint");
       else if (e.key === "a") plate.arrange();
       else if (e.key === "Escape") plate.select(null);
       else return;
@@ -349,6 +424,11 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [plate]);
+
+  const saveProjectRef = useRef(saveProject);
+  saveProjectRef.current = saveProject;
+  const openDialogRef = useRef(openDialog);
+  openDialogRef.current = openDialog;
 
   const sel = models.find((m) => m.id === selected) ?? null;
   const setTool = (t: Tool) => {
@@ -431,6 +511,10 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
               : undefined
           }
         />
+        <div className="top-actions">
+          <ToolBtn icon={FolderOpen} label="Projekt öffnen" onClick={() => void openProject()} />
+          <ToolBtn icon={Save} label="Projekt speichern (Strg/Cmd+S)" onClick={() => void saveProject()} disabled={!models.length} />
+        </div>
       </div>
 
       <div className="slicer-stage">
@@ -438,6 +522,8 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           {/* Werkzeugleiste über der Platte */}
           <div className="plate-tools card" role="toolbar" aria-label="Werkzeuge">
             <ToolBtn icon={Plus} label="Hinzufügen" onClick={() => void openDialog()} />
+            <ToolBtn icon={Undo2} label="Rückgängig (Strg/Cmd+Z)" onClick={() => plate.undo()} disabled={!plate.canUndo() || !!preview} />
+            <ToolBtn icon={Redo2} label="Wiederholen (Strg/Cmd+Shift+Z)" onClick={() => plate.redo()} disabled={!plate.canRedo() || !!preview} />
             <span className="tb-sep" />
             <ToolBtn icon={SquareDashedMousePointer} label="Auswählen – Rechteck ziehen (V)" on={tool === "select" && !preview} onClick={() => setTool("select")} />
             <ToolBtn icon={Wand2} label="Automatisch ausrichten" onClick={() => plate.autoOrient()} disabled={!selectedIds.length || !!preview} />
@@ -468,6 +554,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
             <ToolBtn icon={SquareDashedBottom} label="Auf Fläche legen (F)" on={tool === "layflat" && !preview} onClick={() => setTool("layflat")} />
             <ToolBtn icon={Scissors} label="Schneiden (C)" on={tool === "cut" && !preview} onClick={() => setTool("cut")} disabled={!sel} />
             <ToolBtn icon={Ruler} label="Messen" on={tool === "measure" && !preview} onClick={() => setTool("measure")} />
+            <ToolBtn icon={Brush} label="Stützen & Naht malen (P)" on={tool === "paint" && !preview} onClick={() => setTool("paint")} disabled={!models.length} />
             <span className="tb-sep" />
             <ToolBtn icon={Copy} label="Duplizieren" onClick={() => plate.duplicate()} disabled={!selectedIds.length || !!preview} />
             <ToolBtn icon={Trash2} label="Löschen (Entf)" onClick={() => plate.remove()} disabled={!selectedIds.length || !!preview} />
@@ -511,8 +598,21 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
             </div>
           )}
           {dropHover && <div className="drop-overlay">Loslassen zum Hinzufügen</div>}
+          {notice && (
+            <div className="slicer-toast ok">
+              <Check size={14} />
+              <span>{notice}</span>
+            </div>
+          )}
 
           {tool === "cut" && sel && !preview && <CutPanel plate={plate} onError={setLoadError} />}
+          {tool === "paint" && !preview && (
+            <PaintPanel
+              plate={plate}
+              supportOn={active ? effective("enable_support", active, overrides) === "1" : false}
+              enableSupport={() => onSetting("enable_support", "1")}
+            />
+          )}
           {tool === "measure" && !preview && (
             <div className="tool-panel card">
               <span className="label">Messen</span>
@@ -534,7 +634,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
               )}
             </div>
           )}
-          {sel && !preview && tool !== "cut" && tool !== "measure" && <ObjectPanel m={sel} plate={plate} />}
+          {sel && !preview && tool !== "cut" && tool !== "measure" && tool !== "paint" && <ObjectPanel m={sel} plate={plate} />}
           {selectedIds.length > 1 && !preview && tool !== "measure" && <GroupPanel count={selectedIds.length} plate={plate} />}
           {tool === "select" && !preview && selectedIds.length <= 1 && (
             <div className="hint-chip">Rechteck aufziehen, um mehrere Teile zu wählen · Ansicht drehen mit rechter Maustaste</div>
@@ -730,6 +830,76 @@ const BED_TYPES = [
   { value: "Textured Cool Plate", label: "Texturierte Cool Plate" },
   { value: "Supertack Plate", label: "Supertack-Platte" },
 ];
+
+/** Pinsel für Stützen und Naht */
+function PaintPanel({ plate, supportOn, enableSupport }: { plate: Plate; supportOn: boolean; enableSupport: () => void }) {
+  const b = plate.getBrush();
+  const stats = plate.paintStats();
+  const hasSel = plate.selectedId() != null;
+  const opts =
+    b.channel === "support"
+      ? [
+          { value: 1, label: "Erzwingen", color: "#4CAF7A" },
+          { value: 2, label: "Blockieren", color: "#E05A4F" },
+          { value: 0, label: "Radierer", color: "#A3A3A3" },
+        ]
+      : [
+          { value: 1, label: "Naht hier", color: "#5B8DEF" },
+          { value: 2, label: "Keine Naht", color: "#E0A43A" },
+          { value: 0, label: "Radierer", color: "#A3A3A3" },
+        ];
+  return (
+    <div className="tool-panel card paint-panel">
+      <span className="label">Malen</span>
+      <div className="seg" role="radiogroup" aria-label="Was malen">
+        {(
+          [
+            ["support", "Stützen"],
+            ["seam", "Naht"],
+          ] as const
+        ).map(([v, l]) => (
+          <button key={v} role="radio" aria-checked={b.channel === v} className={b.channel === v ? "on" : ""} onClick={() => plate.setBrush({ channel: v, value: 1 })}>
+            {l}
+          </button>
+        ))}
+      </div>
+      <div className="paint-modes">
+        {opts.map((o) => (
+          <button key={o.value} className={`paint-mode ${b.value === o.value ? "on" : ""}`} onClick={() => plate.setBrush({ value: o.value })} aria-pressed={b.value === o.value}>
+            <i style={{ background: o.color }} />
+            {o.label}
+          </button>
+        ))}
+      </div>
+      <div className="cut-row">
+        <span className="small muted">Pinsel</span>
+        <input type="range" min={1} max={25} step={0.5} value={b.radius} onChange={(e) => plate.setBrush({ radius: Number(e.target.value) })} aria-label="Pinselgröße" />
+        <span className="small num" style={{ width: 52, textAlign: "right" }}>
+          {fmtNum(b.radius * 2, 0)} mm
+        </span>
+      </div>
+      <p className="hint" style={{ margin: 0 }}>
+        {hasSel ? "Mit gedrückter linker Maustaste auf dem Modell malen. Ansicht drehen mit rechter Maustaste." : "Auf ein Modell klicken und malen."}
+      </p>
+      {b.channel === "support" && stats.supportEnforce > 0 && !supportOn && (
+        <div className="result error" style={{ color: "var(--warning)", borderColor: "rgba(224,164,58,0.35)", background: "rgba(224,164,58,0.08)" }}>
+          <AlertTriangle size={16} />
+          <span>
+            Gemalte Stützen wirken nur mit eingeschalteten Stützen.{" "}
+            <button className="link" onClick={enableSupport}>
+              Stützen einschalten
+            </button>
+          </span>
+        </div>
+      )}
+      {hasSel && (
+        <button className="btn sm ghost" onClick={() => plate.clearPaint(b.channel)}>
+          <Trash2 size={14} /> {b.channel === "support" ? "Stützen-Bemalung" : "Naht-Bemalung"} löschen
+        </button>
+      )}
+    </div>
+  );
+}
 
 /** Gemeinsame Bearbeitung mehrerer ausgewählter Teile */
 function GroupPanel({ count, plate }: { count: number; plate: Plate }) {
