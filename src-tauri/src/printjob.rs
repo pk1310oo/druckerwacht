@@ -43,6 +43,48 @@ pub fn printer_file_name(name: &str) -> String {
     format!("{s}.gcode")
 }
 
+/// Sicherheitsprüfung vor dem Senden: Ist es G-Code, und bleiben alle Soll-Temperaturen
+/// (M104/M109 Düse, M140/M190 Bett) innerhalb der Grenzen des Druckers?
+pub fn check_gcode(data: &[u8], max_nozzle: f64, max_bed: f64) -> Result<(), String> {
+    let text = String::from_utf8_lossy(data);
+    let mut moves = 0usize;
+    for (i, raw) in text.lines().enumerate() {
+        let line = raw.split(';').next().unwrap_or("").trim();
+        if line.is_empty() {
+            continue;
+        }
+        let mut parts = line.split_whitespace();
+        let cmd = parts.next().unwrap_or("").to_ascii_uppercase();
+        if cmd == "G0" || cmd == "G1" {
+            moves += 1;
+            continue;
+        }
+        let (limit, what) = match cmd.as_str() {
+            "M104" | "M109" => (max_nozzle, "Düse"),
+            "M140" | "M190" => (max_bed, "Bett"),
+            _ => continue,
+        };
+        for p in parts {
+            let Some(k) = p.chars().next() else { continue };
+            let v = &p[k.len_utf8()..];
+            if matches!(k, 'S' | 's' | 'R' | 'r') {
+                if let Ok(t) = v.parse::<f64>() {
+                    if t > limit {
+                        return Err(format!(
+                            "Sicherheitsstopp: Der G-Code setzt die {what} auf {t:.0} °C (Zeile {}), erlaubt sind höchstens {limit:.0} °C. Bitte die Temperatur in den Einstellungen prüfen.",
+                            i + 1
+                        ));
+                    }
+                }
+            }
+        }
+    }
+    if moves == 0 {
+        return Err("Die Datei enthält keine Druckbewegungen – das ist kein gültiger G-Code.".into());
+    }
+    Ok(())
+}
+
 /// Lädt `data` als `file_name` hoch. `progress` erhält 0…1.
 pub async fn upload(host: &str, port: Option<u16>, file_name: &str, data: &[u8], progress: impl Fn(f64)) -> Result<(), String> {
     let port = port.unwrap_or(HTTP_PORT);
@@ -178,6 +220,31 @@ mod tests {
             assert_eq!(srv.await.unwrap(), expected);
         }
         assert!(control_params("explode").is_none());
+    }
+
+    #[test]
+    fn gcode_temperature_guard() {
+        let ok = b"M140 S60\nM104 S205 ; Duese\nG1 X10 Y10 E1\n";
+        assert!(check_gcode(ok, 300.0, 100.0).is_ok());
+        let hot = b"M104 S205\nM190 S120\nG1 X1\n";
+        let e = check_gcode(hot, 300.0, 100.0).unwrap_err();
+        assert!(e.contains("Bett") && e.contains("120") && e.contains("Zeile 2"), "{e}");
+        let nozzle = b"G1 X1\nm109 s350\n";
+        assert!(check_gcode(nozzle, 300.0, 100.0).unwrap_err().contains("Düse"));
+        assert!(check_gcode(b"; nur Kommentar\n", 300.0, 100.0).is_err());
+        // Temperaturen in Kommentaren zählen nicht
+        assert!(check_gcode(b"; M104 S999\nG1 X1\n", 300.0, 100.0).is_ok());
+        assert!(check_gcode("M104 \u{e4}200\nG1 X1\n".as_bytes(), 300.0, 100.0).is_ok());
+    }
+
+    /// Echter G-Code von OrcaSlicer darf nicht blockiert werden (DW_GCODE=pfad).
+    #[test]
+    fn real_gcode_passes_guard() {
+        let Ok(path) = std::env::var("DW_GCODE") else { return };
+        for p in path.split(':') {
+            let data = std::fs::read(p).unwrap();
+            check_gcode(&data, 300.0, 100.0).unwrap();
+        }
     }
 
     #[test]

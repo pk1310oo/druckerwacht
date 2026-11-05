@@ -1031,12 +1031,19 @@ function PrintDialog(props: {
     return () => off?.();
   }, []);
 
+  // Nach dem Start erst weiter, wenn der Drucker den Druck auch meldet – sonst nach 45 s ehrlich warnen
+  const [startConfirmed, setStartConfirmed] = useState(false);
+  const [startTimeout, setStartTimeout] = useState(false);
   useEffect(() => {
-    if (state.kind === "done" && state.start) {
+    if (state.kind !== "done" || !state.start) return;
+    if (props.busy) {
+      setStartConfirmed(true);
       const t = setTimeout(props.onStarted, 1200);
       return () => clearTimeout(t);
     }
-  }, [state, props.onStarted]);
+    const t = setTimeout(() => setStartTimeout(true), 45_000);
+    return () => clearTimeout(t);
+  }, [state, props.busy, props.onStarted]);
 
   const send = async (start: boolean) => {
     setState({ kind: "uploading", pct: 0, start });
@@ -1105,7 +1112,27 @@ function PrintDialog(props: {
         )}
         {state.kind === "done" && (
           <div className="modal-ok">
-            <Check size={16} /> {state.start ? "Druck gestartet – zum Dashboard …" : `Auf dem Drucker gespeichert als „${state.name}“.`}
+            {!state.start ? (
+              <>
+                <Check size={16} /> Auf dem Drucker gespeichert als „{state.name}“.
+              </>
+            ) : startConfirmed ? (
+              <>
+                <Check size={16} /> Der Drucker hat den Druck gestartet – zum Dashboard …
+              </>
+            ) : (
+              <>
+                <Loader2 size={16} className="spin" /> Übertragen. Warte, bis der Drucker den Start meldet …
+              </>
+            )}
+          </div>
+        )}
+        {state.kind === "done" && state.start && !startConfirmed && startTimeout && (
+          <div className="result error" style={{ color: "var(--warning)", borderColor: "rgba(224,164,58,0.35)", background: "rgba(224,164,58,0.08)" }}>
+            <AlertTriangle size={16} />
+            <span>
+              Der Drucker hat den Start nicht gemeldet. Die Datei „{state.name}“ liegt auf dem Drucker – bitte am Display prüfen und dort starten.
+            </span>
           </div>
         )}
         {state.kind === "error" && (

@@ -486,6 +486,26 @@ fn export_gcode(app: AppHandle, from: String, to: String) -> Result<(), String> 
     std::fs::copy(&from, &to).map(|_| ()).map_err(|_| "Datei konnte nicht gespeichert werden.".to_string())
 }
 
+/// Öffnet eine Projektseite im Standardbrowser – nur Adressen des Druckerwacht-Repositorys.
+#[tauri::command]
+fn open_project_link(url: String) -> Result<(), String> {
+    const BASE: &str = "https://github.com/pk1310oo/druckerwacht";
+    let ok = (url == BASE || url.starts_with(&format!("{BASE}/")))
+        && url.chars().all(|c| c.is_ascii_alphanumeric() || "/:.-_?=&#%+".contains(c));
+    if !ok {
+        return Err("Diese Adresse darf nicht geöffnet werden.".into());
+    }
+    #[cfg(target_os = "macos")]
+    let prog = "open";
+    #[cfg(not(target_os = "macos"))]
+    let prog = "xdg-open";
+    std::process::Command::new(prog)
+        .arg(&url)
+        .spawn()
+        .map(|_| ())
+        .map_err(|_| "Browser konnte nicht geöffnet werden.".to_string())
+}
+
 /// Pause, Fortsetzen oder Abbrechen – nur wenn der Zustand dazu passt.
 #[tauri::command]
 async fn printer_control(app: AppHandle, action: String) -> Result<(), String> {
@@ -551,11 +571,15 @@ async fn printer_send(app: AppHandle, path: String, start: bool) -> Result<Strin
     if !p.starts_with(&base) {
         return Err("Zugriff verweigert.".into());
     }
-    let (host, busy) = {
+    let (host, busy, max_nozzle, max_bed) = {
         let state = app.state::<Arc<AppState>>();
         let inner = state.lock();
-        let busy = inner.status.as_ref().map(|s| s.state.is_active()).unwrap_or(false);
-        (inner.settings.printer_ip.clone(), busy)
+        let s = inner.status.as_ref();
+        let busy = s.map(|s| s.state.is_active()).unwrap_or(false);
+        // Grenzen meldet der Drucker selbst (KE: 300 / 100 °C); sonst die KE-Werte
+        let max_nozzle = s.and_then(|s| s.max_nozzle_temp).unwrap_or(300.0);
+        let max_bed = s.and_then(|s| s.max_bed_temp).unwrap_or(100.0);
+        (inner.settings.printer_ip.clone(), busy, max_nozzle, max_bed)
     };
     if host.is_empty() {
         return Err("Keine Drucker-IP eingetragen.".into());
@@ -564,6 +588,7 @@ async fn printer_send(app: AppHandle, path: String, start: bool) -> Result<Strin
         return Err("Der Drucker druckt gerade – bitte warten, bis der aktuelle Druck beendet ist.".into());
     }
     let data = std::fs::read(&p).map_err(|_| "G-Code konnte nicht gelesen werden.".to_string())?;
+    printjob::check_gcode(&data, max_nozzle, max_bed)?;
     let name = printjob::printer_file_name(&p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
     let app2 = app.clone();
     let last = std::sync::atomic::AtomicI32::new(-1);
@@ -646,6 +671,7 @@ pub fn run() {
             read_gcode,
             export_gcode,
             printer_send,
+            open_project_link,
             save_project,
             read_project,
             printer_control

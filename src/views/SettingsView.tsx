@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Loader2, PlugZap, Radar, Wifi } from "lucide-react";
+import { Bug, Check, Download, ExternalLink, FolderGit2, Loader2, PlugZap, Radar, RefreshCw, Wifi } from "lucide-react";
 import { useStore } from "../lib/store";
 import { discoverPrinters, isTauri, rawLogDir, reconnect, saveSettings } from "../lib/api";
 import { connectionLabel } from "../lib/format";
 import type { FoundPrinter, Settings } from "../lib/types";
 import { Card, Switch } from "../components/ui";
 import { slicerInfo, type SlicerInfo } from "../slicer/api";
+import { APP_VERSION, REPO_URL, checkForUpdate, openProjectLink, type UpdateInfo } from "../lib/update";
 
 const HOST_RE = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?!$)|$)){4}$|^[a-zA-Z0-9][a-zA-Z0-9.-]*$/;
 
@@ -196,6 +197,8 @@ export function SettingsView() {
         </div>
       </Card>
 
+      <AboutCard />
+
       <div className="save-bar">
         {justSaved && (
           <span className="saved">
@@ -223,5 +226,73 @@ function ToggleRow({ label, hint, on, set }: { label: string; hint: string; on: 
       </div>
       <Switch on={on} onChange={set} label={label} />
     </div>
+  );
+}
+
+function AboutCard() {
+  const [check, setCheck] = useState<{ running: boolean; info: UpdateInfo | null; done: boolean }>({ running: false, info: null, done: false });
+  const run = async () => {
+    setCheck({ running: true, info: null, done: false });
+    setCheck({ running: false, info: await checkForUpdate(), done: true });
+  };
+  useEffect(() => {
+    void run();
+  }, []);
+  const open = (url: string) => void openProjectLink(url).catch(() => {});
+
+  let status: React.ReactNode;
+  if (check.running) status = "Suche nach neuer Version …";
+  else if (check.info?.newer)
+    status = (
+      <span style={{ color: "var(--accent)" }}>
+        Version {check.info.latest} ist verfügbar.
+      </span>
+    );
+  else if (check.info) status = "Du hast die neueste Version.";
+  else if (check.done) status = "Neue Versionen konnten gerade nicht geprüft werden (offline?).";
+
+  return (
+    <Card className="form-section">
+      <span className="label">Über Druckerwacht</span>
+      <div>
+        <div className="toggle-row">
+          <div>
+            <div>
+              Version <span className="num">{APP_VERSION}</span> <span className="badge-beta">Beta</span>
+            </div>
+            <div className="hint">{status}</div>
+          </div>
+          {check.info?.newer ? (
+            <button className="btn sm primary" onClick={() => open(check.info!.url)}>
+              <Download size={14} /> Herunterladen
+            </button>
+          ) : (
+            <button className="btn sm" onClick={() => void run()} disabled={check.running}>
+              <RefreshCw size={14} className={check.running ? "spin" : undefined} /> Prüfen
+            </button>
+          )}
+        </div>
+        <div className="toggle-row">
+          <div>
+            <div>Open Source</div>
+            <div className="hint">Kostenlos unter der AGPL-3.0. Entwickelt von pk1310oo. Slicer-Motor: OrcaSlicer.</div>
+          </div>
+          <span style={{ display: "flex", gap: 8 }}>
+            <button className="btn sm ghost" onClick={() => open(`${REPO_URL}/issues`)}>
+              <Bug size={14} /> Fehler melden
+            </button>
+            <button className="btn sm ghost" onClick={() => open(REPO_URL)}>
+              <FolderGit2 size={14} /> GitHub <ExternalLink size={12} />
+            </button>
+          </span>
+        </div>
+        <div className="toggle-row" style={{ display: "block" }}>
+          <div className="hint">
+            Beta: Druckerwacht ist kein offizielles Creality-Produkt und nutzt eine undokumentierte Schnittstelle. Lass laufende Drucke
+            nicht unbeaufsichtigt und prüfe Befehle im Zweifel am Druckerdisplay. Nutzung auf eigene Verantwortung.
+          </div>
+        </div>
+      </div>
+    </Card>
   );
 }
