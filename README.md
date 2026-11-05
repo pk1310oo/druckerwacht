@@ -1,18 +1,29 @@
 # Druckerwacht
 
-Live-Überwachung für den **Creality Ender 3 V3 KE** per WLAN. Läuft als Desktop-App für macOS (Apple Silicon) und Linux (x86_64).
+**Freie Desktop-App zum Überwachen, Slicen und Steuern des Creality Ender 3 V3 KE per WLAN.**
+Open Source unter der AGPL-3.0 · macOS (Apple Silicon) und Linux (x86_64) · Oberfläche auf Deutsch
+
+[**Downloads (Releases)**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Fehler melden / Wünsche](https://github.com/pk1310oo/druckerwacht/issues) · [Mitmachen](CONTRIBUTING.md)
+
+![Dashboard während eines Drucks](docs/bilder/dashboard.jpg)
+
 Gebaut mit Tauri 2, React und TypeScript, das Backend ist in Rust geschrieben.
 
 - **Dashboard:** Düse und Bett (Ist/Soll), Geschwindigkeit, Flow, Lüfter, Status, Datei, Fortschritt, Schicht, Zeiten und voraussichtliches Ende
 - **Live-Diagramme:** Temperatur sowie Geschwindigkeit, Flow und Lüfter, wahlweise über 5, 15 oder 60 Minuten
+- **Druck steuern:** Pausieren, Fortsetzen und Abbrechen direkt aus der App
 - **Kamera (optional):** MJPEG-Stream, z. B. Nebula-Kamera oder USB-Webcam
 - **Benachrichtigungen:** Druck fertig, Fehler, Verbindung verloren
-- **Druckverlauf:** Jeder mitverfolgte Druck mit Dauer und Ergebnis
+- **Druckverlauf:** Vom Drucker gespeicherte Drucke und jeder in der App mitverfolgte Druck
 - **Verbindung:** Automatische Suche im Netz, automatischer Reconnect und Verbindungsstatus jederzeit sichtbar
-- **Slicer:** Modelle (STL/OBJ/3MF) auf der 3D-Druckplatte platzieren, drehen, skalieren und auf eine Fläche legen. Alle Einstellungen wie in Creality Print (Infill, Stützen, Brim, Temperaturen …), eigene Profile, Schichtvorschau und G-Code mit Vorschaubild. Als Motor dient OrcaSlicer, siehe unten.
+- **Slicer:** Modelle (STL/OBJ/3MF) auf der originalen KE-Druckplatte platzieren, drehen, skalieren, Stützen und Naht malen, Projekte speichern. Alle Einstellungen wie in Creality Print, Schichtvorschau mit runden Bahnen und „Drucken“ direkt an den Drucker. Als Motor dient OrcaSlicer, siehe unten.
 
-> **Nur lesend.** Pause, Fortsetzen, Abbrechen und Heizen sind bewusst noch nicht eingebaut.
-> Sie kommen erst dazu, wenn am echten Drucker bestätigt ist, wie die Schnittstelle sie annimmt (siehe unten).
+| Live-Diagramme | Slicer | Vorschau |
+|---|---|---|
+| ![](docs/bilder/diagramme.jpg) | ![](docs/bilder/slicer.jpg) | ![](docs/bilder/vorschau.jpg) |
+
+> **Hinweis:** Die Schnittstelle des Druckers ist nicht offiziell dokumentiert. Pause, Fortsetzen, Abbrechen und
+> „Drucken“ sind nach dem Vorbild bekannter Integrationen gebaut; Rückmeldungen vom echten Gerät sind sehr willkommen.
 
 ---
 
@@ -250,3 +261,19 @@ Anschließend in `lib.rs` (`restart_connection`) den passenden Adapter wählen. 
 **Designvorschau ohne Drucker:** `npm run dev` starten und dann `http://localhost:1420/?preview=printing` öffnen.
 Weitere Werte für `preview`: `idle`, `connecting`, `reconnecting` und `history`. Mit `&cam=1` wird zusätzlich die Kamerakachel eingeblendet.
 Die Werte sind erfunden und dienen nur zur Layoutkontrolle. In der App selbst gibt es sie nicht.
+
+## 8. Open Source & Mitmachen
+
+Druckerwacht ist freie Software unter der **GNU Affero General Public License v3.0 oder später** (siehe [`LICENSE`](LICENSE)).
+Du darfst die App nutzen, verändern und weitergeben, auch veränderte Versionen müssen wieder offen sein.
+
+Beiträge sind willkommen: Fehlerberichte, Mitschnitte anderer Drucker (`scripts/probe.mjs`), Übersetzungen und Code.
+Details stehen in [`CONTRIBUTING.md`](CONTRIBUTING.md).
+
+**Geplant:** Unterstützung weiterer Drucker, zuerst die Creality-K1-Reihe und Klipper/Moonraker.
+
+## Credits
+
+Entwickelt von **[pk1310oo](https://github.com/pk1310oo)**, mit Unterstützung von Claude.
+Slicer-Motor und Druckerprofile: [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer) (AGPL-3.0).
+Druckerwacht ist kein offizielles Produkt von Creality.

@@ -3,6 +3,8 @@ name = "druckerwacht"
 version = "0.4.0"
 description = "Live-Überwachung für Creality Ender 3 V3 KE"
 edition = "2021"
+license = "AGPL-3.0-or-later"
+repository = "https://github.com/pk1310oo/druckerwacht"
 
 [lib]
 name = "druckerwacht_lib"
