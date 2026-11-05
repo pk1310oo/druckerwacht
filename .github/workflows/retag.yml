@@ -1,0 +1,20 @@
+# Einmalig: Versions-Markierungen auf die umgeschriebenen Commits setzen (wird danach entfernt)
+name: Retag
+on:
+  push:
+    branches: [main]
+    paths: [".github/workflows/retag.yml"]
+permissions:
+  contents: write
+jobs:
+  retag:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - run: |
+          git tag -f v0.3.0 a113d58fa087097f1ea3f77ea5eee017c02e0bb1
+          git tag -f v0.3.1 a357b040c55769eadf79c5469ca613522b821954
+          git tag -f v0.4.0 8708f9f75b174400f8d08a80b1425dd9131924b0
+          git push --force origin refs/tags/v0.3.0 refs/tags/v0.3.1 refs/tags/v0.4.0
