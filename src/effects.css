@@ -1,0 +1,284 @@
+/* ---------------------------------------------------------------------------
+   Druckerwacht – Bewegung & Effekte
+   Ruhig dosiert (die App läuft stundenlang), Schwarz & Orange.
+   Bei „Bewegung reduzieren“ im System wird alles abgeschaltet (ganz unten).
+--------------------------------------------------------------------------- */
+
+/* ---------------------------------------------------------------- Hintergrund */
+.main {
+  position: relative;
+  isolation: isolate;
+}
+
+.ambient {
+  position: absolute;
+  inset: 64px 0 0 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.ambient i {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(120px);
+  will-change: transform;
+}
+
+.ambient i:nth-child(1) {
+  width: 52vw;
+  height: 52vw;
+  right: -14vw;
+  top: -26vw;
+  background: rgba(217, 119, 87, 0.11);
+  animation: amb1 34s ease-in-out infinite alternate;
+}
+
+.ambient i:nth-child(2) {
+  width: 40vw;
+  height: 40vw;
+  left: -16vw;
+  bottom: -22vw;
+  background: rgba(140, 61, 38, 0.13);
+  animation: amb2 41s ease-in-out infinite alternate;
+}
+
+@keyframes amb1 { to { transform: translate(-12vw, 10vh) scale(1.12); } }
+@keyframes amb2 { to { transform: translate(14vw, -8vh) scale(0.9); } }
+
+/* Der Slicer hat seine eigene 3D-Bühne – dort kein Leuchten */
+.main:has(.content.flush) .ambient { display: none; }
+
+.content { background: transparent; }
+
+/* ---------------------------------------------------------------- Karten */
+.view .card {
+  background: linear-gradient(180deg, rgba(30, 30, 30, 0.92), rgba(24, 24, 24, 0.92));
+  transition: border-color 300ms var(--ease), transform 300ms var(--ease), box-shadow 300ms var(--ease);
+}
+
+/* Lichtschein folgt der Maus (Position setzt main.tsx) */
+.view .card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(420px circle at var(--mx, 50%) var(--my, 50%), rgba(217, 119, 87, 0.09), transparent 60%);
+  transition: opacity 300ms var(--ease);
+}
+
+.view .card:hover::after { opacity: 1; }
+.view .card:hover { border-color: #353330; }
+
+/* Karten blenden beim Öffnen einer Ansicht nacheinander ein */
+.view > * {
+  animation: rise-in 520ms var(--ease) both;
+}
+.view > *:nth-child(2) { animation-delay: 50ms; }
+.view > *:nth-child(3) { animation-delay: 100ms; }
+.view > *:nth-child(4) { animation-delay: 150ms; }
+.view > *:nth-child(5) { animation-delay: 200ms; }
+.view > *:nth-child(n + 6) { animation-delay: 250ms; }
+
+.stats > .card { animation: rise-in 520ms var(--ease) both; }
+.stats > .card:nth-child(2) { animation-delay: 60ms; }
+.stats > .card:nth-child(3) { animation-delay: 120ms; }
+.stats > .card:nth-child(4) { animation-delay: 180ms; }
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.99);
+    filter: blur(3px);
+  }
+}
+
+/* ---------------------------------------------------------------- Werte */
+.stat .big {
+  transition: color 400ms var(--ease);
+}
+
+/* Heizen: Leuchten fließt durch den Balken */
+.meter.heating > i {
+  background: linear-gradient(90deg, #b85e40, #e68a6b 40%, #ffc3a6 50%, #e68a6b 60%, #b85e40);
+  background-size: 200% 100%;
+  animation: flow 1.6s linear infinite;
+  box-shadow: 0 0 10px rgba(217, 119, 87, 0.55);
+}
+
+@keyframes flow { to { background-position: -200% 0; } }
+
+/* ---------------------------------------------------------------- Fortschritt */
+.bar {
+  position: relative;
+}
+
+.bar > i {
+  position: relative;
+  box-shadow: 0 0 14px rgba(217, 119, 87, 0.45);
+}
+
+/* Glanz läuft durch, solange gedruckt wird */
+.bar.live > i::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(100deg, transparent 20%, rgba(255, 230, 215, 0.55) 50%, transparent 80%);
+  background-size: 50% 100%;
+  background-repeat: no-repeat;
+  animation: sweep 2.4s ease-in-out infinite;
+}
+
+@keyframes sweep {
+  from { background-position: -60% 0; }
+  to { background-position: 160% 0; }
+}
+
+/* leuchtende Spitze */
+.bar.live > i::before {
+  content: "";
+  position: absolute;
+  right: -2px;
+  top: 50%;
+  width: 10px;
+  height: 10px;
+  margin-top: -5px;
+  border-radius: 50%;
+  background: #ffd2bf;
+  box-shadow: 0 0 12px 4px rgba(230, 138, 107, 0.75);
+  animation: tip 1.6s ease-in-out infinite;
+}
+
+@keyframes tip { 50% { opacity: 0.55; transform: scale(0.8); } }
+
+.bar.paused > i,
+.bar.done > i,
+.bar.failed > i { box-shadow: none; }
+
+/* Druck fertig: kurzes grünes Leuchten */
+.card.celebrate {
+  animation: celebrate 1.8s var(--ease);
+}
+
+@keyframes celebrate {
+  0% { box-shadow: 0 0 0 0 rgba(76, 175, 122, 0.55); border-color: var(--success); }
+  60% { box-shadow: 0 0 0 18px rgba(76, 175, 122, 0); border-color: var(--success); }
+}
+
+/* ---------------------------------------------------------------- Mini-Druck im Vorschaubild */
+.print-anim {
+  width: 96px;
+  height: 96px;
+  overflow: visible;
+}
+
+/* ---------------------------------------------------------------- Kopfzeile */
+.dot.ok {
+  position: relative;
+}
+
+.dot.ok::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid var(--success);
+  animation: ping 2.6s ease-out infinite;
+}
+
+@keyframes ping {
+  from { transform: scale(1); opacity: 0.7; }
+  to { transform: scale(3); opacity: 0; }
+}
+
+.badge.accent {
+  background: linear-gradient(100deg, rgba(217, 119, 87, 0.12) 30%, rgba(217, 119, 87, 0.28) 50%, rgba(217, 119, 87, 0.12) 70%);
+  background-size: 250% 100%;
+  animation: badge-shine 3.2s ease-in-out infinite;
+}
+
+@keyframes badge-shine {
+  from { background-position: 100% 0; }
+  to { background-position: -150% 0; }
+}
+
+/* ---------------------------------------------------------------- Seitenleiste: gleitende Markierung */
+.sidebar {
+  position: relative;
+}
+
+.nav-btn.active::before { display: none; }
+
+.nav-indicator {
+  position: absolute;
+  left: 0;
+  width: 2px;
+  height: 16px;
+  border-radius: 2px;
+  background: var(--accent);
+  box-shadow: 0 0 10px rgba(217, 119, 87, 0.8);
+  transition: transform 420ms cubic-bezier(0.34, 1.4, 0.5, 1), opacity 200ms;
+}
+
+.nav-btn {
+  transition: background var(--t) var(--ease), color var(--t) var(--ease), transform 150ms var(--ease);
+}
+
+.nav-btn:active { transform: scale(0.92); }
+
+.sidebar-logo {
+  transition: transform 500ms cubic-bezier(0.34, 1.6, 0.5, 1), filter 300ms;
+}
+
+.sidebar-logo:hover {
+  transform: rotate(-8deg) scale(1.08);
+  filter: drop-shadow(0 6px 14px rgba(217, 119, 87, 0.5));
+}
+
+/* ---------------------------------------------------------------- Knöpfe */
+.btn {
+  transition: background var(--t) var(--ease), border-color var(--t) var(--ease), color var(--t) var(--ease), box-shadow 300ms var(--ease), transform 150ms var(--ease);
+}
+
+.btn:active:not(:disabled) { transform: scale(0.97); }
+
+.btn.primary:hover:not(:disabled) {
+  box-shadow: 0 10px 30px -10px rgba(217, 119, 87, 0.8);
+}
+
+.seg button {
+  transition: background 250ms var(--ease), color 250ms var(--ease);
+}
+
+/* ---------------------------------------------------------------- Leere Zustände */
+.empty-icon {
+  animation: float 5s ease-in-out infinite;
+}
+
+.empty-icon.accent {
+  box-shadow: 0 0 0 0 rgba(217, 119, 87, 0.35);
+  animation: float 5s ease-in-out infinite, halo 2.8s ease-out infinite;
+}
+
+@keyframes float { 50% { transform: translateY(-4px); } }
+@keyframes halo { to { box-shadow: 0 0 0 14px rgba(217, 119, 87, 0); } }
+
+/* ---------------------------------------------------------------- Bewegung reduzieren */
+@media (prefers-reduced-motion: reduce) {
+  .ambient i,
+  .view > *,
+  .stats > .card,
+  .meter.heating > i,
+  .bar.live > i::after,
+  .bar.live > i::before,
+  .dot.ok::after,
+  .badge.accent,
+  .empty-icon,
+  .card.celebrate {
+    animation: none !important;
+  }
+  .nav-indicator { transition: none; }
+}

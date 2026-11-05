@@ -94,9 +94,16 @@ export function Chart({ title, samples, windowMin, series, yUnit, pctAxis, yMinM
       ],
       series: [
         {},
-        ...series.map((d) => ({
+        ...series.map((d, i) => ({
           label: d.label,
           stroke: d.color,
+          // Farbverlauf unter der ersten Kurve
+          fill: i === 0 && !d.dashed ? (u: uPlot) => {
+            const g = u.ctx.createLinearGradient(0, u.bbox.top, 0, u.bbox.top + u.bbox.height);
+            g.addColorStop(0, d.color + "38");
+            g.addColorStop(1, d.color + "00");
+            return g;
+          } : undefined,
           width: d.dashed ? 1.25 : 2,
           dash: d.dashed ? [5, 5] : undefined,
           scale: d.scale ?? "y",

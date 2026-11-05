@@ -30,6 +30,10 @@ export default function App() {
     <div className="app" key={lang}>
       <Sidebar view={view} onChange={setView} />
       <div className="main">
+        <div className="ambient" aria-hidden>
+          <i />
+          <i />
+        </div>
         <Header />
         <main className={`content ${view === "slicer" ? "flush" : ""}`}>
           {!ready ? null : view === "dashboard" ? (

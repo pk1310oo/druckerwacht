@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, Box, Gauge, Layers, Loader2, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
 import { useStore } from "../lib/store";
 import { printerControl, reconnect, thumbnailUrl } from "../lib/api";
@@ -45,6 +45,18 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
   const cameraUrl = useStore((s) => s.settings.cameraUrl.trim());
   const [windowMin, setWindowMin] = useState(loadWindow);
   const tempSeries = useMemo(TEMP_SERIES, []);
+  // Kurzes grünes Leuchten, wenn ein Druck fertig wird
+  const [celebrate, setCelebrate] = useState(false);
+  const prevState = useRef(status?.state);
+  useEffect(() => {
+    const was = prevState.current;
+    prevState.current = status?.state;
+    if (was && was !== "finished" && status?.state === "finished") {
+      setCelebrate(true);
+      const timer = setTimeout(() => setCelebrate(false), 1900);
+      return () => clearTimeout(timer);
+    }
+  }, [status?.state]);
   const motionSeries = useMemo(MOTION_SERIES, []);
 
   useEffect(() => {
@@ -82,7 +94,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
       <Stats status={status} />
 
       <div className={`row-progress ${cameraUrl ? "with-camera" : ""}`}>
-        <Card>{status ? <ProgressPanel s={status} /> : <WaitingPanel />}</Card>
+        <Card className={celebrate ? "celebrate" : ""}>{status ? <ProgressPanel s={status} /> : <WaitingPanel />}</Card>
         {cameraUrl && (
           <Card className="camera">
             <div className="chart-head">
@@ -192,14 +204,70 @@ function isJob(s: PrinterStatus) {
   return ["finished", "failed", "aborted"].includes(s.state) && s.fileName != null;
 }
 
-function Thumbnail({ file }: { file: string | null }) {
+function Thumbnail({ file, printing }: { file: string | null; printing: boolean }) {
   const url = thumbnailUrl(file);
   const [failed, setFailed] = useState(false);
   useEffect(() => setFailed(false), [url]);
   return (
     <div className="thumb">
-      {url && !failed ? <img src={url} alt="" onError={() => setFailed(true)} /> : <Box size={32} strokeWidth={1.25} />}
+      {url && !failed ? (
+        <img src={url} alt="" onError={() => setFailed(true)} />
+      ) : printing ? (
+        <PrintAnim />
+      ) : (
+        <Box size={32} strokeWidth={1.25} />
+      )}
     </div>
+  );
+}
+
+/** Kleiner Druckkopf, der Schicht für Schicht eine Vase druckt (wenn der Drucker kein Vorschaubild liefert). */
+function PrintAnim() {
+  const LAYERS = 10, CYCLE = 7000, HOLD = 0.12; // letzter Anteil: fertiges Teil kurz zeigen
+  const [t, setT] = useState(0.55);
+  useEffect(() => {
+    if (window.matchMedia?.("(prefers-reduced-motion: reduce)").matches) return;
+    let raf = 0;
+    const t0 = performance.now() - 0.55 * CYCLE;
+    const step = (now: number) => {
+      setT(((now - t0) % CYCLE) / CYCLE);
+      raf = requestAnimationFrame(step);
+    };
+    raf = requestAnimationFrame(step);
+    return () => cancelAnimationFrame(raf);
+  }, []);
+  const k = Math.min(1, t / (1 - HOLD)) * LAYERS;
+  const cur = Math.min(LAYERS - 1, Math.floor(k));
+  const along = k >= LAYERS ? 1 : k - cur;
+  const width = (i: number) => 30 + 16 * Math.sin((Math.PI * (i + 0.5)) / LAYERS);
+  const y = (i: number) => 74 - i * 5;
+  const rows = [];
+  for (let i = 0; i <= cur; i++) {
+    const w = width(i), x0 = 44 - w / 2;
+    const done = i < cur ? 1 : along;
+    const rtl = i % 2 === 1;
+    rows.push(<rect key={i} x={rtl ? x0 + w * (1 - done) : x0} y={y(i)} width={w * done} height={4} rx={2} fill={i % 2 ? "#c76a4b" : "#d97757"} />);
+  }
+  const w = width(cur), x0 = 44 - w / 2;
+  const nx = cur % 2 ? x0 + w * (1 - along) : x0 + w * along;
+  const ny = y(cur) - 1;
+  const printing = k < LAYERS;
+  return (
+    <svg className="print-anim" viewBox="0 0 88 88" aria-hidden>
+      <rect x={8} y={79} width={72} height={3} rx={1.5} fill="#2e2c2a" />
+      {rows}
+      {printing && <circle cx={nx} cy={ny + 2} r={5} fill="url(#pa-glow)" />}
+      <defs>
+        <radialGradient id="pa-glow">
+          <stop offset="0" stopColor="#ffd2bf" stopOpacity="0.95" />
+          <stop offset="1" stopColor="#ffd2bf" stopOpacity="0" />
+        </radialGradient>
+      </defs>
+      <g transform={`translate(${nx} ${ny - (printing ? 0 : 6)})`} style={{ transition: "transform 300ms" }}>
+        <rect x={-9} y={-17} width={18} height={6} rx={1.5} fill="#3a3836" />
+        <path d="M-5 -11 H5 L2 -1 H-2 Z" fill="#e8e6df" />
+      </g>
+    </svg>
   );
 }
 
@@ -220,13 +288,13 @@ function ProgressPanel({ s }: { s: PrinterStatus }) {
   }
   const pct = s.progress ?? 0;
   const barClass =
-    s.state === "paused" ? "paused" : s.state === "finished" ? "done" : s.state === "failed" ? "failed" : "";
+    s.state === "paused" ? "paused" : s.state === "finished" ? "done" : s.state === "failed" ? "failed" : s.preparing ? "" : "live";
   const eta =
     s.state === "printing" ? fmtEta(s.remainingS) : s.state === "paused" ? t("pausiert") : s.state === "finished" ? t("fertig") : DASH;
 
   return (
     <div className="progress">
-      <Thumbnail file={s.fileName} />
+      <Thumbnail file={s.fileName} printing={s.state === "printing" && !s.preparing} />
       <div className="progress-body">
         <div className="progress-top">
           <div style={{ minWidth: 0 }}>
