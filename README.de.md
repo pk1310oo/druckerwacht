@@ -203,7 +203,7 @@ OrcaSlicer selbst muss man nie öffnen.
 
 | Werkzeug | Funktion |
 |---|---|
-| Auswählen (V) | Rechteck aufziehen, um mehrere Teile zu wählen (auch mit **Shift + Ziehen** in jedem Werkzeug). Shift/Strg/Cmd-Klick nimmt Teile hinzu oder heraus, **Strg/Cmd + A** wählt alle. Mehrere Teile lassen sich gemeinsam verschieben, drehen, gleichmäßig skalieren, spiegeln, duplizieren und löschen |
+| Auswählen (V) | Wie auf dem Desktop: **auf freier Fläche ziehen** wählt mehrere Teile (in Auswählen, Verschieben, Drehen und Skalieren; in anderen Werkzeugen mit **Shift + Ziehen**). Ansicht drehen mit der **rechten Maustaste** (Shift + rechts verschiebt) oder **Alt + Ziehen** am Trackpad. Shift/Strg/Cmd-Klick nimmt Teile hinzu oder heraus, **Strg/Cmd + A** wählt alle. Mehrere Teile lassen sich gemeinsam verschieben, drehen, gleichmäßig skalieren, spiegeln, duplizieren und löschen |
 | ＋ Hinzufügen | STL, OBJ oder 3MF laden. Dateien lassen sich auch ins Fenster ziehen |
 | Automatisch ausrichten | sucht die Lage mit der größten Auflagefläche und dem wenigsten Überhang |
 | Anordnen (A) | verteilt alle Modelle mittig auf der Platte |

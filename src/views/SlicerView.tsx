@@ -637,8 +637,8 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           )}
           {sel && !preview && tool !== "cut" && tool !== "measure" && tool !== "paint" && <ObjectPanel m={sel} plate={plate} />}
           {selectedIds.length > 1 && !preview && tool !== "measure" && <GroupPanel count={selectedIds.length} plate={plate} />}
-          {tool === "select" && !preview && selectedIds.length <= 1 && (
-            <div className="hint-chip">{t("Rechteck aufziehen, um mehrere Teile zu wählen · Ansicht drehen mit rechter Maustaste")}</div>
+          {(tool === "select" || tool === "move" || tool === "rotate" || tool === "scale") && !preview && !sel && selectedIds.length === 0 && models.length > 1 && (
+            <div className="hint-chip">{t("Auf freier Fläche ziehen wählt mehrere Teile · Ansicht drehen: rechte Maustaste oder Alt + Ziehen")}</div>
           )}
 
           {preview && (

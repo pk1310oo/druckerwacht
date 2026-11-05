@@ -82,7 +82,7 @@ Druckerwacht uses **OrcaSlicer as an invisible engine** – the same slicing cor
 
 | Tool | What it does |
 |---|---|
-| Select (V) | Drag a rectangle to select several parts (also **Shift + drag** in any tool). Shift/Ctrl/Cmd-click adds or removes parts, **Ctrl/Cmd + A** selects all |
+| Select (V) | Like on your desktop: **drag on empty space** to select several parts (works in Select, Move, Rotate and Scale). Shift/Ctrl/Cmd-click adds or removes parts, **Ctrl/Cmd + A** selects all. Rotate the view with the **right mouse button** (Shift + right pans) or **Alt + drag** on a trackpad |
 | ＋ Add | Load STL, OBJ or 3MF – or drop files onto the window |
 | Auto orient | Finds the orientation with the largest contact area and least overhang |
 | Arrange (A) | Spreads all models across the plate |

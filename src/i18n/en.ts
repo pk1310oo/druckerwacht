@@ -224,7 +224,7 @@ export const EN: Record<string, string> = {
   "Ersten Punkt auf Modell oder Druckbett anklicken.": "Click the first point on a model or the plate.",
   "Zweiten Punkt anklicken.": "Click the second point.",
   "Weiter klicken für eine neue Messung.": "Keep clicking for a new measurement.",
-  "Rechteck aufziehen, um mehrere Teile zu wählen · Ansicht drehen mit rechter Maustaste": "Drag a rectangle to select several parts · Right mouse button rotates the view",
+  "Auf freier Fläche ziehen wählt mehrere Teile · Ansicht drehen: rechte Maustaste oder Alt + Ziehen": "Drag on empty space to select several parts · Rotate the view: right mouse button or Alt + drag",
   "Ein Modell ragt über das Druckbett hinaus (rot markiert).": "A model extends beyond the build plate (marked red).",
   "Dieses Dateiformat wird nicht unterstützt (STL, OBJ oder 3MF).": "This file format is not supported (STL, OBJ or 3MF).",
   "Die Datei enthält kein Modell.": "The file contains no model.",

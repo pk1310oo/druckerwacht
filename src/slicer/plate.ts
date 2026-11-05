@@ -14,6 +14,9 @@ import bedModelUrl from "./assets/creality_ender3v3ke_buildplate_model.stl?url";
 import bedTextureSvg from "./assets/creality_ender3v3ke_buildplate_texture.svg?raw";
 import { t } from "../lib/i18n";
 
+/** OrbitControls: diese Maustaste bewegt die Ansicht nicht */
+const NO_BUTTON = -1 as THREE.MOUSE;
+
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
 export const BED = { x: 220, y: 220, z: 245 };
@@ -523,9 +526,11 @@ export class Plate {
     } else {
       this.gizmo.detach();
     }
-    // Im Auswahl-Werkzeug zieht die linke Maustaste ein Rechteck auf; gedreht wird mit rechts
-    this.orbit.mouseButtons =
-      this.tool === "select" || this.tool === "paint"
+    // Wie auf dem Desktop: links auf freier Fläche zieht ein Auswahlrechteck auf,
+    // gedreht wird mit rechts (Shift + rechts verschiebt), Alt + links dreht ebenfalls (Trackpad)
+    this.orbit.mouseButtons = this.boxTool()
+      ? { LEFT: NO_BUTTON, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE }
+      : this.tool === "paint"
         ? { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.PAN, RIGHT: THREE.MOUSE.ROTATE }
         : { LEFT: THREE.MOUSE.ROTATE, MIDDLE: THREE.MOUSE.DOLLY, RIGHT: THREE.MOUSE.PAN };
     this.invalidate();
@@ -628,16 +633,25 @@ export class Plate {
   private down = { x: 0, y: 0 };
   private box: { el: HTMLDivElement; x: number; y: number; add: boolean } | null = null;
 
+  /** Werkzeuge, in denen links ziehen auf freier Fläche ein Auswahlrechteck aufzieht */
+  private boxTool() {
+    return !this.preview && (this.tool === "select" || this.tool === "move" || this.tool === "rotate" || this.tool === "scale");
+  }
+
   private onPointerDown = (e: PointerEvent) => {
     this.down = { x: e.clientX, y: e.clientY };
-    if (e.button !== 0 || this.preview || !this.host) return;
+    if (e.button !== 0 || !this.host) return;
+    // Alt + links dreht die Ansicht (läuft vor OrbitControls, daher hier umschalten)
+    if (this.boxTool()) this.orbit.mouseButtons.LEFT = e.altKey ? THREE.MOUSE.ROTATE : NO_BUTTON;
+    if (this.preview) return;
     if (this.tool === "paint") {
       this.startStroke(e);
       return;
     }
-    if (this.tool !== "select" && !e.shiftKey) return;
+    if (e.altKey && this.boxTool()) return;
+    if (!this.boxTool() && !e.shiftKey) return;
     if ((this.gizmo as unknown as { axis: string | null }).axis) return; // Griff des Gizmos
-    if (this.tool !== "select" && this.pick(e)) return; // Shift-Klick auf ein Modell = Auswahl umschalten
+    if (this.pick(e)) return; // Klick auf ein Modell = auswählen (beim Loslassen)
     // Auswahlrechteck starten; die Ansicht bleibt dabei stehen
     this.orbit.enabled = false;
     const el = document.createElement("div");
