@@ -36,6 +36,27 @@ function samples(minutes: number): Sample[] {
   return out;
 }
 
+/** Aufheizen in der Vorbereitung: Bett zuerst, dann Düse – endet bei den Werten oben in den Karten. */
+function heating(): Sample[] {
+  const now = Date.now();
+  const out: Sample[] = [];
+  const n = 240;
+  for (let i = n; i >= 0; i--) {
+    const k = (n - i) / n;
+    out.push({
+      t: now - i * 1000,
+      nozzle: 25 + 143.4 * Math.max(0, (k - 0.35) / 0.65) + Math.sin(i / 5) * 0.3,
+      nozzleTarget: 215,
+      bed: 25 + 33.9 * Math.min(1, k / 0.8),
+      bedTarget: 60,
+      speed: 0,
+      flow: 100,
+      fan: 0,
+    });
+  }
+  return out;
+}
+
 export function installPreview() {
   if (new URLSearchParams(location.search).has("orca")) (window as unknown as { __dwOrca: string }).__dwOrca = "/Applications/OrcaSlicer.app";
   const mode = new URLSearchParams(location.search).get("preview");
@@ -49,6 +70,17 @@ export function installPreview() {
   switch (mode) {
     case "printing":
       setState({ settings, connection: { kind: "connected", host, sinceMs: Date.now() }, status: base, samples: samples(20) });
+      break;
+    case "paused":
+      setState({ settings, connection: { kind: "connected", host, sinceMs: Date.now() }, status: { ...base, state: "paused", stateCode: 5 }, samples: samples(20) });
+      break;
+    case "preparing":
+      setState({
+        settings,
+        connection: { kind: "connected", host, sinceMs: Date.now() },
+        status: { ...base, preparing: true, progress: 0, layer: 0, elapsedS: 0, remainingS: 5460, nozzleTemp: 168.4, bedTemp: 58.9, speedMmS: 0, fanPct: 0, usedMaterialMm: null },
+        samples: heating(),
+      });
       break;
     case "idle":
       setState({
