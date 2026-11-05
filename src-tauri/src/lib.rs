@@ -1,3 +1,5 @@
+#[macro_use]
+mod i18n;
 mod adapter;
 mod discovery;
 mod model;
@@ -199,7 +201,7 @@ fn set_connection(app: &AppHandle, state: &Arc<AppState>, c: ConnectionState) {
                 (should, inner.settings.printer_name.clone())
             };
             if should {
-                notify(&app, "Verbindung verloren", &format!("{name} ist nicht mehr erreichbar. Ich versuche es weiter."));
+                notify(&app, "Verbindung verloren", &trf!("{name} ist nicht mehr erreichbar. Ich versuche es weiter.", "{name} is no longer reachable. Still trying."));
             }
         });
     }
@@ -255,13 +257,13 @@ fn handle_status(app: &AppHandle, state: &Arc<AppState>, s: PrinterStatus) {
         if prev_state.is_active() && prev_state != s.state {
             match s.state {
                 PrintState::Finished if st.notify_finished => {
-                    notes.push(("Druck fertig".into(), format!("„{file}“ ist fertig gedruckt.")))
+                    notes.push((crate::i18n::tr("Druck fertig", "Print finished").into(), trf!("„{file}“ ist fertig gedruckt.", "“{file}” has finished printing.")))
                 }
                 PrintState::Failed if st.notify_error => {
-                    notes.push(("Druck fehlgeschlagen".into(), format!("„{file}“ wurde mit einem Fehler beendet.")))
+                    notes.push((crate::i18n::tr("Druck fehlgeschlagen", "Print failed").into(), trf!("„{file}“ wurde mit einem Fehler beendet.", "“{file}” ended with an error.")))
                 }
                 PrintState::Aborted if st.notify_error => {
-                    notes.push(("Druck abgebrochen".into(), format!("„{file}“ wurde abgebrochen.")))
+                    notes.push((crate::i18n::tr("Druck abgebrochen", "Print cancelled").into(), trf!("„{file}“ wurde abgebrochen.", "“{file}” was cancelled.")))
                 }
                 _ => {}
             }
@@ -269,7 +271,7 @@ fn handle_status(app: &AppHandle, state: &Arc<AppState>, s: PrinterStatus) {
         let prev_err = prev.as_ref().and_then(|p| p.error_code).unwrap_or(0);
         let err = s.error_code.unwrap_or(0);
         if prev.is_some() && err != 0 && err != prev_err && st.notify_error {
-            notes.push(("Druckerfehler".into(), format!("Der Drucker meldet Fehlercode {err}.")));
+            notes.push((crate::i18n::tr("Druckerfehler", "Printer error").into(), trf!("Der Drucker meldet Fehlercode {err}.", "The printer reports error code {err}.")));
         }
 
         inner.status = Some(s.clone());
@@ -356,7 +358,7 @@ fn save_settings(app: AppHandle, state: State<'_, Arc<AppState>>, settings: Sett
     let settings = settings.normalized();
     settings
         .save(&state.paths.settings)
-        .map_err(|_| "Einstellungen konnten nicht gespeichert werden.".to_string())?;
+        .map_err(|_| crate::i18n::tr("Einstellungen konnten nicht gespeichert werden.", "Settings could not be saved.").to_string())?;
     let reconnect = {
         let mut inner = state.lock();
         let reconnect = inner.settings.printer_ip != settings.printer_ip;
@@ -438,7 +440,7 @@ async fn slicer_slice(app: AppHandle, job: slicer::SliceJob) -> Result<slicer::S
     let custom = app.state::<Arc<AppState>>().lock().settings.orca_path.clone();
     let info = slicer::find_orca(&custom);
     let Some(path) = info.path_buf() else {
-        return Err("OrcaSlicer wurde nicht gefunden. Bitte installieren oder den Pfad in den Einstellungen eintragen.".into());
+        return Err(crate::i18n::tr("OrcaSlicer wurde nicht gefunden. Bitte installieren oder den Pfad in den Einstellungen eintragen.", "OrcaSlicer was not found. Please install it or enter its path in Settings.").into());
     };
     slicer::slice(app, path, job).await
 }
@@ -455,13 +457,13 @@ fn read_model_file(path: String) -> Result<String, String> {
     let p = std::path::Path::new(&path);
     let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
     if !["stl", "obj", "3mf"].contains(&ext.as_str()) {
-        return Err("Nur STL-, OBJ- und 3MF-Dateien werden unterstützt.".into());
+        return Err(crate::i18n::tr("Nur STL-, OBJ- und 3MF-Dateien werden unterstützt.", "Only STL, OBJ and 3MF files are supported.").into());
     }
-    let meta = std::fs::metadata(p).map_err(|_| "Datei nicht gefunden.".to_string())?;
+    let meta = std::fs::metadata(p).map_err(|_| crate::i18n::tr("Datei nicht gefunden.", "File not found.").to_string())?;
     if meta.len() > 400 * 1024 * 1024 {
-        return Err("Die Datei ist zu groß (über 400 MB).".into());
+        return Err(crate::i18n::tr("Die Datei ist zu groß (über 400 MB).", "The file is too large (over 400 MB).").into());
     }
-    let bytes = std::fs::read(p).map_err(|_| "Datei konnte nicht gelesen werden.".to_string())?;
+    let bytes = std::fs::read(p).map_err(|_| crate::i18n::tr("Datei konnte nicht gelesen werden.", "The file could not be read.").to_string())?;
     Ok(base64::engine::general_purpose::STANDARD.encode(bytes))
 }
 
@@ -471,9 +473,9 @@ fn read_gcode(app: AppHandle, path: String) -> Result<String, String> {
     let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
     let p = std::path::Path::new(&path);
     if !p.starts_with(&base) {
-        return Err("Zugriff verweigert.".into());
+        return Err(crate::i18n::tr("Zugriff verweigert.", "Access denied.").into());
     }
-    std::fs::read_to_string(p).map_err(|_| "G-Code konnte nicht gelesen werden.".to_string())
+    std::fs::read_to_string(p).map_err(|_| crate::i18n::tr("G-Code konnte nicht gelesen werden.", "The G-code could not be read.").to_string())
 }
 
 /// Speichert den erzeugten G-Code an einen vom Nutzer gewählten Ort.
@@ -481,9 +483,15 @@ fn read_gcode(app: AppHandle, path: String) -> Result<String, String> {
 fn export_gcode(app: AppHandle, from: String, to: String) -> Result<(), String> {
     let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
     if !std::path::Path::new(&from).starts_with(&base) {
-        return Err("Zugriff verweigert.".into());
+        return Err(crate::i18n::tr("Zugriff verweigert.", "Access denied.").into());
     }
-    std::fs::copy(&from, &to).map(|_| ()).map_err(|_| "Datei konnte nicht gespeichert werden.".to_string())
+    std::fs::copy(&from, &to).map(|_| ()).map_err(|_| crate::i18n::tr("Datei konnte nicht gespeichert werden.", "The file could not be saved.").to_string())
+}
+
+/// Sprache für Meldungen aus dem Backend (von der Oberfläche gesetzt).
+#[tauri::command]
+fn set_ui_language(lang: String) {
+    i18n::set_english(lang == "en");
 }
 
 /// Öffnet eine Projektseite im Standardbrowser – nur Adressen des Druckerwacht-Repositorys.
@@ -493,7 +501,7 @@ fn open_project_link(url: String) -> Result<(), String> {
     let ok = (url == BASE || url.starts_with(&format!("{BASE}/")))
         && url.chars().all(|c| c.is_ascii_alphanumeric() || "/:.-_?=&#%+".contains(c));
     if !ok {
-        return Err("Diese Adresse darf nicht geöffnet werden.".into());
+        return Err(crate::i18n::tr("Diese Adresse darf nicht geöffnet werden.", "This address may not be opened.").into());
     }
     #[cfg(target_os = "macos")]
     let prog = "open";
@@ -503,7 +511,7 @@ fn open_project_link(url: String) -> Result<(), String> {
         .arg(&url)
         .spawn()
         .map(|_| ())
-        .map_err(|_| "Browser konnte nicht geöffnet werden.".to_string())
+        .map_err(|_| crate::i18n::tr("Browser konnte nicht geöffnet werden.", "The browser could not be opened.").to_string())
 }
 
 /// Pause, Fortsetzen oder Abbrechen – nur wenn der Zustand dazu passt.
@@ -516,7 +524,7 @@ async fn printer_control(app: AppHandle, action: String) -> Result<(), String> {
         (inner.settings.printer_ip.clone(), s.map(|s| s.state), s.map(|s| s.preparing).unwrap_or(false))
     };
     if host.is_empty() {
-        return Err("Keine Drucker-IP eingetragen.".into());
+        return Err(crate::i18n::tr("Keine Drucker-IP eingetragen.", "No printer IP address set.").into());
     }
     let ok = match (action.as_str(), state) {
         ("pause", Some(PrintState::Printing)) => !preparing,
@@ -526,10 +534,10 @@ async fn printer_control(app: AppHandle, action: String) -> Result<(), String> {
     };
     if !ok {
         return Err(match action.as_str() {
-            "pause" if preparing => "Während Heizen und Leveling nimmt der Drucker keine Pause an.".into(),
-            "pause" => "Pausieren geht nur während eines Drucks.".into(),
-            "resume" => "Der Drucker ist nicht pausiert.".into(),
-            _ => "Es läuft gerade kein Druck.".into(),
+            "pause" if preparing => crate::i18n::tr("Während Heizen und Leveling nimmt der Drucker keine Pause an.", "The printer does not accept a pause while heating and leveling.").into(),
+            "pause" => crate::i18n::tr("Pausieren geht nur während eines Drucks.", "Pausing only works during a print.").into(),
+            "resume" => crate::i18n::tr("Der Drucker ist nicht pausiert.", "The printer is not paused.").into(),
+            _ => crate::i18n::tr("Es läuft gerade kein Druck.", "No print is running.").into(),
         });
     }
     printjob::control(&host, None, &action).await
@@ -539,7 +547,7 @@ fn project_path(path: &str) -> Result<std::path::PathBuf, String> {
     let p = std::path::PathBuf::from(path);
     match p.extension().and_then(|e| e.to_str()).map(|e| e.to_lowercase()) {
         Some(e) if e == "druckerwacht" => Ok(p),
-        _ => Err("Projektdateien haben die Endung .druckerwacht.".into()),
+        _ => Err(crate::i18n::tr("Projektdateien haben die Endung .druckerwacht.", "Project files use the .druckerwacht extension.").into()),
     }
 }
 
@@ -548,19 +556,19 @@ fn project_path(path: &str) -> Result<std::path::PathBuf, String> {
 fn save_project(path: String, contents: String) -> Result<(), String> {
     let p = project_path(&path)?;
     let tmp = p.with_extension("druckerwacht.tmp");
-    std::fs::write(&tmp, contents).map_err(|_| "Projekt konnte nicht gespeichert werden.".to_string())?;
-    std::fs::rename(&tmp, &p).map_err(|_| "Projekt konnte nicht gespeichert werden.".to_string())
+    std::fs::write(&tmp, contents).map_err(|_| crate::i18n::tr("Projekt konnte nicht gespeichert werden.", "The project could not be saved.").to_string())?;
+    std::fs::rename(&tmp, &p).map_err(|_| crate::i18n::tr("Projekt konnte nicht gespeichert werden.", "The project could not be saved.").to_string())
 }
 
 /// Liest ein Projekt.
 #[tauri::command]
 fn read_project(path: String) -> Result<String, String> {
     let p = project_path(&path)?;
-    let meta = std::fs::metadata(&p).map_err(|_| "Projektdatei nicht gefunden.".to_string())?;
+    let meta = std::fs::metadata(&p).map_err(|_| crate::i18n::tr("Projektdatei nicht gefunden.", "Project file not found.").to_string())?;
     if meta.len() > 800 * 1024 * 1024 {
-        return Err("Die Projektdatei ist zu groß.".into());
+        return Err(crate::i18n::tr("Die Projektdatei ist zu groß.", "The project file is too large.").into());
     }
-    std::fs::read_to_string(&p).map_err(|_| "Projekt konnte nicht gelesen werden.".to_string())
+    std::fs::read_to_string(&p).map_err(|_| crate::i18n::tr("Projekt konnte nicht gelesen werden.", "The project could not be read.").to_string())
 }
 
 /// Sendet den erzeugten G-Code an den Drucker und startet ihn auf Wunsch.
@@ -569,7 +577,7 @@ async fn printer_send(app: AppHandle, path: String, start: bool) -> Result<Strin
     let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
     let p = std::path::PathBuf::from(&path);
     if !p.starts_with(&base) {
-        return Err("Zugriff verweigert.".into());
+        return Err(crate::i18n::tr("Zugriff verweigert.", "Access denied.").into());
     }
     let (host, busy, max_nozzle, max_bed) = {
         let state = app.state::<Arc<AppState>>();
@@ -582,12 +590,12 @@ async fn printer_send(app: AppHandle, path: String, start: bool) -> Result<Strin
         (inner.settings.printer_ip.clone(), busy, max_nozzle, max_bed)
     };
     if host.is_empty() {
-        return Err("Keine Drucker-IP eingetragen.".into());
+        return Err(crate::i18n::tr("Keine Drucker-IP eingetragen.", "No printer IP address set.").into());
     }
     if start && busy {
-        return Err("Der Drucker druckt gerade – bitte warten, bis der aktuelle Druck beendet ist.".into());
+        return Err(crate::i18n::tr("Der Drucker druckt gerade – bitte warten, bis der aktuelle Druck beendet ist.", "The printer is busy – please wait until the current print has finished.").into());
     }
-    let data = std::fs::read(&p).map_err(|_| "G-Code konnte nicht gelesen werden.".to_string())?;
+    let data = std::fs::read(&p).map_err(|_| crate::i18n::tr("G-Code konnte nicht gelesen werden.", "The G-code could not be read.").to_string())?;
     printjob::check_gcode(&data, max_nozzle, max_bed)?;
     let name = printjob::printer_file_name(&p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
     let app2 = app.clone();
@@ -672,6 +680,7 @@ pub fn run() {
             export_gcode,
             printer_send,
             open_project_link,
+            set_ui_language,
             save_project,
             read_project,
             printer_control

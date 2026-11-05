@@ -14,6 +14,8 @@ pub struct Settings {
     pub raw_log: bool,
     /// Pfad zu OrcaSlicer (leer = automatisch suchen)
     pub orca_path: String,
+    /// Sprache der Oberfläche: "" = wie das System, "de" oder "en"
+    pub language: String,
 }
 
 impl Default for Settings {
@@ -27,6 +29,7 @@ impl Default for Settings {
             notify_disconnect: true,
             raw_log: false,
             orca_path: String::new(),
+            language: String::new(),
         }
     }
 }
@@ -50,6 +53,9 @@ impl Settings {
     }
 
     pub fn normalized(mut self) -> Self {
+        if !matches!(self.language.as_str(), "" | "de" | "en") {
+            self.language.clear();
+        }
         self.printer_name = self.printer_name.trim().to_string();
         if self.printer_name.is_empty() {
             self.printer_name = Settings::default().printer_name;

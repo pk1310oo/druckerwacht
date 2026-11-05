@@ -12,6 +12,7 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import type { GcodePreview } from "./gcode";
 import bedModelUrl from "./assets/creality_ender3v3ke_buildplate_model.stl?url";
 import bedTextureSvg from "./assets/creality_ender3v3ke_buildplate_texture.svg?raw";
+import { t } from "../lib/i18n";
 
 THREE.Object3D.DEFAULT_UP.set(0, 0, 1);
 
@@ -464,9 +465,9 @@ export class Plate {
     } else if (ext === "3mf") {
       geom = groupToGeometry(new ThreeMFLoader().parse(data) as unknown as THREE.Object3D);
     } else {
-      throw new Error("Dieses Dateiformat wird nicht unterstützt (STL, OBJ oder 3MF).");
+      throw new Error(t("Dieses Dateiformat wird nicht unterstützt (STL, OBJ oder 3MF)."));
     }
-    if (!geom.attributes.position || geom.attributes.position.count < 3) throw new Error("Die Datei enthält kein Modell.");
+    if (!geom.attributes.position || geom.attributes.position.count < 3) throw new Error(t("Die Datei enthält kein Modell."));
     geom = cleanGeometry(geom);
 
     const mesh = new THREE.Mesh(geom, newModelMaterial());
@@ -1007,7 +1008,7 @@ export class Plate {
     if (m.matrixWorld.determinant() < 0) flipWinding(g);
     const { lower, upper } = splitAtZ(g, this.cutHeight);
     g.dispose();
-    if (!lower || !upper) return "An dieser Höhe gibt es nichts zu schneiden.";
+    if (!lower || !upper) return t("An dieser Höhe gibt es nichts zu schneiden.");
     const baseName = m.name;
     const color = (m.material as THREE.MeshStandardMaterial).clone();
     // Original entfernen, ohne Zwischenschritt im Verlauf
@@ -1027,8 +1028,8 @@ export class Plate {
       return mesh;
     };
     let last: THREE.Mesh | null = null;
-    if (keep !== "upper") last = add(lower, "(unten)", false);
-    if (keep !== "lower") last = add(upper, "(oben)", flipUpper);
+    if (keep !== "upper") last = add(lower, t("(unten)"), false);
+    if (keep !== "lower") last = add(upper, t("(oben)"), flipUpper);
     else upper.dispose();
     if (keep === "upper") lower.dispose();
     this.arrange();
@@ -1354,7 +1355,7 @@ function groupToGeometry(root: THREE.Object3D): THREE.BufferGeometry {
     g.applyMatrix4(mesh.matrixWorld);
     parts.push(g);
   });
-  if (!parts.length) throw new Error("Die Datei enthält kein Modell.");
+  if (!parts.length) throw new Error(t("Die Datei enthält kein Modell."));
   return parts.length === 1 ? parts[0] : mergeGeometries(parts, false)!;
 }
 

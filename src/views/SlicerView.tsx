@@ -66,6 +66,7 @@ import { fmtDuration, fmtNum } from "../lib/format";
 import { EmptyState } from "../components/ui";
 import { useStore } from "../lib/store";
 import type { ViewId } from "../components/Shell";
+import { fmtDec, t } from "../lib/i18n";
 
 // Die Druckplatte lebt über Ansichtswechsel hinweg weiter (WebGL-Kontext, geladene Modelle).
 let plateSingleton: Plate | null = null;
@@ -173,7 +174,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
             await openProjectFile(p);
             continue;
           }
-          const name = p.split(/[\\/]/).pop() ?? "Modell";
+          const name = p.split(/[\\/]/).pop() ?? t("Modell");
           await plate.addFile(name, await readModel(p));
         } catch (e) {
           setLoadError(e instanceof Error ? e.message : String(e));
@@ -212,10 +213,10 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
     if (!plate.count) return;
     try {
       const data = serializeProject(plate.exportProject(), { process: processName, filament: filamentName, overrides });
-      const suggested = `${projectName ?? models[0]?.name ?? "Projekt"}.druckerwacht`;
-      if (await saveProjectAs(data, suggested)) setNotice("Projekt gespeichert");
+      const suggested = `${projectName ?? models[0]?.name ?? t("Projekt")}.druckerwacht`;
+      if (await saveProjectAs(data, suggested)) setNotice(t("Projekt gespeichert"));
     } catch (e) {
-      setLoadError(typeof e === "string" ? e : e instanceof Error ? e.message : "Projekt konnte nicht gespeichert werden.");
+      setLoadError(typeof e === "string" ? e : e instanceof Error ? e.message : t("Projekt konnte nicht gespeichert werden."));
     }
   };
 
@@ -225,7 +226,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       const path = await pickProject();
       if (path) await openProjectFile(path);
     } catch (e) {
-      setLoadError(typeof e === "string" ? e : e instanceof Error ? e.message : "Projekt konnte nicht geöffnet werden.");
+      setLoadError(typeof e === "string" ? e : e instanceof Error ? e.message : t("Projekt konnte nicht geöffnet werden."));
     }
   };
 
@@ -294,7 +295,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
         const touched = Object.keys(overrides).some((k) => groupOf(k) === kind);
         if (!touched) continue;
         const cfg = buildConfig(kind, active[kind], active, overrides) as Preset;
-        const label = kind === "process" ? name : `${name} (Filament)`;
+        const label = kind === "process" ? name : `${name} (${t("Filament")})`;
         await savePreset(kind, { ...cfg, name: label, from: "User", inherits: "" });
         if (kind === "process") setProcessName(label);
         else setFilamentName(label);
@@ -341,7 +342,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       setPhase({ kind: "done", result, stale: false });
       await openPreview(result.gcodePath);
     } catch (e) {
-      setPhase({ kind: "error", message: typeof e === "string" ? e : e instanceof Error ? e.message : "Slicen fehlgeschlagen." });
+      setPhase({ kind: "error", message: typeof e === "string" ? e : e instanceof Error ? e.message : t("Slicen fehlgeschlagen.") });
     }
   };
 
@@ -448,14 +449,14 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       {/* Leiste oben: Drucker, Düse, Druckbett, Filament, Qualität */}
       <div className="slicer-top">
         <div className="top-field">
-          <span className="label">Drucker</span>
+          <span className="label">{t("Drucker")}</span>
           <span className="top-static">
             <Printer size={14} /> Ender 3 V3 KE
           </span>
         </div>
         <div className="top-field">
-          <span className="label">Düse Ø</span>
-          <span className="top-static num">0,4 mm</span>
+          <span className="label">{t("Düse Ø")}</span>
+          <span className="top-static num">{fmtNum(0.4, 1)} mm</span>
         </div>
         <TempField
           label="Düse °C"
@@ -470,11 +471,11 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           onCommit={(v) => onSetting("cool_plate_temp", v, BED_TEMP_KEYS)}
         />
         <div className="top-field">
-          <span className="label">Druckbett</span>
-          <select className="input sp-select" value={bedType} aria-label="Druckbett" onChange={(e) => onSetting("curr_bed_type", e.target.value === "Cool Plate" ? null : e.target.value)}>
+          <span className="label">{t("Druckbett")}</span>
+          <select className="input sp-select" value={bedType} aria-label={t("Druckbett")} onChange={(e) => onSetting("curr_bed_type", e.target.value === "Cool Plate" ? null : e.target.value)}>
             {BED_TYPES.map((b) => (
               <option key={b.value} value={b.value}>
-                {b.label}
+                {t(b.label)}
               </option>
             ))}
           </select>
@@ -520,7 +521,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       <div className="slicer-stage">
         <div className="slicer-canvas" ref={host}>
           {/* Werkzeugleiste über der Platte */}
-          <div className="plate-tools card" role="toolbar" aria-label="Werkzeuge">
+          <div className="plate-tools card" role="toolbar" aria-label={t("Werkzeuge")}>
             <ToolBtn icon={Plus} label="Hinzufügen" onClick={() => void openDialog()} />
             <ToolBtn icon={Undo2} label="Rückgängig (Strg/Cmd+Z)" onClick={() => plate.undo()} disabled={!plate.canUndo() || !!preview} />
             <ToolBtn icon={Redo2} label="Wiederholen (Strg/Cmd+Shift+Z)" onClick={() => plate.redo()} disabled={!plate.canRedo() || !!preview} />
@@ -545,7 +546,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
                         setMirrorOpen(false);
                       }}
                     >
-                      <i className={`ax ax-${a.toLowerCase()}`}>{a}</i> spiegeln
+                      <i className={`ax ax-${a.toLowerCase()}`}>{a}</i> {t("spiegeln")}
                     </button>
                   ))}
                 </span>
@@ -563,13 +564,13 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           <div className="view-tools card">
             {preview ? (
               <button className="btn sm ghost" onClick={closePreview}>
-                <Box size={14} /> Modelle
+                <Box size={14} /> {t("Modelle")}
               </button>
             ) : (
               phase.kind === "done" &&
               !phase.stale && (
                 <button className="btn sm ghost" onClick={() => void openPreview(phase.result.gcodePath)}>
-                  <Eye size={14} /> Vorschau
+                  <Eye size={14} /> {t("Vorschau")}
                 </button>
               )
             )}
@@ -582,11 +583,11 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
               <EmptyState
                 icon={Upload}
                 accent
-                title="Modell hierher ziehen"
-                text="STL, OBJ oder 3MF – oder über „Öffnen“ auswählen. Druckbett: 220 × 220 × 245 mm."
+                title={t("Modell hierher ziehen")}
+                text={t("STL, OBJ oder 3MF – oder über „Öffnen“ auswählen. Druckbett: 220 × 220 × 245 mm.")}
                 actions={
                   <button className="btn primary" onClick={() => void openDialog()}>
-                    <FolderOpen size={16} /> Modell öffnen
+                    <FolderOpen size={16} /> {t("Modell öffnen")}
                   </button>
                 }
               />
@@ -594,10 +595,10 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           )}
           {loading && (
             <div className="slicer-empty">
-              <EmptyState icon={Loader2} spin title="Lade Modell…" />
+              <EmptyState icon={Loader2} spin title={t("Lade Modell…")} />
             </div>
           )}
-          {dropHover && <div className="drop-overlay">Loslassen zum Hinzufügen</div>}
+          {dropHover && <div className="drop-overlay">{t("Loslassen zum Hinzufügen")}</div>}
           {notice && (
             <div className="slicer-toast ok">
               <Check size={14} />
@@ -615,10 +616,10 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           )}
           {tool === "measure" && !preview && (
             <div className="tool-panel card">
-              <span className="label">Messen</span>
+              <span className="label">{t("Messen")}</span>
               {measure.distance == null ? (
                 <span className="hint">
-                  {measure.points.length === 0 ? "Ersten Punkt auf Modell oder Druckbett anklicken." : "Zweiten Punkt anklicken."}
+                  {measure.points.length === 0 ? t("Ersten Punkt auf Modell oder Druckbett anklicken.") : t("Zweiten Punkt anklicken.")}
                 </span>
               ) : (
                 <>
@@ -629,7 +630,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
                   <span className="small muted num">
                     ΔX {fmtNum(measure.delta![0], 2)} · ΔY {fmtNum(measure.delta![1], 2)} · ΔZ {fmtNum(measure.delta![2], 2)} mm
                   </span>
-                  <span className="hint">Weiter klicken für eine neue Messung.</span>
+                  <span className="hint">{t("Weiter klicken für eine neue Messung.")}</span>
                 </>
               )}
             </div>
@@ -637,20 +638,20 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           {sel && !preview && tool !== "cut" && tool !== "measure" && tool !== "paint" && <ObjectPanel m={sel} plate={plate} />}
           {selectedIds.length > 1 && !preview && tool !== "measure" && <GroupPanel count={selectedIds.length} plate={plate} />}
           {tool === "select" && !preview && selectedIds.length <= 1 && (
-            <div className="hint-chip">Rechteck aufziehen, um mehrere Teile zu wählen · Ansicht drehen mit rechter Maustaste</div>
+            <div className="hint-chip">{t("Rechteck aufziehen, um mehrere Teile zu wählen · Ansicht drehen mit rechter Maustaste")}</div>
           )}
 
           {preview && (
             <>
               <div className="layer-bar card">
-                <span className="label">Schicht</span>
+                <span className="label">{t("Schicht")}</span>
                 <input
                   type="range"
                   min={0}
                   max={preview.layerCount - 1}
                   value={layer}
                   onChange={(e) => setLayer(Number(e.target.value))}
-                  aria-label="Schicht"
+                  aria-label={t("Schicht")}
                   style={{ ["--p" as string]: `${(layer / Math.max(1, preview.layerCount - 1)) * 100}%` }}
                 />
                 <span className="num layer-read">
@@ -659,12 +660,12 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
                 </span>
               </div>
               <div className="preview-legend card">
-                {preview.types.map((t) => {
-                  const on = isVisible(t.id);
+                {preview.types.map((ty) => {
+                  const on = isVisible(ty.id);
                   return (
-                    <button key={t.id} className={on ? "" : "off"} onClick={() => toggleType(t.id)} aria-pressed={on}>
-                      <i style={{ background: t.color }} />
-                      {t.label}
+                    <button key={ty.id} className={on ? "" : "off"} onClick={() => toggleType(ty.id)} aria-pressed={on}>
+                      <i style={{ background: ty.color }} />
+                      {t(ty.label)}
                     </button>
                   );
                 })}
@@ -675,9 +676,9 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           {(loadError || outside) && !preview && (
             <div className="slicer-toast">
               <AlertTriangle size={14} />
-              <span>{loadError ?? "Ein Modell ragt über das Druckbett hinaus (rot markiert)."}</span>
+              <span>{loadError ?? t("Ein Modell ragt über das Druckbett hinaus (rot markiert).")}</span>
               {loadError && (
-                <button className="sp-reset" aria-label="Schließen" onClick={() => setLoadError(null)}>
+                <button className="sp-reset" aria-label={t("Schließen")} onClick={() => setLoadError(null)}>
                   <X size={12} />
                 </button>
               )}
@@ -694,7 +695,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           <SettingsPanel presets={active} overrides={overrides} onChange={onSetting} />
         ) : (
           <div className="sp">
-            <EmptyState icon={Layers} title="Profile werden geladen…" text={isTauri ? undefined : "Nur in der App verfügbar."} />
+            <EmptyState icon={Layers} title={t("Profile werden geladen…")} text={isTauri ? undefined : t("Nur in der App verfügbar.")} />
           </div>
         )}
 
@@ -704,14 +705,14 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
               {saveAs == null ? (
                 <>
                   <span className="small muted">
-                    {changedCount} {changedCount === 1 ? "Änderung" : "Änderungen"}
+                    {changedCount === 1 ? t("1 Änderung") : t("{n} Änderungen", { n: changedCount })}
                   </span>
                   <span style={{ display: "flex", gap: 4 }}>
                     <button className="btn sm ghost" onClick={() => setOverrides({})}>
-                      Verwerfen
+                      {t("Verwerfen")}
                     </button>
                     <button className="btn sm" onClick={() => setSaveAs("")}>
-                      <Save size={14} /> Als Profil
+                      <Save size={14} /> {t("Als Profil")}
                     </button>
                   </span>
                 </>
@@ -720,7 +721,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
                   <input
                     className="input"
                     autoFocus
-                    placeholder="Name des Profils"
+                    placeholder={t("Name des Profils")}
                     value={saveAs}
                     onChange={(e) => setSaveAs(e.target.value)}
                     onKeyDown={(e) => {
@@ -729,7 +730,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
                     }}
                   />
                   <button className="btn sm primary" disabled={!saveAs.trim()} onClick={() => void doSavePreset()}>
-                    Speichern
+                    {t("Speichern")}
                   </button>
                 </>
               )}
@@ -741,21 +742,21 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           <div className="actions-row">
             {phase.kind === "slicing" ? (
               <button className="btn primary wide" onClick={() => void cancelSlice()}>
-                <Loader2 size={16} className="spin" /> Slicen… {phase.progress != null ? `${Math.round(phase.progress)} %` : ""} · Abbrechen
+                <Loader2 size={16} className="spin" /> {t("Slicen…")} {phase.progress != null ? `${Math.round(phase.progress)} %` : ""} · {t("Abbrechen")}
               </button>
             ) : (
               <button className="btn primary wide" disabled={!canSlice} onClick={() => void doSlice()}>
-                <Layers size={16} /> {phase.kind === "done" && !phase.stale ? "Erneut slicen" : "Slicen"}
+                <Layers size={16} /> {phase.kind === "done" && !phase.stale ? t("Erneut slicen") : t("Slicen")}
               </button>
             )}
           </div>
           {phase.kind === "done" && !phase.stale && (
             <div className="actions-row">
               <button className="btn" onClick={() => void saveGcodeAs(phase.result.gcodePath, phase.result.fileName)}>
-                <Download size={16} /> G-Code speichern
+                <Download size={16} /> {t("G-Code speichern")}
               </button>
               <button className="btn" onClick={() => setPrintOpen(true)}>
-                <Send size={16} /> Drucken
+                <Send size={16} /> {t("Drucken")}
               </button>
             </div>
           )}
@@ -801,13 +802,13 @@ function TempField({ label, value, max, onCommit }: { label: string; value: stri
   };
   return (
     <div className="top-field">
-      <span className="label">{label}</span>
+      <span className="label">{t(label)}</span>
       <span className="sp-num temp-field">
         <Thermometer size={14} />
         <input
           className="input num"
           inputMode="numeric"
-          aria-label={`${label.replace(" °C", "")}-Temperatur`}
+          aria-label={t("{what}-Temperatur", { what: t(label.replace(" °C", "")) })}
           value={draft ?? value}
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commit}
@@ -850,8 +851,8 @@ function PaintPanel({ plate, supportOn, enableSupport }: { plate: Plate; support
         ];
   return (
     <div className="tool-panel card paint-panel">
-      <span className="label">Malen</span>
-      <div className="seg" role="radiogroup" aria-label="Was malen">
+      <span className="label">{t("Malen")}</span>
+      <div className="seg" role="radiogroup" aria-label={t("Was malen")}>
         {(
           [
             ["support", "Stützen"],
@@ -859,7 +860,7 @@ function PaintPanel({ plate, supportOn, enableSupport }: { plate: Plate; support
           ] as const
         ).map(([v, l]) => (
           <button key={v} role="radio" aria-checked={b.channel === v} className={b.channel === v ? "on" : ""} onClick={() => plate.setBrush({ channel: v, value: 1 })}>
-            {l}
+            {t(l)}
           </button>
         ))}
       </div>
@@ -867,34 +868,34 @@ function PaintPanel({ plate, supportOn, enableSupport }: { plate: Plate; support
         {opts.map((o) => (
           <button key={o.value} className={`paint-mode ${b.value === o.value ? "on" : ""}`} onClick={() => plate.setBrush({ value: o.value })} aria-pressed={b.value === o.value}>
             <i style={{ background: o.color }} />
-            {o.label}
+            {t(o.label)}
           </button>
         ))}
       </div>
       <div className="cut-row">
-        <span className="small muted">Pinsel</span>
-        <input type="range" min={1} max={25} step={0.5} value={b.radius} onChange={(e) => plate.setBrush({ radius: Number(e.target.value) })} aria-label="Pinselgröße" />
+        <span className="small muted">{t("Pinsel")}</span>
+        <input type="range" min={1} max={25} step={0.5} value={b.radius} onChange={(e) => plate.setBrush({ radius: Number(e.target.value) })} aria-label={t("Pinselgröße")} />
         <span className="small num" style={{ width: 52, textAlign: "right" }}>
           {fmtNum(b.radius * 2, 0)} mm
         </span>
       </div>
       <p className="hint" style={{ margin: 0 }}>
-        {hasSel ? "Mit gedrückter linker Maustaste auf dem Modell malen. Ansicht drehen mit rechter Maustaste." : "Auf ein Modell klicken und malen."}
+        {hasSel ? t("Mit gedrückter linker Maustaste auf dem Modell malen. Ansicht drehen mit rechter Maustaste.") : t("Auf ein Modell klicken und malen.")}
       </p>
       {b.channel === "support" && stats.supportEnforce > 0 && !supportOn && (
         <div className="result error" style={{ color: "var(--warning)", borderColor: "rgba(224,164,58,0.35)", background: "rgba(224,164,58,0.08)" }}>
           <AlertTriangle size={16} />
           <span>
-            Gemalte Stützen wirken nur mit eingeschalteten Stützen.{" "}
+            {t("Gemalte Stützen wirken nur mit eingeschalteten Stützen.")}{" "}
             <button className="link" onClick={enableSupport}>
-              Stützen einschalten
+              {t("Stützen einschalten")}
             </button>
           </span>
         </div>
       )}
       {hasSel && (
         <button className="btn sm ghost" onClick={() => plate.clearPaint(b.channel)}>
-          <Trash2 size={14} /> {b.channel === "support" ? "Stützen-Bemalung" : "Naht-Bemalung"} löschen
+          <Trash2 size={14} /> {b.channel === "support" ? t("Stützen-Bemalung löschen") : t("Naht-Bemalung löschen")}
         </button>
       )}
     </div>
@@ -914,7 +915,7 @@ function GroupPanel({ count, plate }: { count: number; plate: Plate }) {
   return (
     <div className="object-panel card">
       <div className="op-head">
-        <span className="file-name">{count} Teile ausgewählt</span>
+        <span className="file-name">{t("{n} Teile ausgewählt", { n: count })}</span>
         {size && (
           <span className="small muted num">
             {fmtNum(size[0], 1)} × {fmtNum(size[1], 1)} × {fmtNum(size[2], 1)} mm
@@ -922,11 +923,11 @@ function GroupPanel({ count, plate }: { count: number; plate: Plate }) {
         )}
       </div>
       <div className="group-row">
-        <span className="label">Skalieren</span>
+        <span className="label">{t("Skalieren")}</span>
         <span className="sp-num">
           <input
             className="input num"
-            aria-label="Auswahl skalieren in Prozent"
+            aria-label={t("Auswahl skalieren in Prozent")}
             value={pct ?? "100"}
             onChange={(e) => setPct(e.target.value)}
             onBlur={apply}
@@ -944,17 +945,17 @@ function GroupPanel({ count, plate }: { count: number; plate: Plate }) {
       </div>
       <div className="group-row">
         <button className="btn sm" onClick={() => plate.arrange()}>
-          <LayoutGrid size={14} /> Anordnen
+          <LayoutGrid size={14} /> {t("Anordnen")}
         </button>
         <button className="btn sm" onClick={() => plate.duplicate()}>
-          <Copy size={14} /> Duplizieren
+          <Copy size={14} /> {t("Duplizieren")}
         </button>
         <button className="btn sm" onClick={() => plate.remove()}>
-          <Trash2 size={14} /> Löschen
+          <Trash2 size={14} /> {t("Löschen")}
         </button>
       </div>
       <p className="hint" style={{ margin: 0 }}>
-        Am Griff ziehen bewegt, dreht oder skaliert alle gemeinsam. Shift/Strg-Klick nimmt Teile hinzu oder heraus.
+        {t("Am Griff ziehen bewegt, dreht oder skaliert alle gemeinsam. Shift/Strg-Klick nimmt Teile hinzu oder heraus.")}
       </p>
     </div>
   );
@@ -968,23 +969,23 @@ function CutPanel({ plate, onError }: { plate: Plate; onError: (m: string | null
   useEffect(() => plate.setCutHeight(h), [h, plate]);
   return (
     <div className="tool-panel card">
-      <span className="label">Schneiden</span>
+      <span className="label">{t("Schneiden")}</span>
       <div className="cut-row">
-        <input type="range" min={0.2} max={Math.max(0.2, height - 0.2)} step={0.1} value={h} onChange={(e) => setH(Number(e.target.value))} aria-label="Schnitthöhe" />
+        <input type="range" min={0.2} max={Math.max(0.2, height - 0.2)} step={0.1} value={h} onChange={(e) => setH(Number(e.target.value))} aria-label={t("Schnitthöhe")} />
         <span className="sp-num">
           <input
             className="input num"
-            value={String(h).replace(".", ",")}
+            value={fmtDec(String(h))}
             onChange={(e) => {
               const v = Number(e.target.value.replace(",", "."));
               if (Number.isFinite(v)) setH(Math.min(Math.max(v, 0.2), height - 0.2));
             }}
-            aria-label="Schnitthöhe in mm"
+            aria-label={t("Schnitthöhe in mm")}
           />
           <span className="sp-unit">mm</span>
         </span>
       </div>
-      <div className="seg" role="radiogroup" aria-label="Behalten">
+      <div className="seg" role="radiogroup" aria-label={t("Behalten")}>
         {(
           [
             ["both", "Beide Teile"],
@@ -993,12 +994,12 @@ function CutPanel({ plate, onError }: { plate: Plate; onError: (m: string | null
           ] as const
         ).map(([v, l]) => (
           <button key={v} role="radio" aria-checked={keep === v} className={keep === v ? "on" : ""} onClick={() => setKeep(v)}>
-            {l}
+            {t(l)}
           </button>
         ))}
       </div>
       <label className="op-uniform">
-        <input type="checkbox" checked={flip} onChange={(e) => setFlip(e.target.checked)} disabled={keep === "lower"} /> Oberes Teil umdrehen (Schnittfläche aufs Bett)
+        <input type="checkbox" checked={flip} onChange={(e) => setFlip(e.target.checked)} disabled={keep === "lower"} /> {t("Oberes Teil umdrehen (Schnittfläche aufs Bett)")}
       </label>
       <button
         className="btn primary"
@@ -1006,7 +1007,7 @@ function CutPanel({ plate, onError }: { plate: Plate; onError: (m: string | null
           onError(plate.cut(keep, flip));
         }}
       >
-        <Scissors size={16} /> Schneiden
+        <Scissors size={16} /> {t("Schneiden")}
       </button>
     </div>
   );
@@ -1051,17 +1052,17 @@ function PrintDialog(props: {
       const name = await printerSend(props.result.gcodePath, start);
       setState({ kind: "done", start, name });
     } catch (e) {
-      setState({ kind: "error", msg: typeof e === "string" ? e : "Senden fehlgeschlagen." });
+      setState({ kind: "error", msg: typeof e === "string" ? e : t("Senden fehlgeschlagen.") });
     }
   };
 
   const working = state.kind === "uploading";
   const blocker = !props.host
-    ? "Keine Drucker-IP eingetragen."
+    ? t("Keine Drucker-IP eingetragen.")
     : !props.connected
-      ? "Der Drucker ist gerade nicht verbunden."
+      ? t("Der Drucker ist gerade nicht verbunden.")
       : props.busy
-        ? "Der Drucker druckt gerade. Bitte warten, bis der aktuelle Druck fertig ist."
+        ? t("Der Drucker druckt gerade. Bitte warten, bis der aktuelle Druck fertig ist.")
         : null;
 
   return (
@@ -1069,33 +1070,33 @@ function PrintDialog(props: {
       <div className="modal card" role="dialog" aria-modal="true" aria-labelledby="print-title">
         <div className="modal-head">
           <span id="print-title" style={{ fontWeight: 600 }}>
-            An Drucker senden
+            {t("An Drucker senden")}
           </span>
-          <button className="sp-reset" aria-label="Schließen" onClick={props.onClose} disabled={working}>
+          <button className="sp-reset" aria-label={t("Schließen")} onClick={props.onClose} disabled={working}>
             <X size={14} />
           </button>
         </div>
 
         <div className="modal-facts">
           <div>
-            <span className="label">Datei</span>
+            <span className="label">{t("Datei")}</span>
             <span className="file-name" title={props.result.fileName}>
               {props.result.fileName}
             </span>
           </div>
           <div>
-            <span className="label">Drucker</span>
+            <span className="label">{t("Drucker")}</span>
             <span>
               {props.printerName}
               {props.host && <span className="muted num"> · {props.host}</span>}
             </span>
           </div>
           <div>
-            <span className="label">Druckzeit</span>
+            <span className="label">{t("Druckzeit")}</span>
             <span className="num">{fmtDuration(props.result.timeS)}</span>
           </div>
           <div>
-            <span className="label">Filament</span>
+            <span className="label">{t("Filament")}</span>
             <span className="num">{props.result.filamentG != null ? `${fmtNum(props.result.filamentG, 1)} g` : "–"}</span>
           </div>
         </div>
@@ -1106,7 +1107,7 @@ function PrintDialog(props: {
               <i style={{ width: `${state.pct}%` }} />
             </div>
             <span className="small muted num">
-              {state.pct < 100 ? `Übertrage … ${state.pct} %` : state.start ? "Starte Druck …" : "Abschließen …"}
+              {state.pct < 100 ? t("Übertrage … {p} %", { p: state.pct }) : state.start ? t("Starte Druck …") : t("Abschließen …")}
             </span>
           </div>
         )}
@@ -1114,15 +1115,15 @@ function PrintDialog(props: {
           <div className="modal-ok">
             {!state.start ? (
               <>
-                <Check size={16} /> Auf dem Drucker gespeichert als „{state.name}“.
+                <Check size={16} /> {t("Auf dem Drucker gespeichert als „{name}“.", { name: state.name })}
               </>
             ) : startConfirmed ? (
               <>
-                <Check size={16} /> Der Drucker hat den Druck gestartet – zum Dashboard …
+                <Check size={16} /> {t("Der Drucker hat den Druck gestartet – zum Dashboard …")}
               </>
             ) : (
               <>
-                <Loader2 size={16} className="spin" /> Übertragen. Warte, bis der Drucker den Start meldet …
+                <Loader2 size={16} className="spin" /> {t("Übertragen. Warte, bis der Drucker den Start meldet …")}
               </>
             )}
           </div>
@@ -1131,7 +1132,7 @@ function PrintDialog(props: {
           <div className="result error" style={{ color: "var(--warning)", borderColor: "rgba(224,164,58,0.35)", background: "rgba(224,164,58,0.08)" }}>
             <AlertTriangle size={16} />
             <span>
-              Der Drucker hat den Start nicht gemeldet. Die Datei „{state.name}“ liegt auf dem Drucker – bitte am Display prüfen und dort starten.
+              {t("Der Drucker hat den Start nicht gemeldet. Die Datei „{name}“ liegt auf dem Drucker – bitte am Display prüfen und dort starten.", { name: state.name })}
             </span>
           </div>
         )}
@@ -1148,7 +1149,7 @@ function PrintDialog(props: {
               {blocker}{" "}
               {!props.host && (
                 <button className="link" onClick={() => props.go("settings")}>
-                  Zu den Einstellungen
+                  {t("Zu den Einstellungen")}
                 </button>
               )}
             </span>
@@ -1159,17 +1160,17 @@ function PrintDialog(props: {
           <>
             <label className="op-uniform plate-check">
               <input type="checkbox" checked={plateFree} onChange={(e) => setPlateFree(e.target.checked)} disabled={working} />
-              Die Druckplatte ist frei und sauber.
+              {t("Die Druckplatte ist frei und sauber.")}
             </label>
             <div className="modal-actions">
               <button className="btn ghost" onClick={props.onClose} disabled={working}>
-                Abbrechen
+                {t("Abbrechen")}
               </button>
               <button className="btn" onClick={() => void send(false)} disabled={working || !props.host || !props.connected}>
-                <Upload size={16} /> Nur hochladen
+                <Upload size={16} /> {t("Nur hochladen")}
               </button>
               <button className="btn primary" onClick={() => void send(true)} disabled={working || !!blocker || !plateFree}>
-                <Send size={16} /> Hochladen & drucken
+                <Send size={16} /> {t("Hochladen & drucken")}
               </button>
             </div>
           </>
@@ -1177,7 +1178,7 @@ function PrintDialog(props: {
         {state.kind === "done" && !state.start && (
           <div className="modal-actions">
             <button className="btn primary" onClick={props.onClose}>
-              Fertig
+              {t("Fertig")}
             </button>
           </div>
         )}
@@ -1186,7 +1187,8 @@ function PrintDialog(props: {
   );
 }
 
-function ToolBtn({ icon: Icon, label, on, onClick, disabled }: { icon: typeof Move3d; label: string; on?: boolean; onClick: () => void; disabled?: boolean }) {
+function ToolBtn({ icon: Icon, label: de, on, onClick, disabled }: { icon: typeof Move3d; label: string; on?: boolean; onClick: () => void; disabled?: boolean }) {
+  const label = t(de);
   return (
     <button className={`tool-btn ${on ? "on" : ""}`} onClick={onClick} disabled={disabled} aria-label={label} aria-pressed={on}>
       <Icon size={18} strokeWidth={1.75} />
@@ -1208,7 +1210,7 @@ function PresetSelect(props: {
   const pretty = (n: string) => n.replace(/ @Creality.*$| @Ender-3 V3 KE.*$/, "");
   return (
     <label className="preset">
-      <span className="label">{props.label}</span>
+      <span className="label">{t(props.label)}</span>
       <span className="preset-row">
         <select className="input sp-select" value={props.value} onChange={(e) => props.onChange(e.target.value)}>
           <optgroup label="Creality / Orca">
@@ -1219,7 +1221,7 @@ function PresetSelect(props: {
             ))}
           </optgroup>
           {user.length > 0 && (
-            <optgroup label="Eigene">
+            <optgroup label={t("Eigene")}>
               {user.map((o) => (
                 <option key={o.name} value={o.name}>
                   {o.name}
@@ -1229,7 +1231,7 @@ function PresetSelect(props: {
           )}
         </select>
         {props.onDelete && (
-          <button className="tool-btn" title="Eigenes Profil löschen" aria-label="Eigenes Profil löschen" onClick={(e) => { e.preventDefault(); props.onDelete!(); }}>
+          <button className="tool-btn" title={t("Eigenes Profil löschen")} aria-label={t("Eigenes Profil löschen")} onClick={(e) => { e.preventDefault(); props.onDelete!(); }}>
             <Trash2 size={14} />
           </button>
         )}
@@ -1252,21 +1254,21 @@ function ResultCard({ phase }: { phase: Phase }) {
   return (
     <div className={`result ${phase.stale ? "stale" : ""}`}>
       <div>
-        <span className="label">Druckzeit</span>
+        <span className="label">{t("Druckzeit")}</span>
         <span className="value num">{fmtDuration(r.timeS)}</span>
       </div>
       <div>
-        <span className="label">Filament</span>
+        <span className="label">{t("Filament")}</span>
         <span className="value num">
           {r.filamentG != null ? `${fmtNum(r.filamentG, 1)} g` : "–"}
           {r.filamentMm != null && <span className="muted small"> · {fmtNum(r.filamentMm / 1000, 2)} m</span>}
         </span>
       </div>
       <div>
-        <span className="label">Schichten</span>
+        <span className="label">{t("Schichten")}</span>
         <span className="value num">{fmtNum(r.layers)}</span>
       </div>
-      {phase.stale && <p className="hint">Geändert – bitte erneut slicen.</p>}
+      {phase.stale && <p className="hint">{t("Geändert – bitte erneut slicen.")}</p>}
       {r.warnings.map((w) => (
         <p key={w} className="hint" style={{ color: "var(--warning)" }}>
           {w}
@@ -1278,7 +1280,7 @@ function ResultCard({ phase }: { phase: Phase }) {
 
 function ObjectPanel({ m, plate }: { m: ModelInfo; plate: Plate }) {
   const [uniform, setUniform] = useState(true);
-  const f = (v: number, d = 1) => (Math.round(v * 10 ** d) / 10 ** d).toString().replace(".", ",");
+  const f = (v: number, d = 1) => fmtDec((Math.round(v * 10 ** d) / 10 ** d).toString());
   const num = (s: string) => Number(s.replace(",", "."));
   return (
     <div className="object-panel card">
@@ -1286,14 +1288,14 @@ function ObjectPanel({ m, plate }: { m: ModelInfo; plate: Plate }) {
         <span className="file-name" title={m.name}>
           {m.name}
         </span>
-        <span className="small muted num">{fmtNum(m.triangles)} Dreiecke</span>
+        <span className="small muted num">{t("{n} Dreiecke", { n: fmtNum(m.triangles) })}</span>
       </div>
       <div className="op-grid">
-        <span className="label">Größe</span>
+        <span className="label">{t("Größe")}</span>
         {(["X", "Y", "Z"] as const).map((a, i) => (
           <Cell key={a} axis={a} value={f(m.size[i])} unit="mm" onCommit={(v) => plate.setSize(i as 0 | 1 | 2, num(v), uniform)} />
         ))}
-        <span className="label">Skalierung</span>
+        <span className="label">{t("Skalierung")}</span>
         {(["X", "Y", "Z"] as const).map((a, i) => (
           <Cell
             key={a}
@@ -1306,20 +1308,20 @@ function ObjectPanel({ m, plate }: { m: ModelInfo; plate: Plate }) {
             }}
           />
         ))}
-        <span className="label">Drehung</span>
+        <span className="label">{t("Drehung")}</span>
         {(["X", "Y", "Z"] as const).map((a, i) => (
           <Cell key={a} axis={a} value={f(m.rotation[i], 0)} unit="°" onCommit={(v) => plate.setRotation(m.rotation.map((x, j) => (j === i ? num(v) : x)) as [number, number, number])} />
         ))}
-        <span className="label">Position</span>
+        <span className="label">{t("Position")}</span>
         {(["X", "Y"] as const).map((a, i) => (
           <Cell key={a} axis={a} value={f(m.position[i])} unit="mm" onCommit={(v) => plate.setPosition(i === 0 ? num(v) : m.position[0], i === 1 ? num(v) : m.position[1])} />
         ))}
         <span />
       </div>
       <label className="op-uniform">
-        <input type="checkbox" checked={uniform} onChange={(e) => setUniform(e.target.checked)} /> Gleichmäßig skalieren
+        <input type="checkbox" checked={uniform} onChange={(e) => setUniform(e.target.checked)} /> {t("Gleichmäßig skalieren")}
       </label>
-      {m.outside && <p className="hint error">Liegt teilweise außerhalb des Druckbetts ({BED.x} × {BED.y} × {BED.z} mm).</p>}
+      {m.outside && <p className="hint error">{t("Liegt teilweise außerhalb des Druckbetts ({x} × {y} × {z} mm).", { x: BED.x, y: BED.y, z: BED.z })}</p>}
     </div>
   );
 }
@@ -1341,7 +1343,7 @@ function Cell({ axis, value, unit, onCommit }: { axis: string; value: string; un
           if (e.key === "Enter") (e.target as HTMLInputElement).blur();
           if (e.key === "Escape") setDraft(null);
         }}
-        aria-label={`${axis} in ${unit}`}
+        aria-label={t("{axis} in {unit}", { axis, unit })}
       />
       <span className="sp-unit">{unit}</span>
     </span>
@@ -1354,14 +1356,13 @@ function OrcaMissing({ go }: { go: (v: ViewId) => void }) {
     <div className="orca-missing">
       <AlertTriangle size={16} />
       <div>
-        <div style={{ fontWeight: 600 }}>OrcaSlicer fehlt</div>
+        <div style={{ fontWeight: 600 }}>{t("OrcaSlicer fehlt")}</div>
         <p className="hint">
-          Der Slicer-Motor ist kostenlos: <span className="num">github.com/SoftFever/OrcaSlicer/releases</span>
-          {mac ? " – die .dmg laden und OrcaSlicer in „Programme“ ziehen." : " – das AppImage laden und z. B. in ~/Applications ablegen."} Öffnen
-          musst du ihn nie.
+          {t("Der Slicer-Motor ist kostenlos:")} <span className="num">github.com/SoftFever/OrcaSlicer/releases</span>
+          {mac ? t(" – die .dmg laden und OrcaSlicer in „Programme“ ziehen.") : t(" – das AppImage laden und z. B. in ~/Applications ablegen.")} {t("Öffnen musst du ihn nie.")}
         </p>
         <button className="btn sm" onClick={() => go("settings")}>
-          Pfad manuell eintragen
+          {t("Pfad manuell eintragen")}
         </button>
       </div>
     </div>

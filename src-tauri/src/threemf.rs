@@ -32,11 +32,11 @@ fn xml_escape(s: &str) -> String {
 /// Liest die Dreiecke einer binären STL.
 pub fn stl_triangles(stl: &[u8]) -> Result<Vec<[[f32; 3]; 3]>, String> {
     if stl.len() < 84 {
-        return Err("Ungültige STL-Daten.".into());
+        return Err(crate::i18n::tr("Ungültige STL-Daten.", "Invalid STL data.").into());
     }
     let n = u32::from_le_bytes([stl[80], stl[81], stl[82], stl[83]]) as usize;
     if stl.len() < 84 + n * 50 {
-        return Err("STL-Daten sind unvollständig.".into());
+        return Err(crate::i18n::tr("STL-Daten sind unvollständig.", "STL data is incomplete.").into());
     }
     let f = |o: usize| f32::from_le_bytes([stl[o], stl[o + 1], stl[o + 2], stl[o + 3]]);
     Ok((0..n)

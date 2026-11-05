@@ -5,6 +5,7 @@
 import { base64ToBytes, bytesToBase64 } from "./api";
 import type { PaintData, ProjectModel } from "./plate";
 import type { Overrides } from "./settings";
+import { t } from "../lib/i18n";
 
 export const PROJECT_FORMAT = "druckerwacht-projekt";
 
@@ -61,13 +62,13 @@ export function parseProject(text: string): { models: ProjectModel[]; settings: 
   try {
     f = JSON.parse(text);
   } catch {
-    throw new Error("Die Datei ist kein gültiges Druckerwacht-Projekt.");
+    throw new Error(t("Die Datei ist kein gültiges Druckerwacht-Projekt."));
   }
-  if (f?.format !== PROJECT_FORMAT || !Array.isArray(f.models)) throw new Error("Die Datei ist kein gültiges Druckerwacht-Projekt.");
-  if (f.version > 1) throw new Error("Das Projekt stammt aus einer neueren Druckerwacht-Version.");
+  if (f?.format !== PROJECT_FORMAT || !Array.isArray(f.models)) throw new Error(t("Die Datei ist kein gültiges Druckerwacht-Projekt."));
+  if (f.version > 1) throw new Error(t("Das Projekt stammt aus einer neueren Druckerwacht-Version."));
   const models: ProjectModel[] = f.models.map((m, i) => {
     if (typeof m.stl !== "string" || !nums(m.position, 3) || !nums(m.quaternion, 4) || !nums(m.scale, 3)) {
-      throw new Error(`Modell ${i + 1} im Projekt ist beschädigt.`);
+      throw new Error(t("Modell {n} im Projekt ist beschädigt.", { n: i + 1 }));
     }
     let paint: PaintData | null = null;
     if (m.paint && typeof m.paint === "object") {
@@ -77,7 +78,7 @@ export function parseProject(text: string): { models: ProjectModel[]; settings: 
       if (support || seam) paint = { support, seam };
     }
     return {
-      name: String(m.name ?? `Modell ${i + 1}`),
+      name: String(m.name ?? t("Modell {n}", { n: i + 1 })),
       stl: base64ToBytes(m.stl),
       position: m.position as [number, number, number],
       quaternion: m.quaternion as [number, number, number, number],

@@ -1,3 +1,4 @@
+import { t } from "../lib/i18n";
 import { useEffect, useState } from "react";
 import { RefreshCw, VideoOff } from "lucide-react";
 import { EmptyState } from "./ui";
@@ -27,7 +28,7 @@ export function CameraFrame({ url }: { url: string }) {
         <img
           key={src}
           src={src}
-          alt="Kamerabild"
+          alt={t("Kamerabild")}
           style={{ opacity: phase === "ok" ? 1 : 0 }}
           onLoad={() => setPhase("ok")}
           onError={() => setPhase("error")}
@@ -37,8 +38,8 @@ export function CameraFrame({ url }: { url: string }) {
       {phase === "error" && (
         <EmptyState
           icon={VideoOff}
-          title="Kamera nicht erreichbar"
-          text="Prüfe die Stream-Adresse in den Einstellungen."
+          title={t("Kamera nicht erreichbar")}
+          text={t("Prüfe die Stream-Adresse in den Einstellungen.")}
           actions={
             <button className="btn sm" onClick={() => setNonce((n) => n + 1)}>
               <RefreshCw size={14} /> Erneut versuchen

@@ -5,11 +5,12 @@ import { clearJobs, historyThumbCandidates } from "../lib/api";
 import { fmtDateTime, fmtDuration, fmtNum } from "../lib/format";
 import { Card, EmptyState, Segmented } from "../components/ui";
 import type { JobRecord, PrinterJob } from "../lib/types";
+import { t } from "../lib/i18n";
 
 const RESULT: Record<JobRecord["result"], { label: string; icon: typeof CheckCircle2 }> = {
-  finished: { label: "Fertig", icon: CheckCircle2 },
-  failed: { label: "Fehler", icon: XCircle },
-  aborted: { label: "Abgebrochen", icon: CircleSlash },
+  finished: { get label() { return t("Fertig"); }, icon: CheckCircle2 },
+  failed: { get label() { return t("Fehler"); }, icon: XCircle },
+  aborted: { get label() { return t("Abgebrochen"); }, icon: CircleSlash },
 };
 
 type Source = "printer" | "app";
@@ -19,14 +20,14 @@ export function HistoryView() {
   return (
     <div className="view">
       <div className="section-head" style={{ marginTop: 0 }}>
-        <span className="label">Druckverlauf</span>
+        <span className="label">{t("Druckverlauf")}</span>
         <Segmented
-          ariaLabel="Quelle"
+          ariaLabel={t("Quelle")}
           value={source}
           onChange={setSource}
           options={[
-            { value: "printer", label: "Vom Drucker" },
-            { value: "app", label: "Diese App" },
+            { value: "printer", label: t("Vom Drucker") },
+            { value: "app", label: t("Diese App") },
           ]}
         />
       </div>
@@ -42,8 +43,8 @@ function PrinterHistoryList() {
       <Card>
         <EmptyState
           icon={Printer}
-          title="Noch kein Verlauf vom Drucker"
-          text="Der Drucker schickt seine Liste der letzten Drucke beim Verbinden oder spätestens nach dem nächsten fertigen Druck. Danach bleibt sie hier gespeichert."
+          title={t("Noch kein Verlauf vom Drucker")}
+          text={t("Der Drucker schickt seine Liste der letzten Drucke beim Verbinden oder spätestens nach dem nächsten fertigen Druck. Danach bleibt sie hier gespeichert.")}
         />
       </Card>
     );
@@ -52,24 +53,24 @@ function PrinterHistoryList() {
   return (
     <>
       <div className="stats history-stats">
-        <Stat icon={Layers} label="Drucke" value={fmtNum(h.totalJobs ?? h.jobs.length)} sub={`${finished} fertig · ${h.jobs.length - finished} abgebrochen (letzte ${h.jobs.length})`} />
-        <Stat icon={Clock} label="Druckzeit gesamt" value={fmtDuration(h.totalTimeS)} sub="laut Drucker" />
+        <Stat icon={Layers} label={t("Drucke")} value={fmtNum(h.totalJobs ?? h.jobs.length)} sub={t("{ok} fertig · {bad} abgebrochen (letzte {n})", { ok: finished, bad: h.jobs.length - finished, n: h.jobs.length })} />
+        <Stat icon={Clock} label={t("Druckzeit gesamt")} value={fmtDuration(h.totalTimeS)} sub={t("laut Drucker")} />
         <Stat
           icon={Ruler}
-          label="Filament gesamt"
+          label={t("Filament gesamt")}
           value={h.totalMaterialMm != null ? `${fmtNum(h.totalMaterialMm / 1000, 1)} m` : "–"}
           sub={h.totalMaterialMm != null ? `≈ ${fmtNum((h.totalMaterialMm / 1000) * 2.98, 0)} g PLA` : ""}
         />
       </div>
       <Card className="jobs">
-        <div role="table" aria-label="Druckverlauf des Druckers">
+        <div role="table" aria-label={t("Druckverlauf des Druckers")}>
           <div className="job job-head job-printer label" role="row">
             <span />
-            <span>Datei</span>
-            <span className="col-date">Gestartet</span>
-            <span className="right">Dauer</span>
-            <span className="right">Filament</span>
-            <span className="right">Ergebnis</span>
+            <span>{t("Datei")}</span>
+            <span className="col-date">{t("Gestartet")}</span>
+            <span className="right">{t("Dauer")}</span>
+            <span className="right">{t("Filament")}</span>
+            <span className="right">{t("Ergebnis")}</span>
           </div>
           {h.jobs.map((j) => (
             <div className="job job-printer" role="row" key={`${j.id}-${j.startedS}`}>
@@ -82,7 +83,7 @@ function PrinterHistoryList() {
               <span className="col-date muted num">{j.startedS ? fmtDateTime(j.startedS * 1000) : "–"}</span>
               <span className="right num">{fmtDuration(j.durationS)}</span>
               <span className="right num muted">{fmtNum(j.materialMm / 1000, 2)} m</span>
-              <span className={`right ${j.finished ? "ok-text" : "muted"}`}>{j.finished ? "Fertig" : "Abgebrochen"}</span>
+              <span className={`right ${j.finished ? "ok-text" : "muted"}`}>{j.finished ? t("Fertig") : t("Abgebrochen")}</span>
             </div>
           ))}
         </div>
@@ -126,17 +127,17 @@ function AppHistory() {
         {jobs.length === 0 ? (
           <EmptyState
             icon={History}
-            title="Noch keine Drucke aufgezeichnet"
-            text="Jeder Druck, den die App von Anfang bis Ende mitverfolgt, landet hier – mit Dauer und Ergebnis."
+            title={t("Noch keine Drucke aufgezeichnet")}
+            text={t("Jeder Druck, den die App von Anfang bis Ende mitverfolgt, landet hier – mit Dauer und Ergebnis.")}
           />
         ) : (
-          <div role="table" aria-label="Druckverlauf dieser App">
+          <div role="table" aria-label={t("Druckverlauf dieser App")}>
             <div className="job job-head label" role="row">
               <span />
-              <span>Datei</span>
-              <span className="col-date">Beendet</span>
-              <span className="right">Dauer</span>
-              <span className="right">Ergebnis</span>
+              <span>{t("Datei")}</span>
+              <span className="col-date">{t("Beendet")}</span>
+              <span className="right">{t("Dauer")}</span>
+              <span className="right">{t("Ergebnis")}</span>
             </div>
             {jobs.map((j) => {
               const r = RESULT[j.result] ?? RESULT.aborted;
@@ -150,7 +151,7 @@ function AppHistory() {
                     <div className="file-name" title={j.file}>
                       {j.file}
                     </div>
-                    {j.layers != null && <div className="small muted num">{fmtNum(j.layers)} Schichten</div>}
+                    {j.layers != null && <div className="small muted num">{t("{n} Schichten", { n: fmtNum(j.layers) })}</div>}
                   </span>
                   <span className="col-date muted num">{fmtDateTime(j.endedMs)}</span>
                   <span className="right num">{fmtDuration(j.durationS)}</span>
@@ -166,7 +167,7 @@ function AppHistory() {
           {confirm ? (
             <>
               <button className="btn sm ghost" onClick={() => setConfirm(false)}>
-                Behalten
+                {t("Behalten")}
               </button>
               <button
                 className="btn sm"
@@ -175,12 +176,12 @@ function AppHistory() {
                   setConfirm(false);
                 }}
               >
-                <Trash2 size={14} /> Wirklich leeren
+                <Trash2 size={14} /> {t("Wirklich leeren")}
               </button>
             </>
           ) : (
             <button className="btn sm ghost" onClick={() => setConfirm(true)}>
-              <Trash2 size={14} /> Verlauf leeren
+              <Trash2 size={14} /> {t("Verlauf leeren")}
             </button>
           )}
         </div>

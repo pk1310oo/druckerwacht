@@ -76,13 +76,16 @@ for b in blocks[1:]:
     defs[key] = {
         "type": typ,
         "label": tr.get(label, label) if label else key,
-        "labelEn": label,
+        "labelEn": label if label and tr.get(label, label) != label else None,
         "category": tr.get(cat, cat) if cat else None,
+        "categoryEn": cat if cat and tr.get(cat, cat) != cat else None,
         "tooltip": tr.get(tip, tip) if tip else None,
+        "tooltipEn": tip if tip and tr.get(tip, tip) != tip else None,
         "unit": tr.get(side, side) if side else None,
+        "unitEn": side if side and tr.get(side, side) != side else None,
         "min": num("min"),
         "max": num("max"),
-        "enum": [{"value": v, "label": tr.get(l, l) if l else v} for v, l in zip(enum_vals, enum_labels + [None] * len(enum_vals))] or None,
+        "enum": [{"value": v, "label": tr.get(l, l) if l else v, **({"labelEn": l} if l and tr.get(l, l) != l else {})} for v, l in zip(enum_vals, enum_labels + [None] * len(enum_vals))] or None,
     }
 
 catalog = {}

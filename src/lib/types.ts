@@ -57,6 +57,8 @@ export interface Settings {
   notifyDisconnect: boolean;
   rawLog: boolean;
   orcaPath: string;
+  /** "" = wie das System, "de" oder "en" */
+  language: "" | "de" | "en";
 }
 
 export interface JobRecord {
@@ -100,4 +102,5 @@ export const DEFAULT_SETTINGS: Settings = {
   notifyDisconnect: true,
   rawLog: false,
   orcaPath: "",
+  language: "",
 };

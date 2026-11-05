@@ -75,7 +75,7 @@ async fn run_loop(
                 }
             }
             Ok(Err(e)) => humanize_error(&e.to_string()),
-            Err(_) => "Drucker antwortet nicht".to_string(),
+            Err(_) => crate::i18n::tr("Drucker antwortet nicht", "Printer not responding").to_string(),
         };
 
         let retry_in_s = backoff(attempt.max(1));
@@ -114,7 +114,7 @@ async fn session(
     };
 
     if sink.send(send(REQUEST_STATUS)).await.is_err() {
-        return Some("Verbindung sofort wieder getrennt".into());
+        return Some(crate::i18n::tr("Verbindung sofort wieder getrennt", "Connection closed immediately").into());
     }
     let _ = sink.send(send(REQUEST_HISTORY)).await;
 
@@ -129,13 +129,13 @@ async fn session(
             }
             _ = refresh.tick() => {
                 if sink.send(send(REQUEST_STATUS)).await.is_err() {
-                    return Some("Verbindung unterbrochen".into());
+                    return Some(crate::i18n::tr("Verbindung unterbrochen", "Connection interrupted").into());
                 }
             }
             next = tokio::time::timeout(IDLE_TIMEOUT, stream.next()) => {
                 let msg = match next {
-                    Err(_) => return Some("Keine Daten mehr vom Drucker".into()),
-                    Ok(None) => return Some("Drucker hat die Verbindung beendet".into()),
+                    Err(_) => return Some(crate::i18n::tr("Keine Daten mehr vom Drucker", "No more data from the printer").into()),
+                    Ok(None) => return Some(crate::i18n::tr("Drucker hat die Verbindung beendet", "Printer closed the connection").into()),
                     Ok(Some(Err(e))) => return Some(humanize_error(&e.to_string())),
                     Ok(Some(Ok(m))) => m,
                 };
@@ -145,7 +145,7 @@ async fn session(
                         Ok(s) => s,
                         Err(_) => continue,
                     },
-                    Message::Close(_) => return Some("Drucker hat die Verbindung beendet".into()),
+                    Message::Close(_) => return Some(crate::i18n::tr("Drucker hat die Verbindung beendet", "Printer closed the connection").into()),
                     _ => continue, // Ping/Pong erledigt tungstenite
                 };
                 let _ = tx.send(AdapterEvent::Raw { incoming: true, text: text.clone() });
@@ -154,7 +154,7 @@ async fn session(
 
                 if value.get("ModeCode").and_then(Value::as_str) == Some("heart_beat") {
                     if sink.send(send("ok")).await.is_err() {
-                        return Some("Verbindung unterbrochen".into());
+                        return Some(crate::i18n::tr("Verbindung unterbrochen", "Connection interrupted").into());
                     }
                     continue;
                 }
@@ -191,15 +191,15 @@ async fn session(
 fn humanize_error(raw: &str) -> String {
     let r = raw.to_lowercase();
     if r.contains("refused") {
-        "Verbindung abgelehnt – ist die IP richtig?".into()
+        crate::i18n::tr("Verbindung abgelehnt – ist die IP richtig?", "Connection refused – is the IP correct?").into()
     } else if r.contains("unreachable") || r.contains("no route") {
-        "Drucker im Netz nicht erreichbar".into()
+        crate::i18n::tr("Drucker im Netz nicht erreichbar", "Printer not reachable on the network").into()
     } else if r.contains("timed out") || r.contains("timeout") {
-        "Drucker antwortet nicht".into()
+        crate::i18n::tr("Drucker antwortet nicht", "Printer not responding").into()
     } else if r.contains("reset") || r.contains("broken pipe") {
-        "Verbindung unterbrochen".into()
+        crate::i18n::tr("Verbindung unterbrochen", "Connection interrupted").into()
     } else {
-        "Verbindung fehlgeschlagen".into()
+        crate::i18n::tr("Verbindung fehlgeschlagen", "Connection failed").into()
     }
 }
 

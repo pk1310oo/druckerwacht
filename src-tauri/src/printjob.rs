@@ -60,8 +60,8 @@ pub fn check_gcode(data: &[u8], max_nozzle: f64, max_bed: f64) -> Result<(), Str
             continue;
         }
         let (limit, what) = match cmd.as_str() {
-            "M104" | "M109" => (max_nozzle, "Düse"),
-            "M140" | "M190" => (max_bed, "Bett"),
+            "M104" | "M109" => (max_nozzle, crate::i18n::tr("Düse", "nozzle")),
+            "M140" | "M190" => (max_bed, crate::i18n::tr("Bett", "bed")),
             _ => continue,
         };
         for p in parts {
@@ -70,9 +70,10 @@ pub fn check_gcode(data: &[u8], max_nozzle: f64, max_bed: f64) -> Result<(), Str
             if matches!(k, 'S' | 's' | 'R' | 'r') {
                 if let Ok(t) = v.parse::<f64>() {
                     if t > limit {
-                        return Err(format!(
-                            "Sicherheitsstopp: Der G-Code setzt die {what} auf {t:.0} °C (Zeile {}), erlaubt sind höchstens {limit:.0} °C. Bitte die Temperatur in den Einstellungen prüfen.",
-                            i + 1
+                        let line_no = i + 1;
+                        return Err(crate::trf!(
+                            "Sicherheitsstopp: Der G-Code setzt die {what} auf {t:.0} °C (Zeile {line_no}), erlaubt sind höchstens {limit:.0} °C. Bitte die Temperatur in den Einstellungen prüfen.",
+                            "Safety stop: the G-code sets the {what} to {t:.0} °C (line {line_no}), the maximum allowed is {limit:.0} °C. Please check the temperature settings."
                         ));
                     }
                 }
@@ -80,7 +81,7 @@ pub fn check_gcode(data: &[u8], max_nozzle: f64, max_bed: f64) -> Result<(), Str
         }
     }
     if moves == 0 {
-        return Err("Die Datei enthält keine Druckbewegungen – das ist kein gültiger G-Code.".into());
+        return Err(crate::i18n::tr("Die Datei enthält keine Druckbewegungen – das ist kein gültiger G-Code.", "The file contains no print moves – this is not valid G-code.").into());
     }
     Ok(())
 }
@@ -100,10 +101,10 @@ pub async fn upload(host: &str, port: Option<u16>, file_name: &str, data: &[u8],
 
     let mut stream = tokio::time::timeout(Duration::from_secs(6), TcpStream::connect((host, port)))
         .await
-        .map_err(|_| "Drucker antwortet nicht (Upload).".to_string())?
-        .map_err(|_| "Verbindung zum Drucker fehlgeschlagen (Upload).".to_string())?;
+        .map_err(|_| crate::i18n::tr("Drucker antwortet nicht (Upload).", "Printer not responding (upload).").to_string())?
+        .map_err(|_| crate::i18n::tr("Verbindung zum Drucker fehlgeschlagen (Upload).", "Connection to the printer failed (upload).").to_string())?;
 
-    let io = |_| "Upload unterbrochen.".to_string();
+    let io = |_| crate::i18n::tr("Upload unterbrochen.", "Upload interrupted.").to_string();
     stream.write_all(request.as_bytes()).await.map_err(io)?;
     stream.write_all(head.as_bytes()).await.map_err(io)?;
     let total = data.len().max(1) as f64;
@@ -111,7 +112,7 @@ pub async fn upload(host: &str, port: Option<u16>, file_name: &str, data: &[u8],
     for chunk in data.chunks(64 * 1024) {
         tokio::time::timeout(Duration::from_secs(30), stream.write_all(chunk))
             .await
-            .map_err(|_| "Upload hängt – Verbindung zu langsam?".to_string())?
+            .map_err(|_| crate::i18n::tr("Upload hängt – Verbindung zu langsam?", "Upload stalled – connection too slow?").to_string())?
             .map_err(io)?;
         sent += chunk.len();
         progress(sent as f64 / total);
@@ -142,11 +143,11 @@ pub async fn upload(host: &str, port: Option<u16>, file_name: &str, data: &[u8],
         .next()
         .and_then(|l| l.split_whitespace().nth(1))
         .and_then(|c| c.parse().ok())
-        .ok_or("Der Drucker hat den Upload nicht bestätigt.")?;
+        .ok_or(crate::i18n::tr("Der Drucker hat den Upload nicht bestätigt.", "The printer did not confirm the upload."))?;
     if (200..300).contains(&code) {
         Ok(())
     } else {
-        Err(format!("Der Drucker hat den Upload abgelehnt (HTTP {code})."))
+        Err(crate::trf!("Der Drucker hat den Upload abgelehnt (HTTP {code}).", "The printer rejected the upload (HTTP {code})."))
     }
 }
 
@@ -155,15 +156,15 @@ pub async fn start(host: &str, port: Option<u16>, file_name: &str) -> Result<(),
     let url = format!("ws://{host}:{}", port.unwrap_or(WS_PORT));
     let (mut ws, _) = tokio::time::timeout(Duration::from_secs(6), connect_async(url.as_str()))
         .await
-        .map_err(|_| "Drucker antwortet nicht (Start).".to_string())?
-        .map_err(|_| "Verbindung zum Drucker fehlgeschlagen (Start).".to_string())?;
+        .map_err(|_| crate::i18n::tr("Drucker antwortet nicht (Start).", "Printer not responding (start).").to_string())?
+        .map_err(|_| crate::i18n::tr("Verbindung zum Drucker fehlgeschlagen (Start).", "Connection to the printer failed (start).").to_string())?;
     let cmd = serde_json::json!({
         "method": "set",
         "params": { "opGcodeFile": format!("printprt:{GCODE_DIR}/{file_name}") }
     });
     ws.send(Message::text(cmd.to_string()))
         .await
-        .map_err(|_| "Startbefehl konnte nicht gesendet werden.".to_string())?;
+        .map_err(|_| crate::i18n::tr("Startbefehl konnte nicht gesendet werden.", "The start command could not be sent.").to_string())?;
     // Die Firmware schließt die Verbindung oft direkt nach dem Annehmen – das ist kein Fehler.
     let _ = tokio::time::timeout(Duration::from_secs(2), ws.next()).await;
     let _ = ws.close(None).await;
@@ -182,16 +183,16 @@ pub fn control_params(action: &str) -> Option<serde_json::Value> {
 }
 
 pub async fn control(host: &str, port: Option<u16>, action: &str) -> Result<(), String> {
-    let params = control_params(action).ok_or("Unbekannter Befehl.")?;
+    let params = control_params(action).ok_or(crate::i18n::tr("Unbekannter Befehl.", "Unknown command."))?;
     let url = format!("ws://{host}:{}", port.unwrap_or(WS_PORT));
     let (mut ws, _) = tokio::time::timeout(Duration::from_secs(6), connect_async(url.as_str()))
         .await
-        .map_err(|_| "Drucker antwortet nicht.".to_string())?
-        .map_err(|_| "Verbindung zum Drucker fehlgeschlagen.".to_string())?;
+        .map_err(|_| crate::i18n::tr("Drucker antwortet nicht.", "Printer not responding.").to_string())?
+        .map_err(|_| crate::i18n::tr("Verbindung zum Drucker fehlgeschlagen.", "Connection to the printer failed.").to_string())?;
     let cmd = serde_json::json!({ "method": "set", "params": params });
     ws.send(Message::text(cmd.to_string()))
         .await
-        .map_err(|_| "Befehl konnte nicht gesendet werden.".to_string())?;
+        .map_err(|_| crate::i18n::tr("Befehl konnte nicht gesendet werden.", "The command could not be sent.").to_string())?;
     let _ = tokio::time::timeout(Duration::from_millis(1500), ws.next()).await;
     let _ = ws.close(None).await;
     Ok(())

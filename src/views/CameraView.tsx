@@ -3,6 +3,7 @@ import { useStore } from "../lib/store";
 import { Card, EmptyState } from "../components/ui";
 import { CameraFrame } from "../components/Camera";
 import type { ViewId } from "../components/Shell";
+import { t } from "../lib/i18n";
 
 export function CameraView({ go }: { go: (v: ViewId) => void }) {
   const url = useStore((s) => s.settings.cameraUrl.trim());
@@ -10,7 +11,7 @@ export function CameraView({ go }: { go: (v: ViewId) => void }) {
     <div className="view camera-view">
       <Card className="camera">
         <div className="chart-head">
-          <span className="label">Kamera</span>
+          <span className="label">{t("Kamera")}</span>
           {url && (
             <span className="live">
               <i /> Live
@@ -22,11 +23,11 @@ export function CameraView({ go }: { go: (v: ViewId) => void }) {
         ) : (
           <EmptyState
             icon={VideoOff}
-            title="Keine Kamera eingerichtet"
-            text="Trage in den Einstellungen die Stream-Adresse deiner Kamera ein."
+            title={t("Keine Kamera eingerichtet")}
+            text={t("Trage in den Einstellungen die Stream-Adresse deiner Kamera ein.")}
             actions={
               <button className="btn" onClick={() => go("settings")}>
-                Zu den Einstellungen
+                {t("Zu den Einstellungen")}
               </button>
             }
           />

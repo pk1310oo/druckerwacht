@@ -168,7 +168,7 @@ pub fn load_presets(app: &AppHandle) -> Result<Presets, String> {
     let machine = read_dir_json(&res.join("machine"))
         .into_iter()
         .next()
-        .ok_or("Druckerprofil fehlt in der App.")?;
+        .ok_or(crate::i18n::tr("Druckerprofil fehlt in der App.", "The printer profile is missing from the app."))?;
     Ok(Presets {
         machine,
         process: read_dir_json(&res.join("process")),
@@ -195,7 +195,7 @@ pub fn save_user_preset(app: &AppHandle, kind: &str, preset: Value) -> Result<()
     if kind != "process" && kind != "filament" {
         return Err("Unbekannter Profiltyp.".into());
     }
-    let name = preset["name"].as_str().ok_or("Profil braucht einen Namen.")?;
+    let name = preset["name"].as_str().ok_or(crate::i18n::tr("Profil braucht einen Namen.", "A profile needs a name."))?;
     let dir = user_preset_dir(app)?.join(kind);
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let data = serde_json::to_string_pretty(&preset).map_err(|e| e.to_string())?;
@@ -207,13 +207,13 @@ pub fn delete_user_preset(app: &AppHandle, kind: &str, name: &str) -> Result<(),
         return Err("Unbekannter Profiltyp.".into());
     }
     let path = user_preset_dir(app)?.join(kind).join(format!("{}.json", safe_name(name)));
-    std::fs::remove_file(path).map_err(|_| "Profil konnte nicht gelöscht werden.".to_string())
+    std::fs::remove_file(path).map_err(|_| crate::i18n::tr("Profil konnte nicht gelöscht werden.", "The profile could not be deleted.").to_string())
 }
 
 fn b64(s: &str) -> Result<Vec<u8>, String> {
     base64::engine::general_purpose::STANDARD
         .decode(s.as_bytes())
-        .map_err(|_| "Ungültige Daten vom Frontend.".to_string())
+        .map_err(|_| crate::i18n::tr("Ungültige Daten vom Frontend.", "Invalid data from the interface.").to_string())
 }
 
 /// Fügt Orca-kompatible Vorschaubilder direkt nach dem Kopfblock ein.
@@ -318,7 +318,7 @@ pub async fn run_orca(
         std::fs::create_dir_all(d).map_err(|e| e.to_string())?;
     }
     if job.models.is_empty() {
-        return Err("Keine Modelle auf der Druckplatte.".into());
+        return Err(crate::i18n::tr("Keine Modelle auf der Druckplatte.", "No models on the build plate.").into());
     }
 
     let write_json = |name: &str, map: &Map<String, Value>| -> Result<PathBuf, String> {
@@ -382,7 +382,7 @@ pub async fn run_orca(
         .kill_on_drop(true);
     let mut child = cmd
         .spawn()
-        .map_err(|_| "OrcaSlicer konnte nicht gestartet werden. Ist der Pfad in den Einstellungen richtig?".to_string())?;
+        .map_err(|_| crate::i18n::tr("OrcaSlicer konnte nicht gestartet werden. Ist der Pfad in den Einstellungen richtig?", "OrcaSlicer could not be started. Is the path in Settings correct?").to_string())?;
     on_pid(child.id());
 
     // Fortschritt aus der Orca-Ausgabe weiterreichen
@@ -410,9 +410,9 @@ pub async fn run_orca(
     let status = match status {
         Err(_) => {
             let _ = child.kill().await;
-            return Err("Slicen hat zu lange gedauert und wurde abgebrochen.".into());
+            return Err(crate::i18n::tr("Slicen hat zu lange gedauert und wurde abgebrochen.", "Slicing took too long and was stopped.").into());
         }
-        Ok(Err(e)) => return Err(format!("OrcaSlicer ist abgestürzt ({e}).")),
+        Ok(Err(e)) => return Err(crate::trf!("OrcaSlicer ist abgestürzt ({e}).", "OrcaSlicer crashed ({e}).")),
         Ok(Ok(s)) => s,
     };
 
@@ -423,7 +423,7 @@ pub async fn run_orca(
     let gcode_file = output.join("plate_1.gcode");
     if !gcode_file.is_file() {
         if status.code().is_none() {
-            return Err("Slicen abgebrochen.".into());
+            return Err(crate::i18n::tr("Slicen abgebrochen.", "Slicing cancelled.").into());
         }
         let msg = result_json["error_string"]
             .as_str()
@@ -431,7 +431,7 @@ pub async fn run_orca(
             .map(str::to_string)
             .or_else(|| log_tail.iter().rev().find(|l| l.to_lowercase().contains("error")).cloned())
             .unwrap_or_else(|| "Unbekannter Fehler".into());
-        return Err(format!("OrcaSlicer konnte nicht slicen: {msg}"));
+        return Err(crate::trf!("OrcaSlicer konnte nicht slicen: {msg}", "OrcaSlicer could not slice: {msg}"));
     }
 
     let warnings: Vec<String> = result_json["sliced_plates"]

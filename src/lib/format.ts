@@ -1,10 +1,11 @@
 import type { Connection, PrintState } from "./types";
+import { isEn, locale, t } from "./i18n";
 
 export const DASH = "–";
 
 export function fmtNum(v: number | null | undefined, digits = 0): string {
   if (v == null || !Number.isFinite(v)) return DASH;
-  return v.toLocaleString("de-DE", { minimumFractionDigits: digits, maximumFractionDigits: digits });
+  return v.toLocaleString(locale(), { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
 /** 5400 → "1 h 30 min", 300 → "5 min", 42 → "< 1 min" */
@@ -17,7 +18,7 @@ export function fmtDuration(s: number | null | undefined): string {
 }
 
 export function fmtClock(ms: number): string {
-  return new Date(ms).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  return new Date(ms).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" });
 }
 
 /** Voraussichtliches Ende als Uhrzeit, bei anderem Tag mit Wochentag. */
@@ -26,11 +27,12 @@ export function fmtEta(remainingS: number | null | undefined): string {
   const end = new Date(Date.now() + remainingS * 1000);
   const sameDay = end.toDateString() === new Date().toDateString();
   const time = fmtClock(end.getTime());
-  return sameDay ? `${time} Uhr` : `${end.toLocaleDateString("de-DE", { weekday: "short" })} ${time} Uhr`;
+  const suffix = isEn() ? "" : " Uhr";
+  return sameDay ? `${time}${suffix}` : `${end.toLocaleDateString(locale(), { weekday: "short" })} ${time}${suffix}`;
 }
 
 export function fmtDateTime(ms: number): string {
-  return new Date(ms).toLocaleString("de-DE", {
+  return new Date(ms).toLocaleString(locale(), {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
@@ -41,14 +43,15 @@ export function fmtDateTime(ms: number): string {
 
 export type Tone = "neutral" | "accent" | "success" | "warning" | "danger";
 
+/** Bezeichnungen werden beim Zugriff übersetzt (Getter), damit die Sprache sofort wirkt. */
 export const STATE_LABEL: Record<PrintState, string> = {
-  idle: "Bereit",
-  printing: "Druckt",
-  paused: "Pausiert",
-  finished: "Fertig",
-  failed: "Fehler",
-  aborted: "Abgebrochen",
-  unknown: "Unbekannt",
+  get idle() { return t("Bereit"); },
+  get printing() { return t("Druckt"); },
+  get paused() { return t("Pausiert"); },
+  get finished() { return t("Fertig"); },
+  get failed() { return t("Fehler"); },
+  get aborted() { return t("Abgebrochen"); },
+  get unknown() { return t("Unbekannt"); },
 };
 
 export const STATE_TONE: Record<PrintState, Tone> = {
@@ -64,12 +67,12 @@ export const STATE_TONE: Record<PrintState, Tone> = {
 export function connectionLabel(c: Connection): string {
   switch (c.kind) {
     case "unconfigured":
-      return "Nicht eingerichtet";
+      return t("Nicht eingerichtet");
     case "connecting":
-      return "Verbinde…";
+      return t("Verbinde…");
     case "connected":
-      return "Verbunden";
+      return t("Verbunden");
     case "reconnecting":
-      return "Getrennt";
+      return t("Getrennt");
   }
 }

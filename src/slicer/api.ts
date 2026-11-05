@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { isTauri } from "../lib/api";
 import type { Preset } from "./settings";
+import { t } from "../lib/i18n";
 
 export interface SlicerInfo {
   found: boolean;
@@ -75,7 +76,7 @@ export async function slice(job: {
   if (!isTauri) {
     // Browser-Entwicklung: Auftrag zur Kontrolle ablegen statt zu slicen
     (window as unknown as { __dwLastJob: unknown }).__dwLastJob = job;
-    throw "Slicen ist nur in der App möglich.";
+    throw t("Slicen ist nur in der App möglich.");
   }
   return invoke<SliceResult>("slicer_slice", { job });
 }
@@ -97,8 +98,8 @@ export async function pickModels(): Promise<string[]> {
   const { open } = await import("@tauri-apps/plugin-dialog");
   const res = await open({
     multiple: true,
-    title: "Modell öffnen",
-    filters: [{ name: "3D-Modelle", extensions: ["stl", "STL", "obj", "OBJ", "3mf", "3MF"] }],
+    title: t("Modell öffnen"),
+    filters: [{ name: t("3D-Modelle"), extensions: ["stl", "STL", "obj", "OBJ", "3mf", "3MF"] }],
   });
   if (!res) return [];
   return Array.isArray(res) ? res : [res];
@@ -106,7 +107,7 @@ export async function pickModels(): Promise<string[]> {
 
 export async function saveGcodeAs(from: string, suggested: string): Promise<boolean> {
   const { save } = await import("@tauri-apps/plugin-dialog");
-  const to = await save({ title: "G-Code speichern", defaultPath: suggested, filters: [{ name: "G-Code", extensions: ["gcode"] }] });
+  const to = await save({ title: t("G-Code speichern"), defaultPath: suggested, filters: [{ name: "G-Code", extensions: ["gcode"] }] });
   if (!to) return false;
   await invoke("export_gcode", { from, to });
   return true;
@@ -134,7 +135,7 @@ export async function onFileDrop(fn: (paths: string[]) => void, hover: (on: bool
 
 /** G-Code an den Drucker senden; mit `start` wird der Druck sofort gestartet. Liefert den Dateinamen am Drucker. */
 export async function printerSend(path: string, start: boolean): Promise<string> {
-  if (!isTauri) throw "Drucken ist nur in der App möglich.";
+  if (!isTauri) throw t("Drucken ist nur in der App möglich.");
   return invoke<string>("printer_send", { path, start });
 }
 
@@ -150,7 +151,7 @@ export async function saveProjectAs(contents: string, suggested: string): Promis
     return true;
   }
   const { save } = await import("@tauri-apps/plugin-dialog");
-  const path = await save({ title: "Projekt speichern", defaultPath: suggested, filters: [{ name: "Druckerwacht-Projekt", extensions: ["druckerwacht"] }] });
+  const path = await save({ title: t("Projekt speichern"), defaultPath: suggested, filters: [{ name: t("Druckerwacht-Projekt"), extensions: ["druckerwacht"] }] });
   if (!path) return false;
   await invoke("save_project", { path: path.endsWith(".druckerwacht") ? path : `${path}.druckerwacht`, contents });
   return true;
@@ -158,7 +159,7 @@ export async function saveProjectAs(contents: string, suggested: string): Promis
 
 export async function pickProject(): Promise<string | null> {
   const { open } = await import("@tauri-apps/plugin-dialog");
-  const res = await open({ multiple: false, title: "Projekt öffnen", filters: [{ name: "Druckerwacht-Projekt", extensions: ["druckerwacht"] }] });
+  const res = await open({ multiple: false, title: t("Projekt öffnen"), filters: [{ name: t("Druckerwacht-Projekt"), extensions: ["druckerwacht"] }] });
   return typeof res === "string" ? res : null;
 }
 

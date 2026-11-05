@@ -1,4 +1,5 @@
 import catalogJson from "./catalog.json";
+import { isEn, t } from "../lib/i18n";
 
 /** Ein Eintrag aus dem Orca-Einstellungskatalog (siehe scripts/build-settings-catalog.py) */
 export interface CatalogEntry {
@@ -8,11 +9,14 @@ export interface CatalogEntry {
   label: string;
   labelEn?: string;
   category?: string;
+  categoryEn?: string;
   tooltip?: string;
+  tooltipEn?: string;
   unit?: string;
+  unitEn?: string;
   min?: number;
   max?: number;
-  enum?: { value: string; label: string }[];
+  enum?: { value: string; label: string; labelEn?: string }[];
 }
 
 export const CATALOG = catalogJson as Record<string, CatalogEntry>;
@@ -292,6 +296,8 @@ export const TABS: TabDef[] = [
 
 export const ALL_TAB = { id: "all", label: "Alle" };
 
+// Bezeichnungen der kuratierten Ansicht werden beim Anzeigen mit t() übersetzt.
+
 /** Felder, die es wirklich gibt (falls Orca eine Einstellung umbenennt, fällt sie still weg). */
 for (const tab of TABS) for (const s of tab.sections) s.fields = s.fields.filter((f) => f.key in CATALOG);
 
@@ -351,12 +357,30 @@ export function kindOf(key: string): Kind {
 }
 
 export function labelOf(key: string, field?: FieldDef) {
-  return field?.label ?? CATALOG[key]?.label ?? key;
+  if (field?.label) return t(field.label);
+  const e = CATALOG[key];
+  if (!e) return key;
+  return isEn() ? e.labelEn ?? e.label : e.label;
+}
+
+export function tooltipOf(key: string): string | undefined {
+  const e = CATALOG[key];
+  return isEn() ? e?.tooltipEn ?? e?.tooltip : e?.tooltip;
+}
+
+export function categoryOf(e: CatalogEntry): string | undefined {
+  return isEn() ? e.categoryEn ?? e.category : e.category;
+}
+
+/** Auswahlwerte mit Bezeichnung in der aktiven Sprache */
+export function enumOptions(key: string): { value: string; label: string }[] {
+  return (CATALOG[key]?.enum ?? []).map((o) => ({ value: o.value, label: isEn() ? o.labelEn ?? o.label : o.label }));
 }
 
 /** Einheiten kurz und einheitlich */
 export function unitOf(key: string): string | undefined {
-  const u = CATALOG[key]?.unit;
+  const e = CATALOG[key];
+  const u = isEn() ? e?.unitEn ?? e?.unit : e?.unit;
   if (!u) return undefined;
   return u.replace("mm/s²", "mm/s²").replace(/^°C$/, "°C");
 }

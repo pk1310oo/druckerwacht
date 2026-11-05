@@ -1,3 +1,4 @@
+import { locale, t } from "../lib/i18n";
 import { useEffect, useMemo, useRef, useState } from "react";
 import uPlot from "uplot";
 import "uplot/dist/uPlot.min.css";
@@ -83,7 +84,7 @@ export function Chart({ title, samples, windowMin, series, yUnit, pctAxis, yMinM
           ...axisBase,
           grid: { show: false },
           values: (_u, ticks) =>
-            ticks.map((t) => new Date(t * 1000).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })),
+            ticks.map((t) => new Date(t * 1000).toLocaleTimeString(locale(), { hour: "2-digit", minute: "2-digit" })),
           space: 64,
         },
         { ...axisBase, scale: "y", size: 48, values: (_u, t) => t.map((v) => `${v}${yUnit}`), space: 40 },
@@ -153,7 +154,7 @@ export function Chart({ title, samples, windowMin, series, yUnit, pctAxis, yMinM
         {count < 2 && (
           <div className="chart-empty">
             <LineChart size={20} strokeWidth={1.5} />
-            <span>Noch keine Messwerte</span>
+            <span>{t("Noch keine Messwerte")}</span>
           </div>
         )}
       </div>

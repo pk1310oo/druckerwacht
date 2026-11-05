@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Box, Gauge, Layers, Loader2, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
 import { useStore } from "../lib/store";
 import { printerControl, reconnect, thumbnailUrl } from "../lib/api";
@@ -8,18 +8,19 @@ import { Badge, Card, EmptyState, Segmented, StatCard } from "../components/ui";
 import { Chart, type SeriesDef } from "../components/Chart";
 import { CameraFrame } from "../components/Camera";
 import type { ViewId } from "../components/Shell";
+import { t } from "../lib/i18n";
 
-const TEMP_SERIES: SeriesDef[] = [
-  { key: "nozzle", label: "Düse", color: "#D97757", unit: "°C" },
-  { key: "nozzleTarget", label: "Düse Soll", color: "#D97757", unit: "°C", dashed: true, hideInLegend: true },
-  { key: "bed", label: "Bett", color: "#C9C7BF", unit: "°C" },
-  { key: "bedTarget", label: "Bett Soll", color: "#C9C7BF", unit: "°C", dashed: true, hideInLegend: true },
+const TEMP_SERIES = (): SeriesDef[] => [
+  { key: "nozzle", label: t("Düse"), color: "#D97757", unit: "°C" },
+  { key: "nozzleTarget", label: t("Düse Soll"), color: "#D97757", unit: "°C", dashed: true, hideInLegend: true },
+  { key: "bed", label: t("Bett"), color: "#C9C7BF", unit: "°C" },
+  { key: "bedTarget", label: t("Bett Soll"), color: "#C9C7BF", unit: "°C", dashed: true, hideInLegend: true },
 ];
 
-const MOTION_SERIES: SeriesDef[] = [
-  { key: "speed", label: "Geschw.", color: "#D97757", unit: "mm/s" },
+const MOTION_SERIES = (): SeriesDef[] => [
+  { key: "speed", label: t("Geschw."), color: "#D97757", unit: "mm/s" },
   { key: "flow", label: "Flow", color: "#C9C7BF", unit: "%", scale: "pct" },
-  { key: "fan", label: "Lüfter", color: "#7C7C7C", unit: "%", scale: "pct" },
+  { key: "fan", label: t("Lüfter"), color: "#7C7C7C", unit: "%", scale: "pct" },
 ];
 
 const WINDOWS = [
@@ -43,6 +44,8 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
   const samples = useStore((s) => s.samples);
   const cameraUrl = useStore((s) => s.settings.cameraUrl.trim());
   const [windowMin, setWindowMin] = useState(loadWindow);
+  const tempSeries = useMemo(TEMP_SERIES, []);
+  const motionSeries = useMemo(MOTION_SERIES, []);
 
   useEffect(() => {
     try {
@@ -59,11 +62,11 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
           <EmptyState
             icon={Printer}
             accent
-            title="Drucker einrichten"
-            text="Trage die IP-Adresse deines Ender 3 V3 KE ein oder lass das Netzwerk automatisch durchsuchen."
+            title={t("Drucker einrichten")}
+            text={t("Trage die IP-Adresse deines Ender 3 V3 KE ein oder lass das Netzwerk automatisch durchsuchen.")}
             actions={
               <button className="btn primary" onClick={() => go("settings")}>
-                Zu den Einstellungen
+                {t("Zu den Einstellungen")}
               </button>
             }
           />
@@ -83,7 +86,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
         {cameraUrl && (
           <Card className="camera">
             <div className="chart-head">
-              <span className="label">Kamera</span>
+              <span className="label">{t("Kamera")}</span>
               <span className="live">
                 <i /> Live
               </span>
@@ -94,17 +97,17 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
       </div>
 
       <div className="section-head">
-        <span className="label">Diagramme</span>
-        <Segmented ariaLabel="Zeitraum" value={windowMin} options={WINDOWS} onChange={setWindowMin} />
+        <span className="label">{t("Diagramme")}</span>
+        <Segmented ariaLabel={t("Zeitraum")} value={windowMin} options={WINDOWS} onChange={setWindowMin} />
       </div>
       <div className="charts">
-        <Chart title="Temperatur" samples={samples} windowMin={windowMin} series={TEMP_SERIES} yUnit="°" yMinMax={50} />
-        <Chart title="Geschwindigkeit" samples={samples} windowMin={windowMin} series={MOTION_SERIES} yUnit="" pctAxis yMinMax={50} />
+        <Chart title={t("Temperatur")} samples={samples} windowMin={windowMin} series={tempSeries} yUnit="°" yMinMax={50} />
+        <Chart title={t("Geschwindigkeit")} samples={samples} windowMin={windowMin} series={motionSeries} yUnit="" pctAxis yMinMax={50} />
       </div>
 
       {!connected && status && (
         <p className="hint" style={{ textAlign: "center" }}>
-          Angezeigt werden die zuletzt empfangenen Werte.
+          {t("Angezeigt werden die zuletzt empfangenen Werte.")}
         </p>
       )}
     </div>
@@ -118,36 +121,36 @@ function heatMeter(temp: number | null, target: number | null, max: number) {
 }
 
 function Stats({ status: s }: { status: PrinterStatus | null }) {
-  const target = (t: number | null | undefined) =>
-    t == null ? DASH : t <= 0 ? "aus" : `${fmtNum(t)} °C`;
+  const target = (v: number | null | undefined) =>
+    v == null ? DASH : v <= 0 ? t("aus") : `${fmtNum(v)} °C`;
   return (
     <div className="stats">
       <StatCard
-        label="Düse"
+        label={t("Düse")}
         icon={Thermometer}
         value={s?.nozzleTemp ?? null}
         unit="°C"
         meter={heatMeter(s?.nozzleTemp ?? null, s?.nozzleTarget ?? null, s?.maxNozzleTemp ?? 300)}
         sub={
           <span>
-            Soll <b className="num">{target(s?.nozzleTarget)}</b>
+            {t("Soll")} <b className="num">{target(s?.nozzleTarget)}</b>
           </span>
         }
       />
       <StatCard
-        label="Bett"
+        label={t("Bett")}
         icon={Box}
         value={s?.bedTemp ?? null}
         unit="°C"
         meter={heatMeter(s?.bedTemp ?? null, s?.bedTarget ?? null, s?.maxBedTemp ?? 100)}
         sub={
           <span>
-            Soll <b className="num">{target(s?.bedTarget)}</b>
+            {t("Soll")} <b className="num">{target(s?.bedTarget)}</b>
           </span>
         }
       />
       <StatCard
-        label="Geschwindigkeit"
+        label={t("Geschwindigkeit")}
         icon={Gauge}
         value={s?.speedMmS ?? null}
         unit="mm/s"
@@ -158,20 +161,20 @@ function Stats({ status: s }: { status: PrinterStatus | null }) {
               Flow <b className="num">{fmtNum(s?.flowPct)}{s?.flowPct != null && " %"}</b>
             </span>
             <span>
-              Lüfter <b className="num">{fmtNum(s?.fanPct)}{s?.fanPct != null && " %"}</b>
+              {t("Lüfter")} <b className="num">{fmtNum(s?.fanPct)}{s?.fanPct != null && " %"}</b>
             </span>
           </>
         }
       />
       <StatCard
-        label="Fortschritt"
+        label={t("Fortschritt")}
         icon={Layers}
         value={s && isJob(s) ? s.progress : null}
         unit="%"
         meter={s && isJob(s) ? { pct: s.progress ?? 0, active: s.state === "printing" } : null}
         sub={
           <span>
-            Schicht{" "}
+            {t("Schicht")}{" "}
             <b className="num">
               {s && isJob(s) && s.layer != null && (s.totalLayers ?? 0) > 0
                 ? `${fmtNum(s.layer)} / ${fmtNum(s.totalLayers)}`
@@ -206,11 +209,11 @@ function ProgressPanel({ s }: { s: PrinterStatus }) {
       <EmptyState
         className="progress-empty"
         icon={Printer}
-        title="Kein Druck aktiv"
+        title={t("Kein Druck aktiv")}
         text={
           s.state === "unknown"
-            ? "Der Drucker ist verbunden, meldet aber keinen bekannten Zustand."
-            : "Der Drucker ist bereit. Sobald ein Druck startet, erscheint er hier."
+            ? t("Der Drucker ist verbunden, meldet aber keinen bekannten Zustand.")
+            : t("Der Drucker ist bereit. Sobald ein Druck startet, erscheint er hier.")
         }
       />
     );
@@ -219,7 +222,7 @@ function ProgressPanel({ s }: { s: PrinterStatus }) {
   const barClass =
     s.state === "paused" ? "paused" : s.state === "finished" ? "done" : s.state === "failed" ? "failed" : "";
   const eta =
-    s.state === "printing" ? fmtEta(s.remainingS) : s.state === "paused" ? "pausiert" : s.state === "finished" ? "fertig" : DASH;
+    s.state === "printing" ? fmtEta(s.remainingS) : s.state === "paused" ? t("pausiert") : s.state === "finished" ? t("fertig") : DASH;
 
   return (
     <div className="progress">
@@ -227,19 +230,19 @@ function ProgressPanel({ s }: { s: PrinterStatus }) {
       <div className="progress-body">
         <div className="progress-top">
           <div style={{ minWidth: 0 }}>
-            <div className="label">Aktueller Druck</div>
+            <div className="label">{t("Aktueller Druck")}</div>
             <div className="file-name" title={s.fileName ?? undefined}>
-              {s.fileName ?? "Unbenannter Druck"}
+              {s.fileName ?? t("Unbenannter Druck")}
             </div>
             <div className="small muted num">
               {s.preparing
-                ? "Heizen und Bett-Leveling …"
+                ? t("Heizen und Bett-Leveling …")
                 : s.usedMaterialMm != null
                   ? `Filament ${fmtNum(s.usedMaterialMm / 1000, 2)} m`
                   : "\u00A0"}
             </div>
           </div>
-          <Badge tone={s.preparing ? "warning" : STATE_TONE[s.state]}>{s.preparing ? "Vorbereitung" : STATE_LABEL[s.state]}</Badge>
+          <Badge tone={s.preparing ? "warning" : STATE_TONE[s.state]}>{s.preparing ? t("Vorbereitung") : STATE_LABEL[s.state]}</Badge>
         </div>
         <div className="progress-bottom">
         <div className={`bar ${barClass}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
@@ -248,15 +251,15 @@ function ProgressPanel({ s }: { s: PrinterStatus }) {
         <JobControls s={s} />
         <div className="times">
           <div>
-            <span className="label">Verstrichen</span>
+            <span className="label">{t("Verstrichen")}</span>
             <span className="value num">{fmtDuration(s.elapsedS)}</span>
           </div>
           <div>
-            <span className="label">Restzeit</span>
+            <span className="label">{t("Restzeit")}</span>
             <span className="value num">{s.state === "printing" || s.state === "paused" ? fmtDuration(s.remainingS) : DASH}</span>
           </div>
           <div>
-            <span className="label">Fertig um</span>
+            <span className="label">{t("Fertig um")}</span>
             <span className="value num">{eta}</span>
           </div>
         </div>
@@ -273,11 +276,11 @@ function WaitingPanel() {
       <EmptyState
         className="progress-empty"
         icon={WifiOff}
-        title="Drucker nicht erreichbar"
-        text={`${connection.reason}. Neuer Versuch in ${connection.retryInS} s.`}
+        title={t("Drucker nicht erreichbar")}
+        text={t("{reason}. Neuer Versuch in {s} s.", { reason: connection.reason, s: connection.retryInS })}
         actions={
           <button className="btn sm" onClick={() => void reconnect()}>
-            <PlugZap size={14} /> Jetzt verbinden
+            <PlugZap size={14} /> {t("Jetzt verbinden")}
           </button>
         }
       />
@@ -288,8 +291,8 @@ function WaitingPanel() {
       className="progress-empty"
       icon={Loader2}
       spin
-      title="Verbinde…"
-      text={connection.kind === "connected" ? "Warte auf die ersten Daten vom Drucker." : "Verbindung zum Drucker wird aufgebaut."}
+      title={t("Verbinde…")}
+      text={connection.kind === "connected" ? t("Warte auf die ersten Daten vom Drucker.") : t("Verbindung zum Drucker wird aufgebaut.")}
     />
   );
 }
@@ -312,11 +315,11 @@ function JobControls({ s }: { s: PrinterStatus }) {
       setPending(null);
       return;
     }
-    const t = setTimeout(() => {
+    const timer = setTimeout(() => {
       setPending(null);
-      setError("Der Drucker hat nicht reagiert. Bitte am Display prüfen.");
+      setError(t("Der Drucker hat nicht reagiert. Bitte am Display prüfen."));
     }, 20_000);
-    return () => clearTimeout(t);
+    return () => clearTimeout(timer);
   }, [pending, s.state]);
 
   if (!active) return null;
@@ -329,42 +332,42 @@ function JobControls({ s }: { s: PrinterStatus }) {
       await printerControl(a);
     } catch (e) {
       setPending(null);
-      setError(typeof e === "string" ? e : "Befehl fehlgeschlagen.");
+      setError(typeof e === "string" ? e : t("Befehl fehlgeschlagen."));
     }
   };
 
-  const busyText = pending === "pause" ? "Pausiere …" : pending === "resume" ? "Setze fort …" : pending === "stop" ? "Breche ab …" : null;
+  const busyText = pending === "pause" ? t("Pausiere …") : pending === "resume" ? t("Setze fort …") : pending === "stop" ? t("Breche ab …") : null;
 
   return (
     <div className="job-controls">
       {confirmStop ? (
         <>
-          <span className="small">Druck wirklich abbrechen? Das lässt sich nicht rückgängig machen.</span>
+          <span className="small">{t("Druck wirklich abbrechen? Das lässt sich nicht rückgängig machen.")}</span>
           <button className="btn sm ghost" onClick={() => setConfirmStop(false)}>
-            <X size={14} /> Nein
+            <X size={14} /> {t("Nein")}
           </button>
           <button className="btn sm danger" onClick={() => void send("stop")}>
-            <Square size={14} /> Ja, abbrechen
+            <Square size={14} /> {t("Ja, abbrechen")}
           </button>
         </>
       ) : (
         <>
           {s.state === "paused" ? (
             <button className="btn sm" disabled={!!pending} onClick={() => void send("resume")}>
-              <Play size={14} /> Fortsetzen
+              <Play size={14} /> {t("Fortsetzen")}
             </button>
           ) : (
             <button
               className="btn sm"
               disabled={!!pending || s.preparing}
-              title={s.preparing ? "Während Heizen und Leveling nimmt der Drucker keine Pause an." : undefined}
+              title={s.preparing ? t("Während Heizen und Leveling nimmt der Drucker keine Pause an.") : undefined}
               onClick={() => void send("pause")}
             >
-              <Pause size={14} /> Pause
+              <Pause size={14} /> {t("Pause")}
             </button>
           )}
           <button className="btn sm ghost" disabled={!!pending} onClick={() => setConfirmStop(true)}>
-            <Square size={14} /> Abbrechen
+            <Square size={14} /> {t("Abbrechen")}
           </button>
           {busyText && (
             <span className="small muted">
