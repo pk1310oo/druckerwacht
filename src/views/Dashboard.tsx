@@ -496,8 +496,11 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
   };
 
   // Der Start-G-Code setzt das Tempo auf 100 % zurück (M220 S100). Wunsch daher erst
-  // nach Heizen und Leveling abschicken.
-  const ready = s.state === "printing" && !s.preparing;
+  // nach Heizen und Leveling abschicken – und mehr als 100 % erst ab Schicht 2:
+  // Die erste Schicht bleibt beim Profil-Tempo (höchstens 50 mm/s), damit sie sicher haftet.
+  const firstLayer = s.preparing || (s.layer != null && s.layer < 2);
+  const holdBack = (pct: number) => s.preparing || (pct > 100 && firstLayer);
+  const ready = s.state === "printing" && !s.preparing && (queued == null || !holdBack(queued));
   useEffect(() => {
     if (queued == null || !ready) return;
     const timer = setTimeout(() => {
@@ -509,11 +512,14 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
   }, [queued, ready]);
 
   const choose = (pct: number) => {
-    if (s.preparing) {
-      setError(null);
-      setQueued(pct === 100 ? null : pct);
+    setError(null);
+    if (holdBack(pct)) {
+      setQueued(pct);
+      // Läuft schon ein erhöhtes Tempo, für die erste Schicht sofort auf 100 % zurück
+      if (!s.preparing && current != null && current > 100) void send(100);
       return;
     }
+    setQueued(null);
     void send(pct);
   };
 
@@ -526,7 +532,10 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
         <span className="small muted num">
           {queued != null ? (
             <>
-              <Loader2 size={12} className="spin" /> {t("{p} % – wird nach dem Leveling gesetzt", { p: queued })}
+              <Loader2 size={12} className="spin" />{" "}
+              {s.preparing && !(queued > 100)
+                ? t("{p} % – wird nach dem Leveling gesetzt", { p: queued })
+                : t("{p} % – ab Schicht 2 (erste Schicht bleibt bei höchstens 50 mm/s)", { p: queued })}
             </>
           ) : pending != null ? (
             <>

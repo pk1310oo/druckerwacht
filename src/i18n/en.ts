@@ -472,4 +472,5 @@ export const EN: Record<string, string> = {
   "Unbekannter Zustand": "Unknown state",
   "Volle Leistung: Druckbewegungen bis ca. 380 mm/s, Leerfahrten bis 500 mm/s (Maximum des KE). Nur mit High-Speed-PLA und Düse +10 °C, sonst wird zu wenig Material gefördert.": "Full power: print moves up to about 380 mm/s, travel up to 500 mm/s (the KE's maximum). Only with high-speed PLA and +10 °C on the nozzle, otherwise it under-extrudes.",
   "{p} % – wird nach dem Leveling gesetzt": "{p} % – applied after leveling",
+  "{p} % – ab Schicht 2 (erste Schicht bleibt bei höchstens 50 mm/s)": "{p} % – from layer 2 (the first layer stays at 50 mm/s max)",
 };

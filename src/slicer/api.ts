@@ -53,8 +53,20 @@ export async function slicerInfo(): Promise<SlicerInfo> {
 }
 
 export async function loadPresets(): Promise<Presets | null> {
-  if (!isTauri) return (window as unknown as { __dwPresets?: Presets }).__dwPresets ?? null;
-  return invoke<Presets>("slicer_presets");
+  const p = !isTauri ? ((window as unknown as { __dwPresets?: Presets }).__dwPresets ?? null) : await invoke<Presets>("slicer_presets");
+  return p && { ...p, process: p.process.map(calmFirstLayer) };
+}
+
+/**
+ * Die erste Schicht entscheidet über den ganzen Druck: In den mitgelieferten Profilen fährt
+ * die Füllung der ersten Schicht nie schneller als ihre Wände (KE-Standard: 50 statt 105 mm/s).
+ * Eigene Profile und eigene Änderungen bleiben unberührt.
+ */
+export function calmFirstLayer(p: Preset): Preset {
+  const walls = Number(p.initial_layer_speed);
+  const infill = Number(p.initial_layer_infill_speed);
+  if (!(walls > 0) || !(infill > walls)) return p;
+  return { ...p, initial_layer_infill_speed: typeof p.initial_layer_infill_speed === "number" ? walls : String(walls) };
 }
 
 export async function savePreset(kind: "process" | "filament", preset: Preset) {
