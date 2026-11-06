@@ -1416,6 +1416,91 @@ code.path {
   white-space: nowrap;
 }
 
+/* ---------------------------------------------------- Filamentwechsel (Pausen) */
+.layer-bar { flex-wrap: wrap; row-gap: 10px; width: min(760px, calc(100% - 32px)); }
+
+.layer-track {
+  position: relative;
+  flex: 1;
+  min-width: 160px;
+  display: flex;
+  align-items: center;
+}
+
+.layer-track input[type="range"] { width: 100%; }
+
+.pause-mark {
+  position: absolute;
+  top: 50%;
+  width: 4px;
+  height: 18px;
+  margin-left: -2px;
+  border-radius: 2px;
+  transform: translateY(-50%);
+  background: linear-gradient(#f5f4ef, #e0a43a);
+  box-shadow: 0 0 0 2px rgba(26, 26, 26, 0.94), 0 0 10px rgba(224, 164, 58, 0.6);
+  pointer-events: none;
+}
+
+.layer-bar .btn.sm { white-space: nowrap; }
+
+.pause-row {
+  flex-basis: 100%;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.pause-row .label { margin-right: 4px; }
+
+.pause-chip {
+  display: inline-flex;
+  align-items: center;
+  border: 1px solid rgba(224, 164, 58, 0.35);
+  border-radius: 999px;
+  background: rgba(224, 164, 58, 0.1);
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.pause-chip.on { border-color: var(--warning); background: rgba(224, 164, 58, 0.2); }
+
+.pause-chip button {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font: inherit;
+  font-size: var(--fs-s);
+  cursor: pointer;
+}
+
+.pause-jump { padding: 4px 4px 4px 10px; }
+.pause-jump svg { color: var(--warning); }
+.pause-x { padding: 4px 8px 4px 4px; color: var(--text-3) !important; }
+.pause-x:hover { color: var(--text) !important; }
+
+.pause-note,
+.filament-change {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  padding: 10px 12px;
+  border: 1px solid rgba(224, 164, 58, 0.35);
+  border-radius: 10px;
+  background: rgba(224, 164, 58, 0.08);
+}
+
+.pause-note svg,
+.filament-change > svg { flex: none; margin-top: 2px; color: var(--warning); }
+
+.filament-change { margin-top: 14px; }
+.filament-change > div { display: flex; flex-direction: column; gap: 4px; }
+
 .preview-legend {
   position: absolute;
   left: 16px;

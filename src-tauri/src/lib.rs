@@ -480,12 +480,22 @@ fn read_gcode(app: AppHandle, path: String) -> Result<String, String> {
 
 /// Speichert den erzeugten G-Code an einen vom Nutzer gewählten Ort.
 #[tauri::command]
-fn export_gcode(app: AppHandle, from: String, to: String) -> Result<(), String> {
+fn export_gcode(app: AppHandle, from: String, to: String, pauses: Option<Vec<u32>>) -> Result<(), String> {
     let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
     if !std::path::Path::new(&from).starts_with(&base) {
         return Err(crate::i18n::tr("Zugriff verweigert.", "Access denied.").into());
     }
-    std::fs::copy(&from, &to).map(|_| ()).map_err(|_| crate::i18n::tr("Datei konnte nicht gespeichert werden.", "The file could not be saved.").to_string())
+    let saved = crate::i18n::tr("Datei konnte nicht gespeichert werden.", "The file could not be saved.");
+    let data = std::fs::read(&from).map_err(|_| saved.to_string())?;
+    std::fs::write(&to, with_pauses(data, pauses.as_deref())).map_err(|_| saved.to_string())
+}
+
+/// G-Code mit den gewünschten Filamentwechsel-Pausen (unverändert, wenn keine gesetzt sind).
+fn with_pauses(data: Vec<u8>, pauses: Option<&[u32]>) -> Vec<u8> {
+    match pauses {
+        Some(l) if !l.is_empty() => printjob::insert_pauses(&String::from_utf8_lossy(&data), l).into_bytes(),
+        _ => data,
+    }
 }
 
 /// Sprache für Meldungen aus dem Backend (von der Oberfläche gesetzt).
@@ -573,7 +583,7 @@ fn read_project(path: String) -> Result<String, String> {
 
 /// Sendet den erzeugten G-Code an den Drucker und startet ihn auf Wunsch.
 #[tauri::command]
-async fn printer_send(app: AppHandle, path: String, start: bool) -> Result<String, String> {
+async fn printer_send(app: AppHandle, path: String, start: bool, pauses: Option<Vec<u32>>) -> Result<String, String> {
     let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
     let p = std::path::PathBuf::from(&path);
     if !p.starts_with(&base) {
@@ -596,6 +606,7 @@ async fn printer_send(app: AppHandle, path: String, start: bool) -> Result<Strin
         return Err(crate::i18n::tr("Der Drucker druckt gerade – bitte warten, bis der aktuelle Druck beendet ist.", "The printer is busy – please wait until the current print has finished.").into());
     }
     let data = std::fs::read(&p).map_err(|_| crate::i18n::tr("G-Code konnte nicht gelesen werden.", "The G-code could not be read.").to_string())?;
+    let data = with_pauses(data, pauses.as_deref());
     printjob::check_gcode(&data, max_nozzle, max_bed)?;
     let name = printjob::printer_file_name(&p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
     let app2 = app.clone();

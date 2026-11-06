@@ -1,5 +1,5 @@
 import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Box, Gauge, Layers, Loader2, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
+import { AlertTriangle, Box, Gauge, Layers, Loader2, Palette, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
 import { useStore } from "../lib/store";
 import { printerControl, reconnect, thumbnailUrl } from "../lib/api";
 import { DASH, fmtDuration, fmtEta, fmtNum, STATE_LABEL, STATE_TONE } from "../lib/format";
@@ -13,6 +13,7 @@ const Printer3D = lazy(() => import("../components/Printer3D"));
 import type { ViewId } from "../components/Shell";
 import { t } from "../lib/i18n";
 import { accentHex } from "../lib/theme";
+import { plannedPauses } from "../lib/sentPrint";
 
 const TEMP_SERIES = (): SeriesDef[] => [
   { key: "nozzle", label: t("Düse"), color: accentHex(), unit: "°C" },
@@ -439,10 +440,28 @@ function JobControls({ s }: { s: PrinterStatus }) {
     }
   };
 
+  // Geplante Filamentwechsel (aus dem Slicer): beim Halt erklären, sonst den nächsten ankündigen
+  const planned = plannedPauses(s.fileName);
+  const cur = s.layer ?? 0;
+  const atChange = s.state === "paused" ? planned.find((l) => cur >= l - 1 && cur <= l) : undefined;
+  const nextChange = s.state === "printing" ? planned.find((l) => l > cur) : undefined;
+
   const busyText = pending === "pause" ? t("Pausiere …") : pending === "resume" ? t("Setze fort …") : pending === "stop" ? t("Breche ab …") : null;
 
   return (
-    <div className="job-controls">
+    <>
+      {atChange != null && (
+        <div className="filament-change">
+          <Palette size={18} />
+          <div>
+            <strong>{t("Filamentwechsel vor Schicht {n}", { n: atChange })}</strong>
+            <span className="small">
+              {t("Am Drucker-Display das alte Filament entladen und die neue Farbe laden, bis sie sauber aus der Düse kommt. Düsenspitze kurz säubern, dann „Fortsetzen“ drücken.")}
+            </span>
+          </div>
+        </div>
+      )}
+      <div className="job-controls">
       {confirmStop ? (
         <>
           <span className="small">{t("Druck wirklich abbrechen? Das lässt sich nicht rückgängig machen.")}</span>
@@ -482,8 +501,14 @@ function JobControls({ s }: { s: PrinterStatus }) {
               <AlertTriangle size={12} /> {error}
             </span>
           )}
+          {!busyText && !error && nextChange != null && (
+            <span className="small muted">
+              <Palette size={12} /> {t("Nächster Farbwechsel: Schicht {n}", { n: nextChange })}
+            </span>
+          )}
         </>
       )}
-    </div>
+      </div>
+    </>
   );
 }

@@ -86,6 +86,34 @@ pub fn check_gcode(data: &[u8], max_nozzle: f64, max_bed: f64) -> Result<(), Str
     Ok(())
 }
 
+/// Fügt Pausen für einen Filamentwechsel ein: vor dem Beginn jeder Schicht in `layers`
+/// (0-basiert, gezählt wie die Vorschau: das n-te `;LAYER_CHANGE`). Der Drucker hält dort mit
+/// `PAUSE` an (so wie OrcaSlicer es für den KE vorsieht); weiter geht es mit „Fortsetzen“.
+/// Schicht 0 wird übersprungen – vor der ersten Schicht ist noch nichts gedruckt.
+pub fn insert_pauses(text: &str, layers: &[u32]) -> String {
+    let mut want: Vec<u32> = layers.iter().copied().filter(|&l| l > 0).collect();
+    want.sort_unstable();
+    want.dedup();
+    if want.is_empty() {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len() + want.len() * 80);
+    let mut layer: i64 = -1;
+    let mut next = 0usize;
+    for line in text.split_inclusive('\n') {
+        if line.starts_with(";LAYER_CHANGE") {
+            layer += 1;
+            if next < want.len() && layer as u32 == want[next] {
+                let n = layer + 1;
+                out.push_str(&format!(";DRUCKERWACHT_FILAMENT_CHANGE layer {n}\n;PAUSE_PRINT\nPAUSE\n"));
+                next += 1;
+            }
+        }
+        out.push_str(line);
+    }
+    out
+}
+
 /// Lädt `data` als `file_name` hoch. `progress` erhält 0…1.
 pub async fn upload(host: &str, port: Option<u16>, file_name: &str, data: &[u8], progress: impl Fn(f64)) -> Result<(), String> {
     let port = port.unwrap_or(HTTP_PORT);
@@ -246,6 +274,20 @@ mod tests {
             let data = std::fs::read(p).unwrap();
             check_gcode(&data, 300.0, 100.0).unwrap();
         }
+    }
+
+    #[test]
+    fn pauses_before_layers() {
+        let g = "G28\n;LAYER_CHANGE\n;Z:0.2\nG1 X1 E1\n;LAYER_CHANGE\n;Z:0.4\nG1 X2 E1\n;LAYER_CHANGE\n;Z:0.6\nG1 X3 E1\n";
+        let out = insert_pauses(g, &[2, 0, 2, 9]);
+        // genau eine Pause, direkt vor der dritten Schicht; Schicht 0 und unbekannte Schichten ignoriert
+        assert_eq!(out.matches("\nPAUSE\n").count(), 1);
+        let at = out.find("PAUSE\n;LAYER_CHANGE\n;Z:0.6").expect("Pause vor Z 0.6");
+        assert!(out[..at].contains(";Z:0.4"));
+        assert!(out.contains(";DRUCKERWACHT_FILAMENT_CHANGE layer 3"));
+        // ohne Pausen unverändert
+        assert_eq!(insert_pauses(g, &[]), g);
+        assert_eq!(out.replace(";DRUCKERWACHT_FILAMENT_CHANGE layer 3\n;PAUSE_PRINT\nPAUSE\n", ""), g);
     }
 
     #[test]

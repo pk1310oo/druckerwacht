@@ -109,11 +109,11 @@ export async function pickModels(): Promise<string[]> {
   return Array.isArray(res) ? res : [res];
 }
 
-export async function saveGcodeAs(from: string, suggested: string): Promise<boolean> {
+export async function saveGcodeAs(from: string, suggested: string, pauses: number[] = []): Promise<boolean> {
   const { save } = await import("@tauri-apps/plugin-dialog");
   const to = await save({ title: t("G-Code speichern"), defaultPath: suggested, filters: [{ name: "G-Code", extensions: ["gcode"] }] });
   if (!to) return false;
-  await invoke("export_gcode", { from, to });
+  await invoke("export_gcode", { from, to, pauses });
   return true;
 }
 
@@ -145,13 +145,13 @@ export async function onFileDrop(fn: (paths: string[]) => void, hover: (on: bool
 }
 
 /** G-Code an den Drucker senden; mit `start` wird der Druck sofort gestartet. Liefert den Dateinamen am Drucker. */
-export async function printerSend(path: string, start: boolean): Promise<string> {
+export async function printerSend(path: string, start: boolean, pauses: number[] = []): Promise<string> {
   if (!isTauri) {
     const d = demo()?.send as ((p: string, s: boolean) => Promise<string>) | undefined;
     if (d) return d(path, start);
     throw t("Drucken ist nur in der App möglich.");
   }
-  return invoke<string>("printer_send", { path, start });
+  return invoke<string>("printer_send", { path, start, pauses });
 }
 
 export async function onUploadProgress(fn: (pct: number) => void) {

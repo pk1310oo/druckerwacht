@@ -24,6 +24,7 @@ import {
   LayoutGrid,
   Loader2,
   Move3d,
+  Palette,
   RotateCw,
   Save,
   Scan,
@@ -67,7 +68,7 @@ import { EmptyState } from "../components/ui";
 import { useStore } from "../lib/store";
 import type { ViewId } from "../components/Shell";
 import { fmtDec, t } from "../lib/i18n";
-import { rememberSentPrint } from "../components/Printer3D";
+import { rememberSentPrint } from "../lib/sentPrint";
 
 // Die Druckplatte lebt über Ansichtswechsel hinweg weiter (WebGL-Kontext, geladene Modelle).
 let plateSingleton: Plate | null = null;
@@ -119,6 +120,9 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   const [phase, setPhase] = useState<Phase>({ kind: "idle" });
   const [preview, setPreview] = useState<GcodePreview | null>(null);
   const [layer, setLayer] = useState(0);
+  /** Filamentwechsel: Der Drucker pausiert vor diesen Schichten (0-basiert) */
+  const [pauses, setPauses] = useState<number[]>([]);
+  const togglePause = (l: number) => setPauses((ps) => (ps.includes(l) ? ps.filter((x) => x !== l) : [...ps, l].sort((a, b) => a - b)));
   /** Sichtbarkeit je Linientyp (sonst Standard: alles außer Leerfahrten und Start/Ende) */
   const [vis, setVis] = useState<Record<string, boolean>>({});
   const isVisible = (id: string) => vis[id] ?? defaultVisible(id);
@@ -356,6 +360,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
     preview?.dispose();
     setPreview(p);
     setLayer(p.layerCount - 1);
+    setPauses((ps) => ps.filter((l) => l > 0 && l < p.layerCount));
     plate.showPreview(p);
   };
 
@@ -646,19 +651,55 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
             <>
               <div className="layer-bar card">
                 <span className="label">{t("Schicht")}</span>
-                <input
-                  type="range"
-                  min={0}
-                  max={preview.layerCount - 1}
-                  value={layer}
-                  onChange={(e) => setLayer(Number(e.target.value))}
-                  aria-label={t("Schicht")}
-                  style={{ ["--p" as string]: `${(layer / Math.max(1, preview.layerCount - 1)) * 100}%` }}
-                />
+                <div className="layer-track">
+                  <input
+                    type="range"
+                    min={0}
+                    max={preview.layerCount - 1}
+                    value={layer}
+                    onChange={(e) => setLayer(Number(e.target.value))}
+                    aria-label={t("Schicht")}
+                    style={{ ["--p" as string]: `${(layer / Math.max(1, preview.layerCount - 1)) * 100}%` }}
+                  />
+                  {pauses.map((l) => (
+                    <i
+                      key={l}
+                      className="pause-mark"
+                      style={{ left: `calc(8px + (100% - 16px) * ${l / Math.max(1, preview.layerCount - 1)})` }}
+                      title={t("Filamentwechsel vor Schicht {n}", { n: l + 1 })}
+                    />
+                  ))}
+                </div>
                 <span className="num layer-read">
                   {layer + 1} / {preview.layerCount}
                   <span className="muted"> · {fmtNum(preview.layerZ[layer] ?? 0, 2)} mm</span>
                 </span>
+                <button
+                  className={`btn sm${pauses.includes(layer) ? " primary" : ""}`}
+                  disabled={layer === 0}
+                  onClick={() => togglePause(layer)}
+                  title={layer === 0 ? t("Vor der ersten Schicht ist kein Wechsel nötig.") : t("Der Drucker hält vor dieser Schicht an, damit du eine andere Farbe einlegen kannst.")}
+                >
+                  <Palette size={14} /> {pauses.includes(layer) ? t("Wechsel entfernen") : t("Farbwechsel hier")}
+                </button>
+                {pauses.length > 0 && (
+                  <div className="pause-row">
+                    <span className="label">{t("Filamentwechsel")}</span>
+                    {pauses.map((l) => (
+                      <span key={l} className={`pause-chip${l === layer ? " on" : ""}`}>
+                        <button className="pause-jump" onClick={() => setLayer(l)} title={t("Zu dieser Schicht springen")}>
+                          <Palette size={12} />
+                          <span className="num">
+                            {t("Schicht {n}", { n: l + 1 })} · {fmtNum(preview.layerZ[l] ?? 0, 2)} mm
+                          </span>
+                        </button>
+                        <button className="pause-x" aria-label={t("Wechsel entfernen")} onClick={() => togglePause(l)}>
+                          <X size={12} />
+                        </button>
+                      </span>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="preview-legend card">
                 {preview.types.map((ty) => {
@@ -753,7 +794,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           </div>
           {phase.kind === "done" && !phase.stale && (
             <div className="actions-row">
-              <button className="btn" onClick={() => void saveGcodeAs(phase.result.gcodePath, phase.result.fileName)}>
+              <button className="btn" onClick={() => void saveGcodeAs(phase.result.gcodePath, phase.result.fileName, pauses)}>
                 <Download size={16} /> {t("G-Code speichern")}
               </button>
               <button className="btn" onClick={() => setPrintOpen(true)}>
@@ -767,6 +808,8 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       {printOpen && phase.kind === "done" && (
         <PrintDialog
           result={phase.result}
+          pauses={pauses}
+          layerZ={preview?.layerZ ?? []}
           printerName={printerName}
           host={connection.kind === "unconfigured" ? null : connection.host}
           connected={connection.kind === "connected"}
@@ -1016,6 +1059,8 @@ function CutPanel({ plate, onError }: { plate: Plate; onError: (m: string | null
 
 function PrintDialog(props: {
   result: SliceResult;
+  pauses: number[];
+  layerZ: number[];
   printerName: string;
   host: string | null;
   connected: boolean;
@@ -1057,8 +1102,8 @@ function PrintDialog(props: {
   const send = async (start: boolean) => {
     setState({ kind: "uploading", pct: 0, start });
     try {
-      const name = await printerSend(props.result.gcodePath, start);
-      if (start) rememberSentPrint(name, props.result.gcodePath);
+      const name = await printerSend(props.result.gcodePath, start, props.pauses);
+      if (start) rememberSentPrint(name, props.result.gcodePath, props.pauses.map((l) => l + 1));
       setState({ kind: "done", start, name });
     } catch (e) {
       setState({ kind: "error", msg: typeof e === "string" ? e : t("Senden fehlgeschlagen.") });
@@ -1108,7 +1153,21 @@ function PrintDialog(props: {
             <span className="label">{t("Filament")}</span>
             <span className="num">{props.result.filamentG != null ? `${fmtNum(props.result.filamentG, 1)} g` : "–"}</span>
           </div>
+          {props.pauses.length > 0 && (
+            <div>
+              <span className="label">{t("Filamentwechsel")}</span>
+              <span className="num">
+                {props.pauses.map((l) => t("Schicht {n}", { n: l + 1 }) + (props.layerZ[l] != null ? ` (${fmtNum(props.layerZ[l], 2)} mm)` : "")).join(", ")}
+              </span>
+            </div>
+          )}
         </div>
+        {props.pauses.length > 0 && (
+          <div className="pause-note small">
+            <Palette size={14} />
+            <span>{t("Der Drucker hält an diesen Schichten an und parkt den Kopf. Am Drucker-Display das alte Filament entladen, die neue Farbe laden, dann in Druckerwacht oder am Display „Fortsetzen“ wählen.")}</span>
+          </div>
+        )}
 
         {state.kind === "uploading" && (
           <div className="modal-progress">

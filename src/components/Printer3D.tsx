@@ -23,6 +23,7 @@ import { readGcode } from "../slicer/api";
 import { useStore } from "../lib/store";
 import { accentHex } from "../lib/theme";
 import type { PrinterStatus } from "../lib/types";
+import { lastSent, sameFile } from "../lib/sentPrint";
 
 const HEAD_Y = BED.y / 2; // Der Kopf bleibt in Y stehen, das Bett fährt darunter (Bettschubser)
 const CX = BED.x / 2;
@@ -35,24 +36,6 @@ const TOP_Z = 430; // Mitte des oberen Querprofils
 const SPOOL = { x: CX + 70, y: FRAME_Y, z: 562, r: 100, w: 66 };
 const reduceMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
-/** Zuletzt aus Druckerwacht gesendeter Druck (für das Teil im 3D-Modell) */
-export function rememberSentPrint(name: string, gcodePath: string) {
-  try {
-    localStorage.setItem("dw.lastSent", JSON.stringify({ name, gcodePath }));
-  } catch {
-    /* egal */
-  }
-}
-
-function lastSent(): { name: string; gcodePath: string } | null {
-  try {
-    return JSON.parse(localStorage.getItem("dw.lastSent") ?? "null");
-  } catch {
-    return null;
-  }
-}
-
-const base = (n: string) => n.replace(/^.*[\\/]/, "").replace(/\.gcode$/i, "");
 
 /* ------------------------------------------------------------------ Bauteile */
 
@@ -527,7 +510,7 @@ class PrinterScene {
     else if (s && s.state !== "printing") this.target.set(CX, HEAD_Y, 40);
     // Teil aus dem G-Code laden, wenn dieser Druck aus Druckerwacht kam
     const sent = lastSent();
-    const want = s?.fileName && sent && base(sent.name) === base(s.fileName) ? sent : null;
+    const want = s?.fileName && sent && sameFile(sent.name, s.fileName) ? sent : null;
     if (want && want.name !== this.gcodeName) {
       this.gcodeName = want.name;
       void readGcode(want.gcodePath)
