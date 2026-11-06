@@ -1,15 +1,14 @@
-import { Suspense, lazy, useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Box, Gauge, Layers, Loader2, Palette, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { AlertTriangle, Box, Flame, Gauge, Layers, Loader2, Moon, Palette, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
 import { useStore } from "../lib/store";
 import { printerControl, reconnect, thumbnailUrl } from "../lib/api";
 import { DASH, fmtDuration, fmtEta, fmtNum, STATE_LABEL, STATE_TONE } from "../lib/format";
 import type { PrinterStatus } from "../lib/types";
-import { Badge, Card, EmptyState, Segmented, StatCard } from "../components/ui";
+import { Badge, Card, EmptyState, Rolling, Segmented, StatCard } from "../components/ui";
 import { Chart, type SeriesDef } from "../components/Chart";
 import { CameraFrame } from "../components/Camera";
 import { Confetti } from "../components/Fx";
 
-const Printer3D = lazy(() => import("../components/Printer3D"));
 import type { ViewId } from "../components/Shell";
 import { t } from "../lib/i18n";
 import { accentHex } from "../lib/theme";
@@ -100,20 +99,12 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
     <div className="view">
       <Confetti fire={confetti} />
       <div className="top-row">
-        <Card className="printer-card">
-          <div className="chart-head">
-            <span className="label">{t("Drucker live")}</span>
-            <span className="small muted">{t("Ziehen zum Drehen")}</span>
-          </div>
-          <Suspense fallback={null}>
-            <Printer3D />
-          </Suspense>
-        </Card>
+        <HeroCard s={status} celebrate={celebrate} />
         <Stats status={status} />
       </div>
 
-      <div className={`row-progress ${cameraUrl ? "with-camera" : ""}`}>
-        <Card className={celebrate ? "celebrate" : ""}>{status ? <ProgressPanel s={status} /> : <WaitingPanel />}</Card>
+      {cameraUrl && (
+      <div className="row-progress">
         {cameraUrl && (
           <Card className="camera">
             <div className="chart-head">
@@ -126,6 +117,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
           </Card>
         )}
       </div>
+      )}
 
       <div className="section-head">
         <span className="label">{t("Diagramme")}</span>
@@ -301,73 +293,249 @@ function PrintAnim() {
   );
 }
 
-function ProgressPanel({ s }: { s: PrinterStatus }) {
-  if (!isJob(s)) {
+/** Große Karte „Aktueller Druck“: leuchtender Fortschrittsring mit Skala, Vorschaubild, Zeiten und Steuerung. */
+function HeroCard({ s, celebrate }: { s: PrinterStatus | null; celebrate: boolean }) {
+  const job = !!s && isJob(s);
+  const printing = !!s && s.state === "printing" && !s.preparing;
+  const tone = !s || !job ? "idle" : s.preparing ? "prep" : s.state === "paused" ? "paused" : s.state === "finished" ? "done" : s.state === "failed" || s.state === "aborted" ? "failed" : "live";
+  return (
+    <Card className={`hero tone-${tone}${printing ? " is-printing" : ""}${celebrate ? " celebrate" : ""}`}>
+      <div className="hero-glow" aria-hidden />
+      {!s ? (
+        <WaitingPanel />
+      ) : (
+        <div className="hero-body">
+          <HeroRing s={s} job={job} />
+          <HeroInfo s={s} job={job} />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const TICKS = 60;
+
+function HeroRing({ s, job }: { s: PrinterStatus; job: boolean }) {
+  const pct = job ? Math.max(0, Math.min(100, s.state === "finished" ? 100 : s.progress ?? 0)) : 0;
+  const R = 92, C = 110;
+  const a = (pct / 100) * Math.PI * 2 - Math.PI / 2;
+  const lit = Math.round((pct / 100) * TICKS);
+  return (
+    <div className="hero-ring">
+      <svg viewBox="0 0 220 220" aria-hidden>
+        <defs>
+          <linearGradient id="hero-grad" x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor="var(--ring-a)" />
+            <stop offset="1" stopColor="var(--ring-b)" />
+          </linearGradient>
+        </defs>
+        <g className="hr-ticks">
+          {Array.from({ length: TICKS }, (_, i) => {
+            const ang = (i / TICKS) * Math.PI * 2 - Math.PI / 2;
+            const big = i % 5 === 0;
+            const r1 = 106, r2 = big ? 99 : 102;
+            return (
+              <line
+                key={i}
+                className={i < lit ? "on" : ""}
+                x1={C + Math.cos(ang) * r1}
+                y1={C + Math.sin(ang) * r1}
+                x2={C + Math.cos(ang) * r2}
+                y2={C + Math.sin(ang) * r2}
+              />
+            );
+          })}
+        </g>
+        <circle className="hr-track" cx={C} cy={C} r={R} />
+        {pct > 0.5 && (
+          <>
+            <circle className="hr-glow" cx={C} cy={C} r={R} pathLength={100} strokeDasharray={`${pct} 100`} transform={`rotate(-90 ${C} ${C})`} />
+            <circle className="hr-fill" cx={C} cy={C} r={R} pathLength={100} strokeDasharray={`${pct} 100`} transform={`rotate(-90 ${C} ${C})`} />
+            <circle className="hr-head" cx={C + Math.cos(a) * R} cy={C + Math.sin(a) * R} r={6} />
+          </>
+        )}
+      </svg>
+      <div className="hero-center">
+        {job ? (
+          <Thumbnail file={s.fileName} printing={s.state === "printing" && !s.preparing} />
+        ) : (
+          <div className="thumb hero-idle">
+            <Printer size={40} strokeWidth={1.25} />
+          </div>
+        )}
+      </div>
+      {s.state === "printing" && !s.preparing && <i className="hero-orbit" aria-hidden />}
+    </div>
+  );
+}
+
+function HeroInfo({ s, job }: { s: PrinterStatus; job: boolean }) {
+  if (!job) {
     return (
-      <EmptyState
-        className="progress-empty"
-        icon={Printer}
-        title={t("Kein Druck aktiv")}
-        text={
-          s.state === "unknown"
+      <div className="hero-info">
+        <div className="label">{t("Aktueller Druck")}</div>
+        <div className="hero-title">{s.state === "unknown" ? t("Unbekannter Zustand") : t("Bereit zum Drucken")}</div>
+        <p className="small muted">
+          {s.state === "unknown"
             ? t("Der Drucker ist verbunden, meldet aber keinen bekannten Zustand.")
-            : t("Der Drucker ist bereit. Sobald ein Druck startet, erscheint er hier.")
-        }
-      />
+            : t("Der Drucker ist bereit. Sobald ein Druck startet, erscheint er hier.")}
+        </p>
+      </div>
     );
   }
-  const pct = s.progress ?? 0;
+  const pct = s.state === "finished" ? 100 : Math.round(s.progress ?? 0);
   const barClass =
     s.state === "paused" ? "paused" : s.state === "finished" ? "done" : s.state === "failed" ? "failed" : s.preparing ? "" : "is-live";
   const eta =
     s.state === "printing" ? fmtEta(s.remainingS) : s.state === "paused" ? t("pausiert") : s.state === "finished" ? t("fertig") : DASH;
-
   return (
-    <div className="progress">
-      <div className="thumb-ring">
-        <svg viewBox="0 0 144 144" aria-hidden>
-          <rect x={3} y={3} width={138} height={138} rx={16} className="tr-track" pathLength={100} />
-          <rect x={3} y={3} width={138} height={138} rx={16} className={`tr-fill ${barClass}`} pathLength={100} strokeDasharray={`${pct} 100`} />
-        </svg>
-        <Thumbnail file={s.fileName} printing={s.state === "printing" && !s.preparing} />
+    <div className="hero-info">
+      <div className="hero-top">
+        <div className="label">{t("Aktueller Druck")}</div>
+        <Badge tone={s.preparing ? "warning" : STATE_TONE[s.state]}>{s.preparing ? t("Vorbereitung") : STATE_LABEL[s.state]}</Badge>
       </div>
-      <div className="progress-body">
-        <div className="progress-top">
-          <div style={{ minWidth: 0 }}>
-            <div className="label">{t("Aktueller Druck")}</div>
-            <div className="file-name" title={s.fileName ?? undefined}>
-              {s.fileName ?? t("Unbenannter Druck")}
-            </div>
-            <div className="small muted num">
-              {s.preparing
-                ? t("Heizen und Bett-Leveling …")
-                : s.usedMaterialMm != null
-                  ? `Filament ${fmtNum(s.usedMaterialMm / 1000, 2)} m`
-                  : "\u00A0"}
-            </div>
-          </div>
-          <Badge tone={s.preparing ? "warning" : STATE_TONE[s.state]}>{s.preparing ? t("Vorbereitung") : STATE_LABEL[s.state]}</Badge>
+      <div className="hero-pct num">
+        <Rolling text={String(pct)} />
+        <span className="unit">%</span>
+      </div>
+      <div className="file-name" title={s.fileName ?? undefined}>
+        {s.fileName ?? t("Unbenannter Druck")}
+      </div>
+      <div className="small muted num hero-meta">
+        {s.preparing ? (
+          t("Heizen und Bett-Leveling …")
+        ) : (
+          <>
+            {s.layer != null && (s.totalLayers ?? 0) > 0 && (
+              <span>
+                {t("Schicht")} <b>{fmtNum(s.layer)} / {fmtNum(s.totalLayers)}</b>
+              </span>
+            )}
+            {s.usedMaterialMm != null && (
+              <span>
+                Filament <b>{fmtNum(s.usedMaterialMm / 1000, 2)} m</b>
+              </span>
+            )}
+          </>
+        )}
+      </div>
+      <div className={`bar ${barClass}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
+        <i style={{ width: `${pct}%` }} />
+      </div>
+      <div className="times">
+        <div>
+          <span className="label">{t("Verstrichen")}</span>
+          <span className="value num">{fmtDuration(s.elapsedS)}</span>
         </div>
-        <div className="progress-bottom">
-        <div className={`bar ${barClass}`} role="progressbar" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
-          <i style={{ width: `${pct}%` }} />
+        <div>
+          <span className="label">{t("Restzeit")}</span>
+          <span className="value num">{s.state === "printing" || s.state === "paused" ? fmtDuration(s.remainingS) : DASH}</span>
         </div>
-        <JobControls s={s} />
-        <div className="times">
-          <div>
-            <span className="label">{t("Verstrichen")}</span>
-            <span className="value num">{fmtDuration(s.elapsedS)}</span>
-          </div>
-          <div>
-            <span className="label">{t("Restzeit")}</span>
-            <span className="value num">{s.state === "printing" || s.state === "paused" ? fmtDuration(s.remainingS) : DASH}</span>
-          </div>
-          <div>
-            <span className="label">{t("Fertig um")}</span>
-            <span className="value num">{eta}</span>
-          </div>
+        <div>
+          <span className="label">{t("Fertig um")}</span>
+          <span className="value num">{eta}</span>
         </div>
-        </div>
+      </div>
+      <JobControls s={s} />
+      {(s.state === "printing" || s.state === "paused") && <SpeedControl s={s} />}
+    </div>
+  );
+}
+
+/** Druckgeschwindigkeit live ändern: Faktor auf die gesliceten Geschwindigkeiten (wie M220). */
+const SPEED_MODES = () => [
+  { pct: 25, name: t("Flüster"), hint: t("Flüsterleise für die Nacht – der Druck dauert ein Vielfaches länger.") },
+  { pct: 50, name: t("Leise"), hint: t("Deutlich ruhiger, sehr saubere Oberflächen – etwa doppelte Druckzeit.") },
+  { pct: 75, name: t("Ruhig"), hint: t("Etwas leiser bei fast voller Geschwindigkeit.") },
+  { pct: 100, name: t("Normal"), hint: t("So schnell wie gesliced (Wände und Füllung bis 300 mm/s).") },
+  { pct: 125, name: t("Schnell"), hint: t("Mehr Tempo – am besten mit High-Speed-PLA (z. B. Hyper PLA).") },
+  {
+    pct: 150,
+    name: t("Turbo"),
+    hint: t("Volle Leistung: bis ca. 450 mm/s, der KE schafft höchstens 500 mm/s. Nur mit High-Speed-PLA und ggf. Düse +10 °C, sonst wird zu wenig Material gefördert."),
+  },
+];
+
+function SpeedControl({ s }: { s: PrinterStatus }) {
+  const modes = useMemo(SPEED_MODES, []);
+  const [pending, setPending] = useState<number | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const current = s.speedPct != null ? Math.round(s.speedPct) : null;
+
+  // Bestätigt, sobald der Drucker den neuen Wert meldet – sonst nach 12 s ehrlich melden
+  useEffect(() => {
+    if (pending == null) return;
+    if (current === pending) {
+      setPending(null);
+      return;
+    }
+    const timer = setTimeout(() => {
+      setPending(null);
+      setError(t("Der Drucker hat die neue Geschwindigkeit nicht bestätigt."));
+    }, 12_000);
+    return () => clearTimeout(timer);
+  }, [pending, current]);
+
+  const choose = async (pct: number) => {
+    setError(null);
+    setPending(pct);
+    try {
+      await printerControl(`speed:${pct}`);
+    } catch (e) {
+      setPending(null);
+      setError(typeof e === "string" ? e : t("Befehl fehlgeschlagen."));
+    }
+  };
+
+  const shown = pending ?? current ?? 100;
+  const active = modes.find((m) => m.pct === shown);
+  return (
+    <div className="speed-ctl">
+      <div className="speed-head">
+        <span className="label">{t("Tempo")}</span>
+        <span className="small muted num">
+          {pending != null ? (
+            <>
+              <Loader2 size={12} className="spin" /> {t("Setze {p} % …", { p: pending })}
+            </>
+          ) : (
+            <>
+              {current != null ? `${current} %` : DASH}
+              {s.speedMmS != null && s.state === "printing" ? ` · ${fmtNum(s.speedMmS)} mm/s` : ""}
+            </>
+          )}
+        </span>
+      </div>
+      <div className="speed-modes" role="radiogroup" aria-label={t("Tempo")}>
+        {modes.map((m) => (
+          <button
+            key={m.pct}
+            role="radio"
+            aria-checked={shown === m.pct}
+            aria-label={`${m.pct} % – ${m.name}`}
+            className={`speed-mode${shown === m.pct ? " on" : ""}${m.pct >= 125 ? " fast" : ""}${m.pct <= 50 ? " quiet" : ""}`}
+            disabled={pending != null}
+            onClick={() => void choose(m.pct)}
+            title={m.hint}
+          >
+            <span className="sm-pct num">
+              {m.pct === 25 ? <Moon size={11} /> : m.pct === 150 ? <Flame size={11} /> : null}
+              {m.pct}%
+            </span>
+            <span className="sm-name">{m.name}</span>
+          </button>
+        ))}
+      </div>
+      <div className={`speed-hint small${shown >= 125 ? " warn" : ""}`}>
+        {error ? (
+          <span style={{ color: "var(--warning)" }}>
+            <AlertTriangle size={12} /> {error}
+          </span>
+        ) : active ? (
+          active.hint
+        ) : (
+          t("Eigene Einstellung vom Drucker-Display.")
+        )}
       </div>
     </div>
   );

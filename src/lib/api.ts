@@ -92,7 +92,7 @@ export function thumbnailUrl(fileName: string | null): string | null {
 }
 
 /** Pause, Fortsetzen oder Abbrechen des laufenden Drucks. */
-export async function printerControl(action: "pause" | "resume" | "stop"): Promise<void> {
+export async function printerControl(action: "pause" | "resume" | "stop" | `speed:${number}`): Promise<void> {
   if (!isTauri) {
     (window as unknown as { __dwLastControl: string }).__dwLastControl = action;
     (demo()?.control as ((a: string) => void) | undefined)?.(action);

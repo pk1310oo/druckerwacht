@@ -473,46 +473,279 @@
   pointer-events: none;
 }
 
-/* ---------------------------------------------------------------- Live-3D-Drucker */
+/* ---------------------------------------------------------------- Hero: Aktueller Druck */
+@property --hero-ang {
+  syntax: "<angle>";
+  initial-value: 0deg;
+  inherits: false;
+}
+
 .top-row {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.55fr);
+  grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr);
   gap: var(--gap);
 }
 
-.top-row > .stats {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
+.top-row > .stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
 
-.printer-card {
-  display: flex;
-  flex-direction: column;
-  min-height: 360px;
-  padding-bottom: 8px;
-  overflow: hidden;
-}
-
-.printer3d {
+.view .card.hero {
   position: relative;
-  flex: 1;
-  min-height: 0;
-  margin: 0 -24px -8px;
-  cursor: grab;
+  overflow: hidden;
+  isolation: isolate;
+  --ring-a: var(--accent-deep);
+  --ring-b: var(--accent-light);
+  --ring-c: var(--accent);
+  --ring-rgb: var(--accent-rgb);
 }
 
-.printer3d:active { cursor: grabbing; }
+.hero.tone-paused { --ring-a: #b9822a; --ring-b: #ffd68a; --ring-c: var(--warning); --ring-rgb: 224 164 58; }
+.hero.tone-done { --ring-a: #2f8a5c; --ring-b: #a6efc8; --ring-c: var(--success); --ring-rgb: 76 175 122; }
+.hero.tone-failed { --ring-a: #a8413b; --ring-b: #ffb3ad; --ring-c: var(--danger); --ring-rgb: 224 85 77; }
 
-.printer3d canvas {
+/* Lichtwolke hinter dem Ring, beim Drucken lebendig */
+.hero-glow {
+  position: absolute;
+  inset: -30%;
+  z-index: -1;
+  background:
+    radial-gradient(38% 42% at 24% 50%, rgb(var(--ring-rgb) / 0.22), transparent 70%),
+    radial-gradient(30% 34% at 80% 20%, rgb(var(--ring-rgb) / 0.08), transparent 70%);
+  opacity: 0.5;
+  transition: opacity 600ms var(--ease);
+}
+
+.hero.tone-idle .hero-glow { opacity: 0.25; }
+.hero.is-printing .hero-glow { opacity: 1; animation: hero-breathe 5s ease-in-out infinite; }
+
+@keyframes hero-breathe {
+  50% { transform: scale(1.08) translateX(2%); opacity: 0.75; }
+}
+
+/* Umlaufender Lichtrand beim Drucken */
+.hero.is-printing::before {
+  content: "";
   position: absolute;
   inset: 0;
-  width: 100% !important;
-  height: 100% !important;
-  display: block;
+  z-index: 2;
+  padding: 1px;
+  border-radius: inherit;
+  background: conic-gradient(from var(--hero-ang), transparent 0deg, rgb(var(--ring-rgb) / 0.9) 50deg, transparent 110deg, transparent 360deg);
+  -webkit-mask: linear-gradient(#000 0 0) content-box, linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  animation: hero-spin 6s linear infinite;
+  pointer-events: none;
 }
 
-@media (max-width: 1100px) {
+@keyframes hero-spin { to { --hero-ang: 360deg; } }
+
+.hero-body {
+  display: flex;
+  align-items: center;
+  gap: 32px;
+  height: 100%;
+}
+
+.hero-ring {
+  position: relative;
+  flex: none;
+  width: 236px;
+  height: 236px;
+  display: grid;
+  place-items: center;
+}
+
+.hero-ring > svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+
+.hr-track { fill: none; stroke: rgba(255, 255, 255, 0.06); stroke-width: 12; }
+
+.hr-fill,
+.hr-glow {
+  fill: none;
+  stroke: url(#hero-grad);
+  stroke-width: 12;
+  stroke-linecap: round;
+  transition: stroke-dasharray 900ms var(--ease);
+}
+
+.hr-glow { stroke-width: 18; filter: blur(8px); opacity: 0.75; }
+
+.hr-head {
+  fill: #fff;
+  filter: drop-shadow(0 0 6px rgb(var(--ring-rgb))) drop-shadow(0 0 14px rgb(var(--ring-rgb) / 0.8));
+  transition: cx 900ms var(--ease), cy 900ms var(--ease);
+}
+
+.hero.is-printing .hr-head { animation: hero-pulse 1.6s ease-in-out infinite; }
+
+@keyframes hero-pulse { 50% { r: 8; } }
+
+.hr-ticks line {
+  stroke: rgba(255, 255, 255, 0.12);
+  stroke-width: 2;
+  stroke-linecap: round;
+  transition: stroke 400ms var(--ease);
+}
+
+.hr-ticks line.on {
+  stroke: var(--ring-c);
+  filter: drop-shadow(0 0 3px rgb(var(--ring-rgb) / 0.9));
+}
+
+.hero-center .thumb {
+  width: 148px;
+  height: 148px;
+  border-radius: 50%;
+  border: 0;
+  background: radial-gradient(circle at 50% 35%, #232323, #121212 70%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05), 0 10px 40px rgba(0, 0, 0, 0.45);
+}
+
+.hero-center .thumb img { width: 78%; height: 78%; }
+.hero-idle { color: var(--text-3); }
+
+/* Lichtpunkt, der beim Drucken um den Ring kreist */
+.hero-orbit {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  animation: hero-orbit 3.2s linear infinite;
+  pointer-events: none;
+}
+
+.hero-orbit::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 50%;
+  width: 6px;
+  height: 6px;
+  margin-left: -3px;
+  border-radius: 50%;
+  background: var(--ring-b);
+  box-shadow: 0 0 10px 3px rgb(var(--ring-rgb) / 0.8);
+}
+
+@keyframes hero-orbit { to { transform: rotate(360deg); } }
+
+.hero-info {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.hero-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.hero-pct {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 64px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -0.04em;
+  color: #fff;
+  filter: drop-shadow(0 0 18px rgb(var(--ring-rgb) / 0.55));
+}
+
+.hero-pct .unit { font-size: 26px; letter-spacing: 0; color: rgb(var(--ring-rgb)); }
+
+.hero-title { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+
+.hero-meta { display: flex; gap: 16px; flex-wrap: wrap; }
+.hero-meta b { color: var(--text); font-weight: 500; }
+
+.hero .times { margin-top: 4px; }
+
+/* Tempo-Wahl live während des Drucks */
+.speed-ctl {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding-top: 12px;
+  border-top: 1px solid var(--line-soft);
+}
+
+.speed-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+
+.speed-modes {
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 4px;
+  padding: 4px;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.28);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
+}
+
+.speed-mode {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  padding: 7px 2px 6px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  color: var(--text-2);
+  font: inherit;
+  cursor: pointer;
+  transition: background 200ms var(--ease), color 200ms var(--ease), box-shadow 200ms var(--ease), transform 120ms var(--ease);
+}
+
+.speed-mode:hover:not(:disabled) { background: rgba(255, 255, 255, 0.05); color: var(--text); }
+.speed-mode:active:not(:disabled) { transform: scale(0.96); }
+.speed-mode:disabled { cursor: progress; }
+
+.sm-pct { display: inline-flex; align-items: center; gap: 3px; font-weight: 600; font-size: 14px; }
+.sm-name { font-size: 11px; color: var(--text-3); letter-spacing: 0.02em; }
+
+.speed-mode.on {
+  color: #fff;
+  background: linear-gradient(180deg, rgb(var(--accent-rgb) / 0.95), rgb(var(--accent-deep-rgb) / 0.95));
+  box-shadow: 0 6px 22px rgb(var(--accent-rgb) / 0.4), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+}
+
+.speed-mode.on .sm-name { color: rgba(255, 255, 255, 0.85); }
+
+.speed-mode.quiet.on {
+  background: linear-gradient(180deg, #4d6fb8, #2b3f73);
+  box-shadow: 0 6px 22px rgba(91, 141, 239, 0.35), inset 0 1px 0 rgba(255, 255, 255, 0.2);
+}
+
+.speed-mode.fast.on {
+  background: linear-gradient(180deg, #ff8a3d, #c4361f);
+  box-shadow: 0 6px 26px rgba(255, 110, 50, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+.speed-mode.fast.on .sm-pct svg { animation: flame 900ms ease-in-out infinite alternate; }
+
+@keyframes flame { to { transform: translateY(-1px) scale(1.2); filter: drop-shadow(0 0 4px #ffd27a); } }
+
+.speed-hint { color: var(--text-2); min-height: 2.6em; }
+.speed-hint.warn { color: #f0b46a; }
+
+@media (max-width: 1250px) {
   .top-row { grid-template-columns: minmax(0, 1fr); }
-  .printer-card { min-height: 320px; }
+}
+
+@media (max-width: 700px) {
+  .hero-body { flex-direction: column; align-items: stretch; }
+  .hero-ring { align-self: center; }
 }
 
 /* ---------------------------------------------------------------- Farbwahl */

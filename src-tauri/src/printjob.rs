@@ -201,7 +201,16 @@ pub async fn start(host: &str, port: Option<u16>, file_name: &str) -> Result<(),
 
 /// Steuerbefehl an den laufenden Druck (wie Creality Print / Home-Assistant-Integration):
 /// Pause `{"pause":1}`, Fortsetzen `{"pause":0}`, Abbrechen `{"stop":1}`.
+/// Live-Geschwindigkeit: `speed:<prozent>` setzt den Geschwindigkeitsfaktor (wie M220).
+/// Grenzen: 10–200 % (Firmware-Bereich); die Oberfläche bietet 25–150 % an.
+pub const SPEED_MIN: u32 = 10;
+pub const SPEED_MAX: u32 = 200;
+
 pub fn control_params(action: &str) -> Option<serde_json::Value> {
+    if let Some(v) = action.strip_prefix("speed:") {
+        let pct: u32 = v.trim().parse().ok()?;
+        return Some(serde_json::json!({ "setFeedratePct": pct.clamp(SPEED_MIN, SPEED_MAX) }));
+    }
     match action {
         "pause" => Some(serde_json::json!({ "pause": 1 })),
         "resume" => Some(serde_json::json!({ "pause": 0 })),
@@ -237,6 +246,8 @@ mod tests {
             ("pause", r#"{"method":"set","params":{"pause":1}}"#),
             ("resume", r#"{"method":"set","params":{"pause":0}}"#),
             ("stop", r#"{"method":"set","params":{"stop":1}}"#),
+            ("speed:150", r#"{"method":"set","params":{"setFeedratePct":150}}"#),
+            ("speed:999", r#"{"method":"set","params":{"setFeedratePct":200}}"#),
         ] {
             let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
             let port = l.local_addr().unwrap().port();
@@ -249,6 +260,7 @@ mod tests {
             assert_eq!(srv.await.unwrap(), expected);
         }
         assert!(control_params("explode").is_none());
+        assert!(control_params("speed:schnell").is_none());
     }
 
     #[test]

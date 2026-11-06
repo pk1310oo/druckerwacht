@@ -540,6 +540,7 @@ async fn printer_control(app: AppHandle, action: String) -> Result<(), String> {
         ("pause", Some(PrintState::Printing)) => !preparing,
         ("resume", Some(PrintState::Paused)) => true,
         ("stop", Some(PrintState::Printing | PrintState::Paused)) => true,
+        (a, Some(PrintState::Printing | PrintState::Paused)) if a.starts_with("speed:") => true,
         _ => false,
     };
     if !ok {
@@ -547,6 +548,7 @@ async fn printer_control(app: AppHandle, action: String) -> Result<(), String> {
             "pause" if preparing => crate::i18n::tr("Während Heizen und Leveling nimmt der Drucker keine Pause an.", "The printer does not accept a pause while heating and leveling.").into(),
             "pause" => crate::i18n::tr("Pausieren geht nur während eines Drucks.", "Pausing only works during a print.").into(),
             "resume" => crate::i18n::tr("Der Drucker ist nicht pausiert.", "The printer is not paused.").into(),
+            a if a.starts_with("speed:") => crate::i18n::tr("Die Geschwindigkeit lässt sich nur während eines Drucks ändern.", "The speed can only be changed during a print.").into(),
             _ => crate::i18n::tr("Es läuft gerade kein Druck.", "No print is running.").into(),
         });
     }
