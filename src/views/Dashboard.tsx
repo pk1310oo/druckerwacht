@@ -452,33 +452,41 @@ const SPEED_MODES = () => [
   {
     pct: 150,
     name: t("Turbo"),
-    hint: t("Volle Leistung: bis ca. 450 mm/s, der KE schafft höchstens 500 mm/s. Nur mit High-Speed-PLA und ggf. Düse +10 °C, sonst wird zu wenig Material gefördert."),
+    hint: t("Volle Leistung: Druckbewegungen bis ca. 380 mm/s, Leerfahrten bis 500 mm/s (Maximum des KE). Nur mit High-Speed-PLA und Düse +10 °C, sonst wird zu wenig Material gefördert."),
   },
 ];
 
 function SpeedControl({ s }: { s: PrinterStatus }) {
   const modes = useMemo(SPEED_MODES, []);
   const [pending, setPending] = useState<number | null>(null);
+  /** Während Heizen/Leveling gewählt: wird gesetzt, sobald der Druck wirklich läuft */
+  const [queued, setQueued] = useState<number | null>(null);
   const [error, setError] = useState<string | null>(null);
   const current = s.speedPct != null ? Math.round(s.speedPct) : null;
+  const reports = s.speedPct != null; // meldet der Drucker den Faktor überhaupt?
 
-  // Bestätigt, sobald der Drucker den neuen Wert meldet – sonst nach 12 s ehrlich melden
+  // Bestätigt, sobald der Drucker den neuen Wert meldet. Der Status kommt teils nur alle
+  // 20 s – daher großzügig warten und vorher einmal nachsenden.
   useEffect(() => {
     if (pending == null) return;
     if (current === pending) {
       setPending(null);
       return;
     }
+    const retry = setTimeout(() => void printerControl(`speed:${pending}`).catch(() => {}), 10_000);
     const timer = setTimeout(() => {
       setPending(null);
       setError(t("Der Drucker hat die neue Geschwindigkeit nicht bestätigt."));
-    }, 12_000);
-    return () => clearTimeout(timer);
+    }, 25_000);
+    return () => {
+      clearTimeout(retry);
+      clearTimeout(timer);
+    };
   }, [pending, current]);
 
-  const choose = async (pct: number) => {
+  const send = async (pct: number) => {
     setError(null);
-    setPending(pct);
+    setPending(reports ? pct : null);
     try {
       await printerControl(`speed:${pct}`);
     } catch (e) {
@@ -487,14 +495,40 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
     }
   };
 
-  const shown = pending ?? current ?? 100;
+  // Der Start-G-Code setzt das Tempo auf 100 % zurück (M220 S100). Wunsch daher erst
+  // nach Heizen und Leveling abschicken.
+  const ready = s.state === "printing" && !s.preparing;
+  useEffect(() => {
+    if (queued == null || !ready) return;
+    const timer = setTimeout(() => {
+      setQueued(null);
+      void send(queued);
+    }, 3000);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [queued, ready]);
+
+  const choose = (pct: number) => {
+    if (s.preparing) {
+      setError(null);
+      setQueued(pct === 100 ? null : pct);
+      return;
+    }
+    void send(pct);
+  };
+
+  const shown = queued ?? pending ?? current ?? 100;
   const active = modes.find((m) => m.pct === shown);
   return (
     <div className="speed-ctl">
       <div className="speed-head">
         <span className="label">{t("Tempo")}</span>
         <span className="small muted num">
-          {pending != null ? (
+          {queued != null ? (
+            <>
+              <Loader2 size={12} className="spin" /> {t("{p} % – wird nach dem Leveling gesetzt", { p: queued })}
+            </>
+          ) : pending != null ? (
             <>
               <Loader2 size={12} className="spin" /> {t("Setze {p} % …", { p: pending })}
             </>
@@ -515,7 +549,7 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
             aria-label={`${m.pct} % – ${m.name}`}
             className={`speed-mode${shown === m.pct ? " on" : ""}${m.pct >= 125 ? " fast" : ""}${m.pct <= 50 ? " quiet" : ""}`}
             disabled={pending != null}
-            onClick={() => void choose(m.pct)}
+            onClick={() => choose(m.pct)}
             title={m.hint}
           >
             <span className="sm-pct num">

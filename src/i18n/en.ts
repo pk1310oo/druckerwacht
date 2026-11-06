@@ -470,5 +470,6 @@ export const EN: Record<string, string> = {
   "Tempo": "Speed",
   "Turbo": "Turbo",
   "Unbekannter Zustand": "Unknown state",
-  "Volle Leistung: bis ca. 450 mm/s, der KE schafft höchstens 500 mm/s. Nur mit High-Speed-PLA und ggf. Düse +10 °C, sonst wird zu wenig Material gefördert.": "Full power: up to about 450 mm/s – the KE tops out at 500 mm/s. Only with high-speed PLA and possibly +10 °C on the nozzle, otherwise it under-extrudes.",
+  "Volle Leistung: Druckbewegungen bis ca. 380 mm/s, Leerfahrten bis 500 mm/s (Maximum des KE). Nur mit High-Speed-PLA und Düse +10 °C, sonst wird zu wenig Material gefördert.": "Full power: print moves up to about 380 mm/s, travel up to 500 mm/s (the KE's maximum). Only with high-speed PLA and +10 °C on the nozzle, otherwise it under-extrudes.",
+  "{p} % – wird nach dem Leveling gesetzt": "{p} % – applied after leveling",
 };
