@@ -791,3 +791,114 @@
   }
   .nav-indicator { transition: none; }
 }
+
+/* ---------------------------------------------------------------- Filament-Lager */
+.fil-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--gap);
+}
+
+.fil-stat { display: flex; flex-direction: column; gap: 8px; }
+
+.spools {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: var(--gap);
+}
+
+.view .card.spool-card { display: flex; flex-direction: column; gap: 16px; transition: box-shadow 300ms var(--ease), border-color 300ms var(--ease); }
+.view .card.spool-card.active { border-color: rgb(var(--accent-rgb) / 0.55); box-shadow: 0 0 0 1px rgb(var(--accent-rgb) / 0.25), 0 12px 40px rgb(var(--accent-rgb) / 0.12); }
+
+.spool-top { display: flex; align-items: center; gap: 16px; }
+
+.spool-ring { flex: none; width: 72px; height: 72px; filter: drop-shadow(0 6px 18px rgba(0, 0, 0, 0.4)); }
+.sr-track { fill: none; stroke: rgba(255, 255, 255, 0.16); stroke-width: 10; }
+.sr-fill { fill: none; stroke: var(--c); stroke-width: 10; stroke-linecap: round; transition: stroke-dasharray 700ms var(--ease); filter: drop-shadow(0 0 4px var(--c)); }
+.sr-core { fill: #1b1b1b; stroke: rgba(255, 255, 255, 0.06); }
+.sr-hub { fill: #0e0e0e; stroke: rgba(255, 255, 255, 0.12); }
+
+.spool-info { min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.spool-name { font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.spool-tags { display: flex; gap: 6px; flex-wrap: wrap; }
+.spool-nums { display: flex; flex-direction: column; gap: 2px; }
+.spool-rest { font-size: 28px; font-weight: 600; letter-spacing: -0.02em; }
+.spool-rest .unit { font-size: 14px; color: var(--text-2); }
+.spool-actions { display: flex; align-items: center; gap: 6px; }
+
+.spool-form {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+  align-items: end;
+}
+
+.spool-form label { display: flex; flex-direction: column; gap: 6px; }
+.spool-form .sf-wide { grid-column: 1 / -1; }
+.spool-form .input.color { padding: 2px; height: 36px; cursor: pointer; }
+.spool-form .sf-actions { grid-column: 1 / -1; display: flex; justify-content: flex-end; gap: 8px; }
+
+.spool-note {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.spool-note > i { flex: none; width: 12px; height: 12px; border-radius: 50%; box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.1); }
+.spool-note.short { border-color: rgba(224, 164, 58, 0.45); background: rgba(224, 164, 58, 0.1); color: #f0b46a; }
+
+@media (max-width: 900px) {
+  .fil-summary { grid-template-columns: minmax(0, 1fr); }
+  .spool-form { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+
+/* ---------------------------------------------------------------- Warteschlange */
+.queue-card .chart-head .label { display: inline-flex; align-items: center; gap: 6px; }
+.queue-card .plate-check { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; }
+
+.queue { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+
+.queue li {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.025);
+  border: 1px solid var(--line-soft);
+  animation: rise-in 420ms var(--ease) both;
+}
+
+.queue li.next { border-color: rgb(var(--accent-rgb) / 0.4); background: linear-gradient(90deg, rgb(var(--accent-rgb) / 0.1), transparent 60%); }
+
+.q-pos {
+  flex: none;
+  width: 26px;
+  height: 26px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  font-size: 12px;
+  font-weight: 600;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.queue li.next .q-pos { background: var(--accent); color: #fff; box-shadow: 0 0 14px rgb(var(--accent-rgb) / 0.6); }
+.q-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.q-actions { display: flex; gap: 4px; align-items: center; }
+
+/* ---------------------------------------------------------------- Zeitraffer */
+.timelapses { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: var(--gap); margin-bottom: 24px; }
+.view .card.tl-card { display: flex; gap: 14px; padding: 12px; align-items: stretch; }
+.tl-cover { flex: none; width: 128px; aspect-ratio: 4 / 3; border-radius: 8px; overflow: hidden; background: #111; display: grid; place-items: center; color: var(--text-3); }
+.tl-cover img { width: 100%; height: 100%; object-fit: cover; }
+.tl-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 6px; }
+.tl-actions { margin-top: auto; display: flex; gap: 6px; }
+
+/* ---------------------------------------------------------------- Einstellungen: Eingabe mit Knopf */
+.row-input { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
+.row-input .input { flex: 1; min-width: 200px; }

@@ -2,6 +2,7 @@
 mod i18n;
 mod adapter;
 mod discovery;
+mod extras;
 mod model;
 mod printjob;
 mod settings;
@@ -58,6 +59,8 @@ struct ActiveJob {
     file: String,
     started_ms: i64,
     total_layers: Option<i64>,
+    /// Zuletzt für den Zeitraffer fotografierte Schicht
+    last_frame_layer: Option<i64>,
 }
 
 #[derive(Serialize, Clone)]
@@ -94,6 +97,8 @@ struct Paths {
     jobs: PathBuf,
     printer_history: PathBuf,
     raw_log_dir: PathBuf,
+    queue_dir: PathBuf,
+    timelapse_dir: PathBuf,
 }
 
 fn now_ms() -> i64 {
@@ -109,6 +114,14 @@ impl AppState {
 
 fn notify(app: &AppHandle, title: &str, body: &str) {
     let _ = app.notification().builder().title(title).body(body).show();
+    // Zusätzlich aufs Handy, wenn ein ntfy-Thema eingetragen ist
+    let topic = app.state::<Arc<AppState>>().lock().settings.ntfy_topic.clone();
+    if !topic.is_empty() {
+        let (title, body) = (title.to_string(), body.to_string());
+        tauri::async_runtime::spawn(async move {
+            let _ = extras::push(&topic, &title, &body, "printer").await;
+        });
+    }
 }
 
 /// (Neu)start der Verbindung mit den aktuellen Einstellungen.
@@ -178,6 +191,9 @@ fn set_connection(app: &AppHandle, state: &Arc<AppState>, c: ConnectionState) {
         was
     };
     let _ = app.emit("printer://connection", &c);
+    if c.is_connected() && !was_connected {
+        probe_camera_once(app);
+    }
 
     if was_connected && !c.is_connected() && !matches!(c, ConnectionState::Unconfigured) {
         // Verzögert melden – kurze Aussetzer sollen niemanden wecken.
@@ -210,6 +226,9 @@ fn set_connection(app: &AppHandle, state: &Arc<AppState>, c: ConnectionState) {
 fn handle_status(app: &AppHandle, state: &Arc<AppState>, s: PrinterStatus) {
     let mut notes: Vec<(String, String)> = Vec::new();
     let mut job_done = false;
+    // Zeitraffer: (Ordner, Standbild-Adresse, Bildnummer) für ein neues Bild; Ordner zum Abschließen
+    let mut frame: Option<(PathBuf, String, i64)> = None;
+    let mut finish_tl: Option<PathBuf> = None;
     {
         let mut inner = state.lock();
         let prev = inner.status.clone();
@@ -221,13 +240,27 @@ fn handle_status(app: &AppHandle, state: &Arc<AppState>, s: PrinterStatus) {
             let changed = inner.active_job.as_ref().map(|j| j.file != file).unwrap_or(true);
             if changed {
                 let started = now_ms() - (s.elapsed_s.unwrap_or(0.0) * 1000.0) as i64;
-                inner.active_job = Some(ActiveJob { file: file.clone(), started_ms: started, total_layers: None });
+                inner.active_job = Some(ActiveJob { file: file.clone(), started_ms: started, total_layers: None, last_frame_layer: None });
             }
+            let snap = (inner.settings.timelapse && !s.preparing)
+                .then(|| extras::snapshot_url(&inner.settings.camera_url))
+                .flatten();
+            let tl_dir = state.paths.timelapse_dir.clone();
             if let Some(j) = inner.active_job.as_mut() {
                 j.total_layers = s.total_layers.or(j.total_layers);
+                // Pro neuer Schicht ein Bild
+                if let (Some(url), Some(layer)) = (snap, s.layer) {
+                    if layer > 0 && j.last_frame_layer != Some(layer) && s.state == PrintState::Printing {
+                        j.last_frame_layer = Some(layer);
+                        frame = Some((tl_dir.join(extras::timelapse_key(j.started_ms, &j.file)), url, layer));
+                    }
+                }
             }
         } else if matches!(s.state, PrintState::Finished | PrintState::Failed | PrintState::Aborted) {
             if let Some(j) = inner.active_job.take() {
+                if j.last_frame_layer.is_some() {
+                    finish_tl = Some(state.paths.timelapse_dir.join(extras::timelapse_key(j.started_ms, &j.file)));
+                }
                 let ended = now_ms();
                 let result = match s.state {
                     PrintState::Finished => "finished",
@@ -257,7 +290,18 @@ fn handle_status(app: &AppHandle, state: &Arc<AppState>, s: PrinterStatus) {
         if prev_state.is_active() && prev_state != s.state {
             match s.state {
                 PrintState::Finished if st.notify_finished => {
-                    notes.push((crate::i18n::tr("Druck fertig", "Print finished").into(), trf!("„{file}“ ist fertig gedruckt.", "“{file}” has finished printing.")))
+                    let next = extras::Queue::new(state.paths.queue_dir.clone()).list().into_iter().next();
+                    let body = match next {
+                        Some(n) => {
+                            let next = n.name;
+                            trf!("„{file}“ ist fertig gedruckt. Als Nächstes wartet „{next}“ – Platte leeren und starten.", "“{file}” has finished printing. Next up is “{next}” – clear the plate and start it.")
+                        }
+                        None => trf!("„{file}“ ist fertig gedruckt.", "“{file}” has finished printing."),
+                    };
+                    notes.push((crate::i18n::tr("Druck fertig", "Print finished").into(), body))
+                }
+                PrintState::Paused if st.notify_finished => {
+                    notes.push((crate::i18n::tr("Druck pausiert", "Print paused").into(), trf!("„{file}“ ist pausiert – zum Beispiel für einen Filamentwechsel.", "“{file}” is paused – for example for a filament change.")))
                 }
                 PrintState::Failed if st.notify_error => {
                     notes.push((crate::i18n::tr("Druck fehlgeschlagen", "Print failed").into(), trf!("„{file}“ wurde mit einem Fehler beendet.", "“{file}” ended with an error.")))
@@ -277,13 +321,121 @@ fn handle_status(app: &AppHandle, state: &Arc<AppState>, s: PrinterStatus) {
         inner.status = Some(s.clone());
     }
     let _ = app.emit("printer://status", Some(&s));
+    update_tray(app, &s);
     for (t, b) in notes {
         notify(app, &t, &b);
+    }
+    if let Some((dir, url, layer)) = frame {
+        tauri::async_runtime::spawn(async move {
+            if let Some(img) = extras::fetch_snapshot(&url).await {
+                let _ = std::fs::create_dir_all(&dir);
+                let _ = std::fs::write(dir.join(format!("{layer:06}.jpg")), img);
+            }
+        });
+    }
+    if let Some(dir) = finish_tl {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            // Kurz warten, damit das letzte Bild noch ankommt
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            let ok = tauri::async_runtime::spawn_blocking(move || extras::finish_timelapse(&dir, 30)).await;
+            if matches!(ok, Ok(Ok(_))) {
+                let _ = app.emit("printer://timelapse", ());
+            }
+        });
     }
     if job_done {
         save_jobs(state);
         let _ = app.emit("printer://jobs", ());
     }
+}
+
+/// Text für die Menüleiste: „47 % · 22:26“ beim Drucken, „⏸ 47 %“ in der Pause, sonst leer.
+#[cfg_attr(not(target_os = "macos"), allow(dead_code))]
+fn tray_text(s: &PrinterStatus) -> String {
+    let pct = s.progress.unwrap_or(0.0).round() as i64;
+    match s.state {
+        PrintState::Printing if s.preparing => "🔥".into(),
+        PrintState::Printing => match s.remaining_s {
+            Some(r) if r > 0.0 => {
+                let end = chrono::Local::now() + chrono::Duration::seconds(r as i64);
+                format!("{pct} % · {}", end.format("%H:%M"))
+            }
+            _ => format!("{pct} %"),
+        },
+        PrintState::Paused => format!("⏸ {pct} %"),
+        PrintState::Finished => "✓".into(),
+        _ => String::new(),
+    }
+}
+
+#[cfg(target_os = "macos")]
+fn update_tray(app: &AppHandle, s: &PrinterStatus) {
+    static LAST: Mutex<String> = Mutex::new(String::new());
+    let text = tray_text(s);
+    {
+        let mut last = LAST.lock().unwrap_or_else(|e| e.into_inner());
+        if *last == text {
+            return;
+        }
+        *last = text.clone();
+    }
+    if let Some(tray) = app.tray_by_id("main") {
+        let _ = tray.set_title(if text.is_empty() { None } else { Some(text.as_str()) });
+        let _ = tray.set_tooltip(Some(if text.is_empty() { "Druckerwacht".to_string() } else { format!("Druckerwacht · {text}") }));
+    }
+}
+
+#[cfg(not(target_os = "macos"))]
+fn update_tray(_app: &AppHandle, _s: &PrinterStatus) {}
+
+#[cfg(target_os = "macos")]
+fn setup_tray(app: &tauri::App) {
+    use tauri::tray::{MouseButton, TrayIconBuilder, TrayIconEvent};
+    let Some(icon) = app.default_window_icon().cloned() else { return };
+    let _ = TrayIconBuilder::with_id("main")
+        .icon(icon)
+        .tooltip("Druckerwacht")
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click { button: MouseButton::Left, .. } = event {
+                if let Some(w) = tray.app_handle().get_webview_window("main") {
+                    let _ = w.unminimize();
+                    let _ = w.show();
+                    let _ = w.set_focus();
+                }
+            }
+        })
+        .build(app);
+}
+
+#[cfg(not(target_os = "macos"))]
+fn setup_tray(_app: &tauri::App) {}
+
+/// Nach dem Verbinden einmal nach einer Kamera am Drucker suchen, wenn noch keine eingetragen ist.
+fn probe_camera_once(app: &AppHandle) {
+    let state = app.state::<Arc<AppState>>();
+    let (host, empty) = {
+        let inner = state.lock();
+        (inner.settings.printer_ip.clone(), inner.settings.camera_url.trim().is_empty())
+    };
+    if host.is_empty() || !empty {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let Some(url) = extras::probe_camera(&host).await else { return };
+        let state = app.state::<Arc<AppState>>();
+        let settings = {
+            let mut inner = state.lock();
+            if !inner.settings.camera_url.trim().is_empty() || inner.settings.printer_ip != host {
+                return;
+            }
+            inner.settings.camera_url = url;
+            inner.settings.clone()
+        };
+        let _ = settings.save(&state.paths.settings);
+        let _ = app.emit("settings://changed", &settings);
+    });
 }
 
 fn write_raw(state: &Arc<AppState>, incoming: bool, text: &str) {
@@ -609,11 +761,18 @@ async fn printer_send(app: AppHandle, path: String, start: bool, pauses: Option<
     }
     let data = std::fs::read(&p).map_err(|_| crate::i18n::tr("G-Code konnte nicht gelesen werden.", "The G-code could not be read.").to_string())?;
     let data = with_pauses(data, pauses.as_deref());
-    printjob::check_gcode(&data, max_nozzle, max_bed)?;
-    let name = printjob::printer_file_name(&p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default());
+    let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    upload_and_start(&app, &host, &name, &data, start, max_nozzle, max_bed).await
+}
+
+/// Prüft, lädt hoch und startet auf Wunsch. Liefert den Dateinamen am Drucker.
+async fn upload_and_start(app: &AppHandle, host: &str, file_name: &str, data: &[u8], start: bool, max_nozzle: f64, max_bed: f64) -> Result<String, String> {
+    printjob::check_gcode(data, max_nozzle, max_bed)?;
+    let name = printjob::printer_file_name(file_name);
+    let host = host.to_string();
     let app2 = app.clone();
     let last = std::sync::atomic::AtomicI32::new(-1);
-    printjob::upload(&host, None, &name, &data, move |f| {
+    printjob::upload(&host, None, &name, data, move |f| {
         let pct = (f * 100.0) as i32;
         if last.swap(pct, std::sync::atomic::Ordering::Relaxed) != pct {
             let _ = app2.emit("printer://upload", pct);
@@ -624,6 +783,122 @@ async fn printer_send(app: AppHandle, path: String, start: bool, pauses: Option<
         printjob::start(&host, None, &name).await?;
     }
     Ok(name)
+}
+
+// ----------------------------------------------------------------------------- Extras
+
+/// Sucht jetzt nach einer Kamera am Drucker (für den Knopf in den Einstellungen).
+#[tauri::command]
+async fn camera_probe(app: AppHandle) -> Option<String> {
+    let host = app.state::<Arc<AppState>>().lock().settings.printer_ip.clone();
+    if host.is_empty() {
+        return None;
+    }
+    extras::probe_camera(&host).await
+}
+
+#[tauri::command]
+async fn ntfy_test(topic: String) -> Result<(), String> {
+    extras::push(
+        topic.trim(),
+        crate::i18n::tr("Druckerwacht verbunden", "Druckerwacht connected"),
+        crate::i18n::tr("Ab jetzt bekommst du hier Nachrichten von deinem Drucker.", "From now on you'll get messages from your printer here."),
+        "white_check_mark",
+    )
+    .await
+}
+
+fn queue(app: &AppHandle) -> extras::Queue {
+    extras::Queue::new(app.state::<Arc<AppState>>().paths.queue_dir.clone())
+}
+
+#[tauri::command]
+fn queue_list(app: AppHandle) -> Vec<extras::QueueItem> {
+    queue(&app).list()
+}
+
+/// Legt eine Kopie des gesliceten G-Codes (mit eingefügten Pausen) in die Warteschlange.
+#[tauri::command]
+fn queue_add(app: AppHandle, path: String, name: String, time_s: Option<f64>, filament_g: Option<f64>, pauses: Option<Vec<u32>>) -> Result<Vec<extras::QueueItem>, String> {
+    let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
+    if !std::path::Path::new(&path).starts_with(&base) {
+        return Err(crate::i18n::tr("Zugriff verweigert.", "Access denied.").into());
+    }
+    let data = std::fs::read(&path).map_err(|_| crate::i18n::tr("G-Code konnte nicht gelesen werden.", "The G-code could not be read.").to_string())?;
+    let data = with_pauses(data, pauses.as_deref());
+    let item = extras::QueueItem {
+        id: format!("q{}", now_ms()),
+        name: name.trim_end_matches(".gcode").to_string(),
+        added_ms: now_ms(),
+        time_s,
+        filament_g,
+        pauses: pauses.unwrap_or_default().into_iter().filter(|&l| l > 0).map(|l| l + 1).collect(),
+    };
+    queue(&app).add(item, &data)
+}
+
+#[tauri::command]
+fn queue_remove(app: AppHandle, id: String) -> Result<Vec<extras::QueueItem>, String> {
+    queue(&app).remove(&id)
+}
+
+#[tauri::command]
+fn queue_shift(app: AppHandle, id: String, delta: i32) -> Result<Vec<extras::QueueItem>, String> {
+    queue(&app).shift(&id, delta)
+}
+
+/// Startet einen Eintrag der Warteschlange und nimmt ihn heraus. Liefert den Namen am Drucker.
+#[tauri::command]
+async fn queue_start(app: AppHandle, id: String) -> Result<String, String> {
+    let q = queue(&app);
+    let item = q.list().into_iter().find(|i| i.id == id).ok_or(crate::i18n::tr("Eintrag nicht gefunden.", "Entry not found."))?;
+    let (host, busy, max_nozzle, max_bed) = {
+        let st = app.state::<Arc<AppState>>();
+        let inner = st.lock();
+        let s = inner.status.as_ref();
+        (
+            inner.settings.printer_ip.clone(),
+            s.map(|s| s.state.is_active()).unwrap_or(false),
+            s.and_then(|s| s.max_nozzle_temp).unwrap_or(300.0),
+            s.and_then(|s| s.max_bed_temp).unwrap_or(100.0),
+        )
+    };
+    if host.is_empty() {
+        return Err(crate::i18n::tr("Keine Drucker-IP eingetragen.", "No printer IP address set.").into());
+    }
+    if busy {
+        return Err(crate::i18n::tr("Der Drucker druckt gerade – bitte warten, bis der aktuelle Druck beendet ist.", "The printer is busy – please wait until the current print has finished.").into());
+    }
+    let data = std::fs::read(q.file(&id)).map_err(|_| crate::i18n::tr("G-Code konnte nicht gelesen werden.", "The G-code could not be read.").to_string())?;
+    let name = upload_and_start(&app, &host, &format!("{}.gcode", item.name), &data, true, max_nozzle, max_bed).await?;
+    q.remove(&id)?;
+    Ok(name)
+}
+
+#[tauri::command]
+fn timelapse_list(app: AppHandle) -> Vec<extras::Timelapse> {
+    extras::list_timelapses(&app.state::<Arc<AppState>>().paths.timelapse_dir)
+}
+
+fn timelapse_file(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        return Err(crate::i18n::tr("Ungültiger Zeitraffer.", "Invalid timelapse.").into());
+    }
+    Ok(app.state::<Arc<AppState>>().paths.timelapse_dir.join(format!("{id}.mov")))
+}
+
+#[tauri::command]
+fn timelapse_export(app: AppHandle, id: String, to: String) -> Result<(), String> {
+    std::fs::copy(timelapse_file(&app, &id)?, &to)
+        .map(|_| ())
+        .map_err(|_| crate::i18n::tr("Datei konnte nicht gespeichert werden.", "The file could not be saved.").to_string())
+}
+
+#[tauri::command]
+fn timelapse_delete(app: AppHandle, id: String) -> Result<(), String> {
+    let f = timelapse_file(&app, &id)?;
+    let _ = std::fs::remove_file(f.with_extension("jpg"));
+    std::fs::remove_file(f).map_err(|e| e.to_string())
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -641,6 +916,8 @@ pub fn run() {
                 jobs: data_dir.join("jobs.json"),
                 printer_history: data_dir.join("printer_history.json"),
                 raw_log_dir: log_dir.join("raw"),
+                queue_dir: data_dir.join("queue"),
+                timelapse_dir: data_dir.join("timelapse"),
             };
             let settings = Settings::load(&paths.settings);
             let printer_history: Option<PrinterHistory> = std::fs::read_to_string(&paths.printer_history)
@@ -668,6 +945,7 @@ pub fn run() {
                 paths,
             }));
 
+            setup_tray(app);
             restart_connection(app.handle());
             spawn_sampler(app.handle().clone());
             Ok(())
@@ -696,8 +974,39 @@ pub fn run() {
             set_ui_language,
             save_project,
             read_project,
-            printer_control
+            printer_control,
+            camera_probe,
+            ntfy_test,
+            queue_list,
+            queue_add,
+            queue_remove,
+            queue_shift,
+            queue_start,
+            timelapse_list,
+            timelapse_export,
+            timelapse_delete
         ])
         .run(tauri::generate_context!())
         .expect("Druckerwacht konnte nicht gestartet werden");
+}
+
+#[cfg(test)]
+mod tray_tests {
+    use super::*;
+
+    #[test]
+    fn tray_texts() {
+        let mut s = PrinterStatus::default();
+        assert_eq!(tray_text(&s), "");
+        s.state = PrintState::Printing;
+        s.progress = Some(46.6);
+        s.remaining_s = Some(3600.0);
+        let t = tray_text(&s);
+        assert!(t.starts_with("47 % · ") && t.len() > 8, "{t}");
+        s.state = PrintState::Paused;
+        assert_eq!(tray_text(&s), "⏸ 47 %");
+        s.state = PrintState::Printing;
+        s.preparing = true;
+        assert_eq!(tray_text(&s), "🔥");
+    }
 }

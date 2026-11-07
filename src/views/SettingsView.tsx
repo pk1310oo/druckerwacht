@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bug, Check, Download, ExternalLink, FolderGit2, Loader2, PlugZap, Radar, RefreshCw, Wifi } from "lucide-react";
+import { Bug, Check, Download, ExternalLink, FolderGit2, Loader2, PlugZap, Radar, RefreshCw, Search, Send, Wifi } from "lucide-react";
 import { useStore } from "../lib/store";
 import { discoverPrinters, isTauri, rawLogDir, reconnect, saveSettings } from "../lib/api";
 import { connectionLabel } from "../lib/format";
@@ -9,6 +9,7 @@ import { t } from "../lib/i18n";
 import { THEMES, THEME_IDS } from "../lib/theme";
 import { slicerInfo, type SlicerInfo } from "../slicer/api";
 import { APP_VERSION, REPO_URL, checkForUpdate, openProjectLink, type UpdateInfo } from "../lib/update";
+import { cameraProbe, ntfyTest, randomTopic } from "../lib/extras";
 
 const THEME_NAMES: Record<(typeof THEME_IDS)[number], string> = { orange: "Orange", blue: "Blau", green: "Grün", purple: "Lila", pink: "Pink" };
 
@@ -187,8 +188,45 @@ export function SettingsView() {
           {errors.cameraUrl ? (
             <span className="hint error">{errors.cameraUrl}</span>
           ) : (
-            <span className="hint">{t("MJPEG-Stream oder Einzelbild, z. B. Nebula-Kamera oder USB-Webcam. Leer lassen, um die Kamera auszublenden.")}</span>
+            <span className="hint">
+              {t("Eine USB-Kamera am Drucker (z. B. Nebula-Kamera oder USB-Webcam) wird nach dem Verbinden automatisch gefunden. Leer lassen, um die Kamera auszublenden.")}
+            </span>
           )}
+          <CameraSearch onFound={(url) => set("cameraUrl", url)} />
+        </div>
+        <div>
+          <ToggleRow
+            label={t("Zeitraffer aufnehmen")}
+            hint={t("Pro Schicht ein Bild – nach dem Druck entsteht daraus ein Video (unter Verlauf).")}
+            on={draft.timelapse}
+            set={(v) => set("timelapse", v)}
+          />
+        </div>
+      </Card>
+
+      <Card className="form-section">
+        <span className="label">{t("Aufs Handy")}</span>
+        <div className="field">
+          <label htmlFor="ntfy">{t("ntfy-Thema (optional)")}</label>
+          <div className="row-input">
+            <input
+              id="ntfy"
+              className="input"
+              placeholder="druckerwacht-…"
+              value={draft.ntfyTopic}
+              spellCheck={false}
+              onChange={(e) => set("ntfyTopic", e.target.value.replace(/[^A-Za-z0-9_-]/g, ""))}
+            />
+            {!draft.ntfyTopic && (
+              <button type="button" className="btn" onClick={() => set("ntfyTopic", randomTopic())}>
+                {t("Thema erzeugen")}
+              </button>
+            )}
+            {draft.ntfyTopic && <NtfyTest topic={draft.ntfyTopic} />}
+          </div>
+          <span className="hint">
+            {t("1. Die kostenlose App „ntfy“ aufs Handy laden. 2. Dort dieses Thema abonnieren. 3. Speichern – ab jetzt kommen alle Benachrichtigungen auch aufs Handy, auch unterwegs. Das Thema wirkt wie ein Passwort: nicht weitergeben.")}
+          </span>
         </div>
       </Card>
 
@@ -341,5 +379,52 @@ function AboutCard() {
         </div>
       </div>
     </Card>
+  );
+}
+
+function CameraSearch({ onFound }: { onFound: (url: string) => void }) {
+  const [state, setState] = useState<"idle" | "busy" | "none" | "found">("idle");
+  return (
+    <div className="row-input">
+      <button
+        type="button"
+        className="btn sm"
+        disabled={state === "busy"}
+        onClick={() => {
+          setState("busy");
+          void cameraProbe().then((url) => {
+            if (url) onFound(url);
+            setState(url ? "found" : "none");
+          });
+        }}
+      >
+        {state === "busy" ? <Loader2 size={14} className="spin" /> : <Search size={14} />} {t("Kamera am Drucker suchen")}
+      </button>
+      {state === "found" && <span className="hint">{t("Gefunden – zum Übernehmen speichern.")}</span>}
+      {state === "none" && <span className="hint">{t("Keine Kamera gefunden. Ist sie per USB am Drucker eingesteckt?")}</span>}
+    </div>
+  );
+}
+
+function NtfyTest({ topic }: { topic: string }) {
+  const [state, setState] = useState<"idle" | "busy" | "ok" | string>("idle");
+  return (
+    <>
+      <button
+        type="button"
+        className="btn"
+        disabled={state === "busy"}
+        onClick={() => {
+          setState("busy");
+          ntfyTest(topic)
+            .then(() => setState("ok"))
+            .catch((e) => setState(typeof e === "string" ? e : t("Senden fehlgeschlagen.")));
+        }}
+      >
+        {state === "busy" ? <Loader2 size={14} className="spin" /> : <Send size={14} />} {t("Test senden")}
+      </button>
+      {state === "ok" && <span className="hint">{t("Gesendet – kam es an?")}</span>}
+      {state !== "idle" && state !== "busy" && state !== "ok" && <span className="hint error">{state}</span>}
+    </>
   );
 }

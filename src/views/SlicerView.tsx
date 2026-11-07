@@ -21,6 +21,7 @@ import {
   FolderOpen,
   Grid3x3,
   Layers,
+  ListPlus,
   LayoutGrid,
   Loader2,
   Move3d,
@@ -69,6 +70,8 @@ import { useStore } from "../lib/store";
 import type { ViewId } from "../components/Shell";
 import { fmtDec, t } from "../lib/i18n";
 import { rememberSentPrint } from "../lib/sentPrint";
+import { queueAdd } from "../lib/extras";
+import { activeSpool, costOf, useSpools } from "../lib/spools";
 
 // Die Druckplatte lebt über Ansichtswechsel hinweg weiter (WebGL-Kontext, geladene Modelle).
 let plateSingleton: Plate | null = null;
@@ -802,6 +805,21 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
               </button>
             </div>
           )}
+          {phase.kind === "done" && !phase.stale && (
+            <div className="actions-row">
+              <button
+                className="btn ghost wide"
+                title={t("Für später vormerken – nach dem aktuellen Druck mit einem Klick starten.")}
+                onClick={() =>
+                  void queueAdd({ path: phase.result.gcodePath, name: phase.result.fileName, timeS: phase.result.timeS, filamentG: phase.result.filamentG ?? null, pauses })
+                    .then((q) => setNotice(t("In der Warteschlange: Platz {n}", { n: q.length })))
+                    .catch((e) => setLoadError(typeof e === "string" ? e : t("Konnte nicht vorgemerkt werden.")))
+                }
+              >
+                <ListPlus size={16} /> {t("In die Warteschlange")}
+              </button>
+            </div>
+          )}
         </div>
       </aside>
 
@@ -1070,6 +1088,10 @@ function PrintDialog(props: {
   go: (v: ViewId) => void;
 }) {
   const [plateFree, setPlateFree] = useState(false);
+  const spool = activeSpool(useSpools());
+  const needG = props.result.filamentG ?? null;
+  const cost = needG != null ? costOf(needG, spool) : null;
+  const short = spool && needG != null && needG > spool.remainingG;
   const [state, setState] = useState<{ kind: "idle" } | { kind: "uploading"; pct: number; start: boolean } | { kind: "done"; start: boolean; name: string } | { kind: "error"; msg: string }>({ kind: "idle" });
 
   useEffect(() => {
@@ -1162,6 +1184,17 @@ function PrintDialog(props: {
             </div>
           )}
         </div>
+        {spool && (
+          <div className={`spool-note small${short ? " short" : ""}`}>
+            <i style={{ background: spool.color }} />
+            <span>
+              {short
+                ? t("Achtung: Auf „{name}“ sind nur noch ca. {rest} g – der Druck braucht {need} g.", { name: spool.name || spool.material, rest: fmtNum(spool.remainingG), need: fmtNum(needG ?? 0) })
+                : t("Spule „{name}“: noch ca. {rest} g", { name: spool.name || spool.material, rest: fmtNum(spool.remainingG) })}
+              {cost != null && <b className="num"> · {t("Kosten ca. {c} €", { c: fmtNum(cost, 2) })}</b>}
+            </span>
+          </div>
+        )}
         {props.pauses.length > 0 && (
           <div className="pause-note small">
             <Palette size={14} />

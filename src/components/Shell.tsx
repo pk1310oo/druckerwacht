@@ -1,17 +1,18 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { History, Layers3, LayoutDashboard, Settings, Video, type LucideIcon } from "lucide-react";
+import { Disc3, History, Layers3, LayoutDashboard, Settings, Video, type LucideIcon } from "lucide-react";
 import { useStore } from "../lib/store";
 import { connectionLabel, STATE_LABEL, STATE_TONE } from "../lib/format";
 import { Badge } from "./ui";
 import { t } from "../lib/i18n";
 
-export type ViewId = "dashboard" | "slicer" | "camera" | "history" | "settings";
+export type ViewId = "dashboard" | "slicer" | "camera" | "history" | "filament" | "settings";
 
 const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "slicer", label: "Slicer", icon: Layers3 },
   { id: "camera", label: "Kamera", icon: Video },
   { id: "history", label: "Verlauf", icon: History },
+  { id: "filament", label: "Filament", icon: Disc3 },
   { id: "settings", label: "Einstellungen", icon: Settings },
   // Übersetzt wird beim Anzeigen
 ];

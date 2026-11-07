@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, Box, Flame, Gauge, Layers, Loader2, Moon, Palette, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Box, Flame, Gauge, Layers, ListOrdered, Loader2, Moon, Palette, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
 import { useStore } from "../lib/store";
 import { printerControl, reconnect, thumbnailUrl } from "../lib/api";
 import { DASH, fmtDuration, fmtEta, fmtNum, STATE_LABEL, STATE_TONE } from "../lib/format";
@@ -12,7 +12,8 @@ import { Confetti } from "../components/Fx";
 import type { ViewId } from "../components/Shell";
 import { t } from "../lib/i18n";
 import { accentHex } from "../lib/theme";
-import { plannedPauses } from "../lib/sentPrint";
+import { plannedPauses, rememberSentPrint } from "../lib/sentPrint";
+import { onQueueChange, queueList, queueRemove, queueShift, queueStart, type QueueItem } from "../lib/extras";
 
 const TEMP_SERIES = (): SeriesDef[] => [
   { key: "nozzle", label: t("Düse"), color: accentHex(), unit: "°C" },
@@ -118,6 +119,8 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
         )}
       </div>
       )}
+
+      <QueueCard status={status} connected={connection.kind === "connected"} />
 
       <div className="section-head">
         <span className="label">{t("Diagramme")}</span>
@@ -721,5 +724,96 @@ function JobControls({ s }: { s: PrinterStatus }) {
       )}
       </div>
     </>
+  );
+}
+
+/** Warteschlange: vorgemerkte Drucke der Reihe nach starten. */
+function QueueCard({ status: s, connected }: { status: PrinterStatus | null; connected: boolean }) {
+  const [items, setItems] = useState<QueueItem[]>([]);
+  const [plateFree, setPlateFree] = useState(false);
+  const [busy, setBusy] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  useEffect(() => {
+    void queueList().then(setItems);
+    return onQueueChange(setItems);
+  }, []);
+  // Nach jedem Druck muss die Platte neu bestätigt werden
+  useEffect(() => {
+    if (s?.state === "printing") setPlateFree(false);
+  }, [s?.state]);
+  if (items.length === 0) return null;
+
+  const printerFree = connected && !!s && !(s.state === "printing" || s.state === "paused");
+  const start = async (it: QueueItem) => {
+    setError(null);
+    setBusy(it.id);
+    try {
+      const name = await queueStart(it.id);
+      rememberSentPrint(name, "", it.pauses);
+      setPlateFree(false);
+    } catch (e) {
+      setError(typeof e === "string" ? e : t("Start fehlgeschlagen."));
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  return (
+    <Card className="queue-card">
+      <div className="chart-head">
+        <span className="label">
+          <ListOrdered size={14} /> {t("Warteschlange")} · {items.length}
+        </span>
+        {printerFree ? (
+          <label className="plate-check small">
+            <input type="checkbox" checked={plateFree} onChange={(e) => setPlateFree(e.target.checked)} />
+            {t("Platte ist frei")}
+          </label>
+        ) : (
+          <span className="small muted">{connected ? t("Startet, sobald der aktuelle Druck fertig ist und die Platte frei ist.") : t("Drucker nicht verbunden")}</span>
+        )}
+      </div>
+      <ol className="queue">
+        {items.map((it, i) => (
+          <li key={it.id} className={i === 0 ? "next" : ""}>
+            <span className="q-pos num">{i + 1}</span>
+            <div className="q-main">
+              <span className="file-name" title={it.name}>
+                {it.name}
+              </span>
+              <span className="small muted num">
+                {it.timeS != null ? fmtDuration(it.timeS) : DASH}
+                {it.filamentG != null && ` · ${fmtNum(it.filamentG, 1)} g`}
+                {it.pauses.length > 0 && ` · ${t("{n} Farbwechsel", { n: it.pauses.length })}`}
+              </span>
+            </div>
+            <div className="q-actions">
+              <button className="btn sm ghost" aria-label={t("Nach oben")} disabled={i === 0} onClick={() => void queueShift(it.id, -1)}>
+                <ArrowUp size={14} />
+              </button>
+              <button className="btn sm ghost" aria-label={t("Nach unten")} disabled={i === items.length - 1} onClick={() => void queueShift(it.id, 1)}>
+                <ArrowDown size={14} />
+              </button>
+              <button className="btn sm ghost" aria-label={t("Entfernen")} onClick={() => void queueRemove(it.id)}>
+                <X size={14} />
+              </button>
+              <button
+                className={`btn sm${i === 0 ? " primary" : ""}`}
+                disabled={!printerFree || !plateFree || busy != null}
+                title={!plateFree && printerFree ? t("Erst bestätigen, dass die Platte frei ist.") : undefined}
+                onClick={() => void start(it)}
+              >
+                {busy === it.id ? <Loader2 size={14} className="spin" /> : <Play size={14} />} {t("Starten")}
+              </button>
+            </div>
+          </li>
+        ))}
+      </ol>
+      {error && (
+        <span className="small" style={{ color: "var(--warning)" }}>
+          <AlertTriangle size={12} /> {error}
+        </span>
+      )}
+    </Card>
   );
 }

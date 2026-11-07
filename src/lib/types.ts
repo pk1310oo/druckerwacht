@@ -63,6 +63,10 @@ export interface Settings {
   language: "" | "de" | "en";
   /** Farbthema der Akzentfarbe */
   accent: "orange" | "blue" | "green" | "purple" | "pink";
+  /** Thema für Push-Nachrichten aufs Handy (ntfy.sh), leer = aus */
+  ntfyTopic: string;
+  /** Zeitraffer aufnehmen, wenn eine Kamera eingerichtet ist */
+  timelapse: boolean;
 }
 
 export interface JobRecord {
@@ -108,4 +112,6 @@ export const DEFAULT_SETTINGS: Settings = {
   orcaPath: "",
   language: "",
   accent: "orange",
+  ntfyTopic: "",
+  timelapse: true,
 };

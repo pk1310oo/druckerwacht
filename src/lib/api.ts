@@ -23,6 +23,7 @@ export async function init() {
       listen<Sample>("printer://sample", (e) => pushSample(e.payload)),
       listen("printer://jobs", () => void refreshJobs()),
       listen<PrinterHistory>("printer://history", (e) => setState({ printerHistory: e.payload })),
+      listen<Settings>("settings://changed", (e) => setState({ settings: e.payload })),
     ]);
     const [snap, settings, jobs, printerHistory] = await Promise.all([
       invoke<Snapshot>("get_snapshot"),

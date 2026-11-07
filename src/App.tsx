@@ -5,6 +5,8 @@ import { CameraView } from "./views/CameraView";
 import { HistoryView } from "./views/HistoryView";
 import { SettingsView } from "./views/SettingsView";
 import { SlicerView } from "./views/SlicerView";
+import { FilamentView } from "./views/FilamentView";
+import { consume } from "./lib/spools";
 import { useStore } from "./lib/store";
 import { resolveLang, setLang } from "./lib/i18n";
 import { setBackendLanguage } from "./lib/api";
@@ -25,13 +27,15 @@ export default function App() {
     void setBackendLanguage(lang);
   }, [lang]);
 
+  useFilamentTracking();
+
   // Kamera-Ansicht verlassen, wenn die Kamera entfernt wurde
   useEffect(() => {
     if (view === "camera" && !hasCamera) setView("dashboard");
   }, [view, hasCamera]);
 
   // Richtung des Ansichtswechsels (nach unten in der Seitenleiste → Inhalt gleitet von unten herein)
-  const order: ViewId[] = ["dashboard", "slicer", "camera", "history", "settings"];
+  const order: ViewId[] = ["dashboard", "slicer", "camera", "history", "filament", "settings"];
   const prevView = useRef(view);
   const dir = order.indexOf(view) >= order.indexOf(prevView.current) ? "down" : "up";
   useEffect(() => {
@@ -60,6 +64,8 @@ export default function App() {
             <CameraView go={setView} />
           ) : view === "history" ? (
             <HistoryView />
+          ) : view === "filament" ? (
+            <FilamentView />
           ) : (
             <SettingsView />
           )}
@@ -68,4 +74,27 @@ export default function App() {
     </div>
     </>
   );
+}
+
+/**
+ * Zieht nach jedem Druck den Verbrauch von der aktiven Spule ab. Gemerkt wird die höchste
+ * gemeldete Filamentlänge des Drucks – manche Drucker setzen sie am Ende auf 0 zurück.
+ */
+function useFilamentTracking() {
+  const status = useStore((s) => s.status);
+  const job = useRef<{ file: string; mm: number } | null>(null);
+  useEffect(() => {
+    if (!status) return;
+    const active = status.state === "printing" || status.state === "paused";
+    const file = status.fileName ?? "";
+    if (active) {
+      if (job.current?.file !== file) job.current = { file, mm: 0 };
+      job.current.mm = Math.max(job.current.mm, status.usedMaterialMm ?? 0);
+    } else if (job.current && ["finished", "failed", "aborted"].includes(status.state)) {
+      consume(Math.max(job.current.mm, status.usedMaterialMm ?? 0));
+      job.current = null;
+    } else if (status.state === "idle") {
+      job.current = null;
+    }
+  }, [status]);
 }
