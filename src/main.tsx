@@ -37,7 +37,7 @@ window.addEventListener(
     const r = card.getBoundingClientRect();
     card.style.setProperty("--mx", `${e.clientX - r.left}px`);
     card.style.setProperty("--my", `${e.clientY - r.top}px`);
-    if (!calm && card.matches(TILT)) {
+    if (!calm && document.documentElement.dataset.fx !== "calm" && card.matches(TILT)) {
       const nx = (e.clientX - r.left) / r.width - 0.5;
       const ny = (e.clientY - r.top) / r.height - 0.5;
       card.style.setProperty("--rx", `${(-ny * 7).toFixed(2)}deg`);

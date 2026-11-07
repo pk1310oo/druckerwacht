@@ -6,6 +6,7 @@ import { SettingsView } from "./views/SettingsView";
 import { SlicerView } from "./views/SlicerView";
 import { FilamentView } from "./views/FilamentView";
 import { consume } from "./lib/spools";
+import { useFxLevel } from "./lib/fx";
 import { useStore } from "./lib/store";
 import { resolveLang, setLang } from "./lib/i18n";
 import { setBackendLanguage } from "./lib/api";
@@ -36,6 +37,7 @@ export default function App() {
   });
   const beamPct = useStore((s) => s.status?.progress ?? 0);
   const printing = beamTone === "live";
+  const fx = useFxLevel();
 
   // Richtung des Ansichtswechsels (nach unten in der Seitenleiste → Inhalt gleitet von unten herein)
   const order: ViewId[] = ["dashboard", "slicer", "history", "filament", "settings"];
@@ -53,7 +55,7 @@ export default function App() {
       <Sidebar view={view} onChange={setView} />
       <TopBeam pct={beamTone ? beamPct : null} tone={beamTone} />
       <div className="main">
-        <BackgroundFx printing={printing} off={view === "slicer"} />
+        {fx === "full" && <BackgroundFx printing={printing} off={view === "slicer"} />}
         <div className="ambient" aria-hidden>
           <i />
           <i />

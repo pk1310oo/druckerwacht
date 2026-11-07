@@ -3,7 +3,7 @@ import { Check, Disc3, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Badge, Card, EmptyState } from "../components/ui";
 import { fmtNum } from "../lib/format";
 import { t } from "../lib/i18n";
-import { addSpool, MATERIALS, removeSpool, setActiveSpool, updateSpool, useSpools, type Material, type Spool } from "../lib/spools";
+import { addSpool, MATERIALS, metersFromGrams, removeSpool, setActiveSpool, updateSpool, useSpools, type Material, type Spool } from "../lib/spools";
 
 const LOW_G = 100;
 
@@ -100,7 +100,7 @@ function SpoolCard({ s, active }: { s: Spool; active: boolean }) {
   const [confirm, setConfirm] = useState(false);
   const pct = s.weightG > 0 ? Math.max(0, Math.min(100, (s.remainingG / s.weightG) * 100)) : 0;
   const low = s.remainingG < LOW_G;
-  const meters = s.remainingG / (2.405 * 1.24); // grob für PLA
+  const meters = metersFromGrams(s.remainingG, s.material);
   if (editing) {
     return (
       <Card className="spool-card">

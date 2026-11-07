@@ -1102,3 +1102,20 @@
   .hr-sparks { display: none; }
   .stats > .card, .view .card.spool-card, .view .card.fil-stat { transform: none !important; }
 }
+
+/* Effekte „dezent“ (Einstellungen → Darstellung): schwere Effekte aus */
+[data-fx="calm"] .app::after { display: none; }
+[data-fx="calm"] .stats > .card,
+[data-fx="calm"] .view .card.spool-card,
+[data-fx="calm"] .view .card.fil-stat { transform: none !important; }
+[data-fx="calm"] .view .card:not(.hero):hover::before,
+[data-fx="calm"] .view .card.stat.hot,
+[data-fx="calm"] .hero-glow { animation: none !important; }
+[data-fx="calm"] .view .card:not(.hero)::before,
+[data-fx="calm"] .hr-sparks,
+[data-fx="calm"] .hero-orbit { display: none; }
+[data-fx="calm"] .view .card {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  background: linear-gradient(180deg, #1d1d1d, #171717);
+}

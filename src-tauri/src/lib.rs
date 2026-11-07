@@ -598,7 +598,9 @@ fn open_project_link(url: String) -> Result<(), String> {
     }
     #[cfg(target_os = "macos")]
     let prog = "open";
-    #[cfg(not(target_os = "macos"))]
+    #[cfg(windows)]
+    let prog = "explorer";
+    #[cfg(not(any(target_os = "macos", windows)))]
     let prog = "xdg-open";
     std::process::Command::new(prog)
         .arg(&url)

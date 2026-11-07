@@ -514,4 +514,9 @@ export const EN: Record<string, string> = {
   "{n} Spulen · Wert ca. {v} €": "{n} spools · worth approx. €{v}",
   "Türkis": "Cyan",
   "Limette": "Lime",
+  " – den Windows-Installer laden und ganz normal installieren.": " – download the Windows installer and install it as usual.",
+  "Effekte": "Effects",
+  "„Dezent“ schaltet Neon-Hintergrund, 3D-Karten und Funken ab – für ältere oder langsame Rechner.": "“Subtle” turns off the neon background, 3D cards and sparks – for older or slower computers.",
+  "Voll": "Full",
+  "Dezent": "Subtle",
 };

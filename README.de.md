@@ -2,30 +2,46 @@
 
 🇬🇧 [English](README.md) · 🇩🇪 **Deutsch**
 
-**Freie Desktop-App zum Überwachen, Slicen und Steuern des Creality Ender 3 V3 KE per WLAN.**
-Open Source unter der AGPL-3.0 · macOS (Apple Silicon) und Linux (x86_64) · Deutsch und Englisch
+**Die kostenlose Komplett-App für den Creality Ender 3 V3 KE: überwachen, slicen und steuern per WLAN.**
+Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 
-[**Downloads (Releases)**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Fehler melden / Wünsche](https://github.com/pk1310oo/druckerwacht/issues) · [Mitmachen](CONTRIBUTING.md)
+[**⬇ Download**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Website](https://pk1310oo.github.io/druckerwacht/) · [Fehler melden / Wünsche](https://github.com/pk1310oo/druckerwacht/issues) · [Mitmachen](CONTRIBUTING.md)
 
-![Dashboard während eines Drucks](docs/bilder/dashboard.jpg)
+![Druckerwacht-Dashboard während eines Drucks](docs/bilder/neon.jpg)
+
+## Was die App kann
+
+**Überwachen**
+- Live-Dashboard: Düse und Bett mit leuchtenden Anzeigen, Geschwindigkeit, Flow, Lüfter, Schicht, Restzeit und echte **Fertig-Uhrzeit**
+- Live-Diagramme über 5, 15 oder 60 Minuten, Druckverlauf direkt vom Drucker
+- Benachrichtigungen am Computer – und auf Wunsch **aufs Handy** über die kostenlose App ntfy (fertig, Fehler, pausiert, nächster Druck wartet)
+- **Mac-Menüleiste:** Fortschritt und Fertig-Uhrzeit direkt neben der Uhr
+
+**Steuern**
+- Pausieren, Fortsetzen, Abbrechen
+- **Tempo live** von 25 % *Flüster* bis 150 % *Turbo* – die erste Schicht bleibt immer bei höchstens 50 mm/s, damit sie haftet
+- **Warteschlange:** geslicete Drucke vormerken und den nächsten mit einem Klick starten, sobald die Platte frei ist
+
+**Slicen**
+- OrcaSlicer-Motor mit den offiziellen KE-Profilen, alle Einstellungen, Schichtvorschau
+- Stützen und Naht malen, schneiden, messen, mehrere Teile per Rechteck auswählen
+- **Farbwechsel:** beliebige Schichten markieren – dort pausiert der Drucker für das nächste Filament
+
+**Filament-Lager**
+- Deine Spulen mit Rest, Metern und Preis pro kg
+- Jeder Druck wird automatisch abgezogen, die **Kosten pro Druck** stehen schon vor dem Drucken fest
+- Warnt dich, **bevor** eine Spule mitten im Druck leer wird
+
+![Filament-Lager](docs/bilder/filament.jpg)
+
+**Optik:** Neon-Gitter im Hintergrund, leuchtender Fortschrittsring mit Funken, 3D-Karten, sieben Farbthemen – oder Effekte auf *Dezent* für langsamere Rechner.
+
+**Installation:** Windows-Installer (`…_x64-setup.exe`, bei SmartScreen „Weitere Informationen → Trotzdem ausführen“), Mac-`.dmg` (danach einmal `xattr -dr com.apple.quarantine /Applications/Druckerwacht.app` im Terminal) oder Linux-`.deb`/AppImage – alles unter [Releases](https://github.com/pk1310oo/druckerwacht/releases/latest). Für den Slicer zusätzlich das kostenlose [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer/releases) installieren; Druckerwacht findet es von selbst.
 
 Gebaut mit Tauri 2, React und TypeScript, das Backend ist in Rust geschrieben.
 
-- **Dashboard:** Düse und Bett (Ist/Soll), Geschwindigkeit, Flow, Lüfter, Status, Datei, Fortschritt, Schicht, Zeiten und voraussichtliches Ende
-- **Live-Diagramme:** Temperatur sowie Geschwindigkeit, Flow und Lüfter, wahlweise über 5, 15 oder 60 Minuten
-- **Druck steuern:** Pausieren, Fortsetzen und Abbrechen direkt aus der App
-- **Kamera (optional):** MJPEG-Stream, z. B. Nebula-Kamera oder USB-Webcam
-- **Benachrichtigungen:** Druck fertig, Fehler, Verbindung verloren
-- **Druckverlauf:** Vom Drucker gespeicherte Drucke und jeder in der App mitverfolgte Druck
-- **Verbindung:** Automatische Suche im Netz, automatischer Reconnect und Verbindungsstatus jederzeit sichtbar
-- **Slicer:** Modelle (STL/OBJ/3MF) auf der originalen KE-Druckplatte platzieren, drehen, skalieren, Stützen und Naht malen, Projekte speichern. Alle Einstellungen wie in Creality Print, Schichtvorschau mit runden Bahnen und „Drucken“ direkt an den Drucker. Als Motor dient OrcaSlicer, siehe unten.
-
-| Live-Diagramme | Slicer | Vorschau |
-|---|---|---|
-| ![](docs/bilder/diagramme.jpg) | ![](docs/bilder/slicer.jpg) | ![](docs/bilder/vorschau.jpg) |
-
-> **Hinweis:** Die Schnittstelle des Druckers ist nicht offiziell dokumentiert. Pause, Fortsetzen, Abbrechen und
-> „Drucken“ sind nach dem Vorbild bekannter Integrationen gebaut; Rückmeldungen vom echten Gerät sind sehr willkommen.
+> **Beta:** Die Schnittstelle des Druckers ist nicht offiziell dokumentiert; Rückmeldungen vom echten Gerät sind sehr willkommen.
+> Druckerwacht ist kein offizielles Creality-Produkt.
 
 ---
 
@@ -164,7 +180,7 @@ chmod +x Druckerwacht_<version>_amd64.AppImage && ./Druckerwacht_<version>_amd64
 1. **Einstellungen → IP-Adresse** eintragen, oder auf **Im Netz suchen** klicken. Die IP steht am Druckerdisplay unter Einstellungen → Netzwerk.
 2. **Speichern.** Danach verbindet sich die App sofort. Der Punkt in der Kopfzeile wird grün.
 3. Die Sprache lässt sich unter **Einstellungen → Sprache** wählen (System, Deutsch, English).
-4. Optional die Kamera-URL eintragen, z. B. `http://<ip>:8080/?action=stream`. Ohne URL bleibt die Kamera ausgeblendet.
+4. Optional: **Einstellungen → Aufs Handy** für Push-Nachrichten, **Filament** für deine Spulen, **Darstellung** für Farben und Effekte.
 
 Die Einstellungen werden lokal gespeichert:
 
@@ -251,8 +267,8 @@ src-tauri/src/
   lib.rs               Zustand, 1-Hz-Messreihe (60 min), Verlauf, Benachrichtigungen, Tauri-Befehle
 src/
   lib/                 Store, Tauri-Anbindung, Formatierung, weiche Zahlenanimation
-  components/          Shell, Karten, Diagramme (uPlot), Kamera
-  views/               Dashboard, Slicer, Kamera, Verlauf, Einstellungen
+  components/          Shell, Karten, Diagramme (uPlot), Effekte
+  views/               Dashboard, Slicer, Verlauf, Filament, Einstellungen
   slicer/              3D-Druckplatte (three.js), G-Code-Vorschau, Einstellungskatalog (563 Orca-Optionen, deutsch/englisch)
   i18n/en.ts           Englische Übersetzung (Schlüssel = deutscher Text, prüfen mit scripts/i18n-keys.py)
   dev/preview.ts       Nur Browser-Entwicklung: Layoutvorschau (?preview=printing), nicht im Build
@@ -263,7 +279,7 @@ scripts/probe.mjs      Mitschnitt der echten Schnittstelle
 Anschließend in `lib.rs` (`restart_connection`) den passenden Adapter wählen. Am Frontend muss dafür nichts geändert werden.
 
 **Designvorschau ohne Drucker:** `npm run dev` starten und dann `http://localhost:1420/?preview=printing` öffnen.
-Weitere Werte für `preview`: `idle`, `connecting`, `reconnecting` und `history`. Mit `&cam=1` wird zusätzlich die Kamerakachel eingeblendet.
+Weitere Werte für `preview`: `idle`, `connecting`, `reconnecting` und `history`.
 Die Werte sind erfunden und dienen nur zur Layoutkontrolle. In der App selbst gibt es sie nicht.
 
 ## 8. Open Source & Mitmachen

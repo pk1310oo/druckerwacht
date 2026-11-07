@@ -10,6 +10,7 @@ import { THEMES, THEME_IDS } from "../lib/theme";
 import { slicerInfo, type SlicerInfo } from "../slicer/api";
 import { APP_VERSION, REPO_URL, checkForUpdate, openProjectLink, type UpdateInfo } from "../lib/update";
 import { ntfyTest, randomTopic } from "../lib/extras";
+import { setFxLevel, useFxLevel, type FxLevel } from "../lib/fx";
 
 const THEME_NAMES: Record<(typeof THEME_IDS)[number], string> = { orange: "Orange", blue: "Blau", green: "Grün", purple: "Lila", pink: "Pink", cyan: "Türkis", lime: "Limette" };
 
@@ -97,6 +98,7 @@ export function SettingsView() {
             ))}
           </div>
         </div>
+        <EffectsRow />
       </Card>
 
       <Card className="form-section">
@@ -204,7 +206,7 @@ export function SettingsView() {
           <input
             id="orca"
             className="input"
-            placeholder={/Mac/i.test(navigator.userAgent) ? "/Applications/OrcaSlicer.app" : t("z. B. ~/Applications/OrcaSlicer.AppImage")}
+            placeholder={/Mac/i.test(navigator.userAgent) ? "/Applications/OrcaSlicer.app" : /Windows/i.test(navigator.userAgent) ? "C:\\Program Files\\OrcaSlicer\\orca-slicer.exe" : t("z. B. ~/Applications/OrcaSlicer.AppImage")}
             value={draft.orcaPath}
             spellCheck={false}
             onChange={(e) => set("orcaPath", e.target.value)}
@@ -369,5 +371,27 @@ function NtfyTest({ topic }: { topic: string }) {
       {state === "ok" && <span className="hint">{t("Gesendet – kam es an?")}</span>}
       {state !== "idle" && state !== "busy" && state !== "ok" && <span className="hint error">{state}</span>}
     </>
+  );
+}
+
+/** Effekte voll oder dezent – gilt nur für diesen Computer. */
+function EffectsRow() {
+  const fx = useFxLevel();
+  return (
+    <div className="toggle-row">
+      <div>
+        <div>{t("Effekte")}</div>
+        <div className="hint">{t("„Dezent“ schaltet Neon-Hintergrund, 3D-Karten und Funken ab – für ältere oder langsame Rechner.")}</div>
+      </div>
+      <Segmented<FxLevel>
+        ariaLabel={t("Effekte")}
+        value={fx}
+        options={[
+          { value: "full", label: t("Voll") },
+          { value: "calm", label: t("Dezent") },
+        ]}
+        onChange={setFxLevel}
+      />
+    </div>
   );
 }

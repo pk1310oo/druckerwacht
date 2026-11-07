@@ -73,6 +73,11 @@ export function gramsFromMm(mm: number, material: Material = "PLA") {
   return ((mm * AREA) / 1000) * DENSITY[material];
 }
 
+/** Restlänge in Metern aus Gramm (für das jeweilige Material) */
+export function metersFromGrams(g: number, material: Material = "PLA") {
+  return g / ((AREA / 1000) * DENSITY[material]) / 1000;
+}
+
 export const costOf = (grams: number, spool: Spool | null) => (spool ? (grams / 1000) * spool.pricePerKg : null);
 
 export function addSpool(s: Omit<Spool, "id" | "addedMs">) {

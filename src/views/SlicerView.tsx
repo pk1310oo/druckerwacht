@@ -1460,7 +1460,12 @@ function OrcaMissing({ go }: { go: (v: ViewId) => void }) {
         <div style={{ fontWeight: 600 }}>{t("OrcaSlicer fehlt")}</div>
         <p className="hint">
           {t("Der Slicer-Motor ist kostenlos:")} <span className="num">github.com/SoftFever/OrcaSlicer/releases</span>
-          {mac ? t(" – die .dmg laden und OrcaSlicer in „Programme“ ziehen.") : t(" – das AppImage laden und z. B. in ~/Applications ablegen.")} {t("Öffnen musst du ihn nie.")}
+          {mac
+            ? t(" – die .dmg laden und OrcaSlicer in „Programme“ ziehen.")
+            : /Windows/i.test(navigator.userAgent)
+              ? t(" – den Windows-Installer laden und ganz normal installieren.")
+              : t(" – das AppImage laden und z. B. in ~/Applications ablegen.")}{" "}
+          {t("Öffnen musst du ihn nie.")}
         </p>
         <button className="btn sm" onClick={() => go("settings")}>
           {t("Pfad manuell eintragen")}

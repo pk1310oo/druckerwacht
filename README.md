@@ -2,30 +2,42 @@
 
 🇬🇧 **English** · 🇩🇪 [Deutsch](README.de.md)
 
-**A free desktop app to monitor, slice for and control your Creality Ender 3 V3 KE over Wi-Fi.**
-Open source (AGPL-3.0) · macOS (Apple Silicon) and Linux (x86_64) · English and German
+**The free all-in-one app for the Creality Ender 3 V3 KE: watch, slice and control your printer over Wi-Fi.**
+Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 
-[**Download (Releases)**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Report a bug / request a feature](https://github.com/pk1310oo/druckerwacht/issues) · [Contributing](CONTRIBUTING.md)
+[**⬇ Download**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Website](https://pk1310oo.github.io/druckerwacht/) · [Report a bug / request a feature](https://github.com/pk1310oo/druckerwacht/issues) · [Contributing](CONTRIBUTING.md)
 
-![Dashboard during a print](docs/images/dashboard.jpg)
+![Druckerwacht dashboard during a print](docs/images/neon.jpg)
 
-*Druckerwacht* is German for “printer watch”. Built with Tauri 2, React and TypeScript; the backend is written in Rust.
+## What it does
 
-- **Dashboard:** nozzle and bed (actual/target), speed, flow, fan, status, file, progress, layer, elapsed/remaining time and estimated finish
-- **Live charts:** temperature plus speed, flow and fan over 5, 15 or 60 minutes
-- **Print control:** pause, resume and cancel right from the app
-- **Camera (optional):** MJPEG stream, e.g. the Nebula camera or a USB webcam
-- **Notifications:** print finished, errors, connection lost
-- **Print history:** the printer’s own job list plus every print the app followed
-- **Connection:** automatic network discovery, automatic reconnect, connection status always visible
-- **Slicer:** place models (STL/OBJ/3MF) on the original KE build plate, rotate, scale, paint supports and seams, save projects. All settings you know from Creality Print, a layer preview with round extrusion lines and **Print** straight to the printer. Powered by the OrcaSlicer engine (see below).
+**Watch**
+- Live dashboard: nozzle and bed with glowing gauges, speed, flow, fan, layer, remaining time and the real **finish time**
+- Live charts over 5, 15 or 60 minutes, print history from the printer itself
+- Notifications on your computer – and optionally **on your phone** via the free ntfy app (done, error, paused, next print waiting)
+- **macOS menu bar:** progress and finish time right next to the clock
 
-| Live charts | Slicer | Preview |
-|---|---|---|
-| ![](docs/images/charts.jpg) | ![](docs/images/slicer.jpg) | ![](docs/images/preview.jpg) |
+**Control**
+- Pause, resume, cancel
+- **Live speed** from 25 % *Whisper* to 150 % *Turbo* – the first layer always stays at max. 50 mm/s so it sticks
+- **Print queue:** line up sliced prints and start the next one with a click once the plate is clear
 
-> **Beta.** The printer’s interface is not officially documented. Pause, resume, cancel and “Print” follow the
-> behaviour of well-known integrations; feedback from real printers is very welcome. Druckerwacht is not an official Creality product.
+**Slice**
+- OrcaSlicer engine with the official KE profiles, every setting, layer preview
+- Paint supports and seams, cut, measure, box-select several parts
+- **Colour changes:** mark any layer – the printer pauses there for the next filament
+
+**Filament stock**
+- Your spools with what's left, metres and price per kg
+- Every print is subtracted automatically, the **cost per print** is shown before you print
+- Warns you **before** a spool runs out mid-print
+
+![Filament stock](docs/images/filament.jpg)
+
+**Looks:** neon grid background, glowing progress ring with sparks, 3D cards, seven colour themes – or switch effects to *Subtle* on slower computers.
+
+> **Beta.** The printer's interface is not officially documented; feedback from real printers is very welcome.
+> Druckerwacht is not an official Creality product.
 
 ---
 
@@ -33,14 +45,18 @@ Open source (AGPL-3.0) · macOS (Apple Silicon) and Linux (x86_64) · English an
 
 Download the latest version from [Releases](https://github.com/pk1310oo/druckerwacht/releases/latest).
 
+**Windows 10/11**
+
+Run `Druckerwacht_<version>_x64-setup.exe`. If SmartScreen warns (“unknown publisher”), click **More info → Run anyway** – the app is not code-signed yet.
+
 **macOS (Apple Silicon, macOS 11+)**
 
 1. Open the `.dmg` and drag **Druckerwacht** into **Applications**.
 2. The app is not notarized by Apple, so allow it once in Terminal:
 
-```bash
-xattr -dr com.apple.quarantine /Applications/Druckerwacht.app
-```
+   ```bash
+   xattr -dr com.apple.quarantine /Applications/Druckerwacht.app
+   ```
 
 **Linux (Ubuntu 22.04+/Linux Mint 21+, x86_64)**
 
@@ -48,25 +64,15 @@ xattr -dr com.apple.quarantine /Applications/Druckerwacht.app
 sudo apt install ./Druckerwacht_<version>_amd64.deb
 ```
 
-Or run the AppImage directly:
+Or use the `.AppImage`.
 
-```bash
-chmod +x Druckerwacht_<version>_amd64.AppImage && ./Druckerwacht_<version>_amd64.AppImage
-```
-
-**For the slicer** you also need the free [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer/releases). On macOS drag it into Applications; on Linux put the AppImage into `~/Applications/`. Druckerwacht finds it automatically – you never have to open it.
+**For the slicer** you also need the free [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer/releases): install it on Windows, drag it into Applications on macOS, or put the AppImage into `~/Applications/` on Linux. Druckerwacht finds it automatically – you never have to open it.
 
 ## 2. Getting started
 
 1. **Settings → IP address:** enter it, or click **Search network**. The printer shows its IP under Settings → Network.
 2. **Save.** The app connects right away and the dot in the header turns green.
-3. **Settings → Language:** System, Deutsch or English.
-4. Optional: add a camera URL, e.g. `http://<ip>:8080/?action=stream`. Without one, the camera stays hidden.
-
-Settings are stored locally:
-
-- macOS: `~/Library/Application Support/de.druckerwacht.app/settings.json`
-- Linux: `~/.config/de.druckerwacht.app/settings.json`
+3. Optional: **Settings → To your phone** for push messages, **Filament** to add your spools, **Appearance** for colours and effects.
 
 ## 3. Print control & printer history
 
@@ -147,7 +153,7 @@ src-tauri/src/
   slicer.rs            Find and run OrcaSlicer, profiles, thumbnails, statistics
   i18n.rs              Backend messages in English/German
 src/
-  views/               Dashboard, Slicer, Camera, History, Settings
+  views/               Dashboard, Slicer, History, Filament, Settings
   slicer/              3D build plate (three.js), G-code preview, settings catalog (563 OrcaSlicer options)
   i18n/en.ts           English translation (key = German text; check with scripts/i18n-keys.py)
 scripts/probe.mjs      Records the printer’s real interface for analysis

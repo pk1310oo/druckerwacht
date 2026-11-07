@@ -104,6 +104,24 @@ fn candidates(custom: &str) -> Vec<PathBuf> {
         if let Some(home) = std::env::var_os("HOME") {
             v.push(PathBuf::from(home).join("Applications/OrcaSlicer.app/Contents/MacOS/OrcaSlicer"));
         }
+    } else if cfg!(windows) {
+        // Wählt der Nutzer nur den Ordner, darin die .exe suchen
+        if let Some(p) = v.first().cloned() {
+            v.push(p.join("orca-slicer.exe"));
+        }
+        for var in ["ProgramFiles", "ProgramW6432", "ProgramFiles(x86)"] {
+            if let Some(pf) = std::env::var_os(var) {
+                v.push(PathBuf::from(pf).join("OrcaSlicer").join("orca-slicer.exe"));
+            }
+        }
+        if let Some(local) = std::env::var_os("LOCALAPPDATA") {
+            v.push(PathBuf::from(local).join("Programs").join("OrcaSlicer").join("orca-slicer.exe"));
+        }
+        if let Some(paths) = std::env::var_os("PATH") {
+            for dir in std::env::split_paths(&paths) {
+                v.push(dir.join("orca-slicer.exe"));
+            }
+        }
     } else {
         if let Some(paths) = std::env::var_os("PATH") {
             for dir in std::env::split_paths(&paths) {
@@ -135,6 +153,10 @@ impl SlicerInfo {
         self.path.as_ref().map(PathBuf::from)
     }
 }
+
+/// Windows-Prozessflag: ohne Konsolenfenster starten
+#[cfg(windows)]
+const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 pub fn find_orca(custom: &str) -> SlicerInfo {
     let list = candidates(custom);
@@ -363,6 +385,9 @@ pub async fn run_orca(
     }
 
     let mut cmd = tokio::process::Command::new(orca);
+    // Windows: kein Konsolenfenster aufblitzen lassen
+    #[cfg(windows)]
+    cmd.creation_flags(CREATE_NO_WINDOW);
     cmd.arg("--datadir")
         .arg(datadir)
         .arg("--arrange")
@@ -494,6 +519,14 @@ pub fn cancel(app: &AppHandle) {
         #[cfg(unix)]
         {
             let _ = std::process::Command::new("kill").arg(pid.to_string()).status();
+        }
+        #[cfg(windows)]
+        {
+            use std::os::windows::process::CommandExt;
+            let _ = std::process::Command::new("taskkill")
+                .args(["/PID", &pid.to_string(), "/T", "/F"])
+                .creation_flags(CREATE_NO_WINDOW)
+                .status();
         }
     }
 }

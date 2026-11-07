@@ -4,6 +4,7 @@
  */
 import { useEffect, useRef, useState } from "react";
 import { accentHex } from "../lib/theme";
+import { fxLevel } from "../lib/fx";
 
 const reduceMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
 
@@ -232,7 +233,7 @@ export function installRipple() {
     "pointerdown",
     (e) => {
       const el = (e.target as HTMLElement | null)?.closest?.(".btn, .speed-mode, .accent-swatch, .seg button") as HTMLElement | null;
-      if (!el || (el as HTMLButtonElement).disabled) return;
+      if (!el || (el as HTMLButtonElement).disabled || fxLevel() === "calm") return;
       const r = el.getBoundingClientRect();
       const s = document.createElement("span");
       const d = Math.max(r.width, r.height) * 2.2;
