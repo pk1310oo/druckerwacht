@@ -1,16 +1,15 @@
 import { useLayoutEffect, useRef, useState } from "react";
-import { Disc3, History, Layers3, LayoutDashboard, Settings, Video, type LucideIcon } from "lucide-react";
+import { Disc3, History, Layers3, LayoutDashboard, Settings, type LucideIcon } from "lucide-react";
 import { useStore } from "../lib/store";
 import { connectionLabel, STATE_LABEL, STATE_TONE } from "../lib/format";
 import { Badge } from "./ui";
 import { t } from "../lib/i18n";
 
-export type ViewId = "dashboard" | "slicer" | "camera" | "history" | "filament" | "settings";
+export type ViewId = "dashboard" | "slicer" | "history" | "filament" | "settings";
 
 const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
   { id: "dashboard", label: "Dashboard", icon: LayoutDashboard },
   { id: "slicer", label: "Slicer", icon: Layers3 },
-  { id: "camera", label: "Kamera", icon: Video },
   { id: "history", label: "Verlauf", icon: History },
   { id: "filament", label: "Filament", icon: Disc3 },
   { id: "settings", label: "Einstellungen", icon: Settings },
@@ -18,19 +17,18 @@ const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
 ];
 
 export function Sidebar({ view, onChange }: { view: ViewId; onChange: (v: ViewId) => void }) {
-  const hasCamera = useStore((s) => s.settings.cameraUrl.trim() !== "" || s.settings.localCamera.trim() !== "");
   // Gleitende Markierung neben dem aktiven Menüpunkt
   const nav = useRef<HTMLElement>(null);
   const [mark, setMark] = useState<number | null>(null);
   useLayoutEffect(() => {
     const el = nav.current?.querySelector<HTMLElement>(".nav-btn.active");
     setMark(el ? el.offsetTop + el.offsetHeight / 2 - 8 : null);
-  }, [view, hasCamera]);
+  }, [view]);
   return (
     <nav className="sidebar" ref={nav} data-tauri-drag-region aria-label={t("Navigation")}>
       <span className="nav-indicator" aria-hidden style={{ transform: `translateY(${mark ?? 0}px)`, opacity: mark == null ? 0 : 1, top: 0 }} />
       <img className="sidebar-logo" src="/logo.svg" alt="" draggable={false} />
-      {NAV.filter((n) => n.id !== "camera" || hasCamera).map(({ id, label: de, icon: Icon }) => { const label = t(de); return (
+      {NAV.map(({ id, label: de, icon: Icon }) => { const label = t(de); return (
         <button
           key={id}
           className={`nav-btn ${view === id ? "active" : ""}`}

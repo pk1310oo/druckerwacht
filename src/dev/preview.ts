@@ -66,7 +66,6 @@ export function installPreview() {
   const settings = {
     ...DEFAULT_SETTINGS,
     printerIp: "192.168.178.42",
-    cameraUrl: new URLSearchParams(location.search).has("cam") ? "http://127.0.0.1:9/stream" : "",
   };
   const host = settings.printerIp;
   switch (mode) {

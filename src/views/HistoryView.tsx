@@ -1,6 +1,5 @@
 import { useEffect, useState } from "react";
-import { Box, CheckCircle2, CircleSlash, Clock, Download, Film, History, Layers, Printer, Ruler, Trash2, XCircle } from "lucide-react";
-import { onTimelapse, timelapseDelete, timelapseExport, timelapseList, type Timelapse } from "../lib/extras";
+import { Box, CheckCircle2, CircleSlash, Clock, History, Layers, Printer, Ruler, Trash2, XCircle } from "lucide-react";
 import { useStore } from "../lib/store";
 import { clearJobs, historyThumbCandidates } from "../lib/api";
 import { fmtDateTime, fmtDuration, fmtNum } from "../lib/format";
@@ -20,7 +19,6 @@ export function HistoryView() {
   const [source, setSource] = useState<Source>("printer");
   return (
     <div className="view">
-      <Timelapses />
       <div className="section-head" style={{ marginTop: 0 }}>
         <span className="label">{t("Druckverlauf")}</span>
         <Segmented
@@ -188,74 +186,6 @@ function AppHistory() {
           )}
         </div>
       )}
-    </>
-  );
-}
-
-/** Zeitraffer-Videos der letzten Drucke (nur sichtbar, wenn es welche gibt). */
-function Timelapses() {
-  const [list, setList] = useState<Timelapse[]>([]);
-  const [confirm, setConfirm] = useState<string | null>(null);
-  useEffect(() => {
-    const load = () => void timelapseList().then(setList);
-    load();
-    let off: (() => void) | undefined;
-    void onTimelapse(load).then((f) => (off = f));
-    return () => off?.();
-  }, []);
-  if (list.length === 0) return null;
-  return (
-    <>
-      <div className="section-head" style={{ marginTop: 0 }}>
-        <span className="label">
-          <Film size={14} /> {t("Zeitraffer")}
-        </span>
-      </div>
-      <div className="timelapses">
-        {list.map((tl) => (
-          <Card key={tl.id} className="tl-card">
-            <div className="tl-cover">{tl.cover ? <img src={tl.cover} alt="" /> : <Film size={28} />}</div>
-            <div className="tl-body">
-              <div className="file-name" title={tl.name}>
-                {tl.name}
-              </div>
-              <div className="small muted num">
-                {fmtDateTime(tl.createdMs)} · {t("{n} Bilder", { n: tl.frames })} · {fmtNum(tl.frames / 30, 1)} s · {fmtNum(tl.sizeBytes / 1e6, 1)} MB
-              </div>
-              <div className="tl-actions">
-                {confirm === tl.id ? (
-                  <>
-                    <button className="btn sm ghost" onClick={() => setConfirm(null)}>
-                      {t("Nein")}
-                    </button>
-                    <button
-                      className="btn sm danger"
-                      onClick={() =>
-                        void timelapseDelete(tl.id).then(() => {
-                          setConfirm(null);
-                          setList((l) => l.filter((x) => x.id !== tl.id));
-                        })
-                      }
-                    >
-                      {t("Löschen")}
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <button className="btn sm" onClick={() => void timelapseExport(tl)}>
-                      <Download size={14} /> {t("Video speichern")}
-                    </button>
-                    <button className="btn sm ghost" aria-label={t("Löschen")} onClick={() => setConfirm(tl.id)}>
-                      <Trash2 size={14} />
-                    </button>
-                  </>
-                )}
-              </div>
-            </div>
-          </Card>
-        ))}
-      </div>
-      <p className="hint">{t("Die Videos sind QuickTime-Dateien (.mov) und laufen in QuickTime, iMovie und VLC. Für TikTok in iMovie oder CapCut öffnen und von dort teilen.")}</p>
     </>
   );
 }

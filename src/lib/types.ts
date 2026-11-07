@@ -53,7 +53,6 @@ export interface Sample {
 export interface Settings {
   printerName: string;
   printerIp: string;
-  cameraUrl: string;
   notifyFinished: boolean;
   notifyError: boolean;
   notifyDisconnect: boolean;
@@ -65,10 +64,6 @@ export interface Settings {
   accent: "orange" | "blue" | "green" | "purple" | "pink";
   /** Thema für Push-Nachrichten aufs Handy (ntfy.sh), leer = aus */
   ntfyTopic: string;
-  /** Zeitraffer aufnehmen, wenn eine Kamera eingerichtet ist */
-  timelapse: boolean;
-  /** Webcam am Computer (Geräte-ID, leer = keine) */
-  localCamera: string;
 }
 
 export interface JobRecord {
@@ -106,7 +101,6 @@ export interface FoundPrinter {
 export const DEFAULT_SETTINGS: Settings = {
   printerName: "Ender 3 V3 KE",
   printerIp: "",
-  cameraUrl: "",
   notifyFinished: true,
   notifyError: true,
   notifyDisconnect: true,
@@ -115,6 +109,4 @@ export const DEFAULT_SETTINGS: Settings = {
   language: "",
   accent: "orange",
   ntfyTopic: "",
-  timelapse: true,
-  localCamera: "",
 };

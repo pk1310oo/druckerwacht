@@ -6,7 +6,6 @@ use std::path::PathBuf;
 pub struct Settings {
     pub printer_name: String,
     pub printer_ip: String,
-    pub camera_url: String,
     pub notify_finished: bool,
     pub notify_error: bool,
     pub notify_disconnect: bool,
@@ -20,10 +19,6 @@ pub struct Settings {
     pub accent: String,
     /// Thema für Push-Nachrichten aufs Handy über ntfy.sh (leer = aus)
     pub ntfy_topic: String,
-    /// Zeitraffer aufnehmen, wenn eine Kamera eingerichtet ist
-    pub timelapse: bool,
-    /// Webcam am Computer (Geräte-ID des Browsers; leer = keine)
-    pub local_camera: String,
 }
 
 impl Default for Settings {
@@ -31,7 +26,6 @@ impl Default for Settings {
         Self {
             printer_name: "Ender 3 V3 KE".into(),
             printer_ip: String::new(),
-            camera_url: String::new(),
             notify_finished: true,
             notify_error: true,
             notify_disconnect: true,
@@ -40,8 +34,6 @@ impl Default for Settings {
             language: String::new(),
             accent: "orange".into(),
             ntfy_topic: String::new(),
-            timelapse: true,
-            local_camera: String::new(),
         }
     }
 }
@@ -89,10 +81,8 @@ impl Settings {
             }
         }
         self.printer_ip = ip;
-        self.camera_url = self.camera_url.trim().to_string();
         self.orca_path = self.orca_path.trim().to_string();
         self.ntfy_topic = self.ntfy_topic.trim().to_string();
-        self.local_camera = self.local_camera.trim().chars().take(256).collect();
         if !self.ntfy_topic.is_empty() && !crate::extras::valid_topic(&self.ntfy_topic) {
             self.ntfy_topic.clear();
         }
