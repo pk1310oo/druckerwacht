@@ -385,6 +385,22 @@ pub async fn run_orca(
         .map_err(|_| crate::i18n::tr("OrcaSlicer konnte nicht gestartet werden. Ist der Pfad in den Einstellungen richtig?", "OrcaSlicer could not be started. Is the path in Settings correct?").to_string())?;
     on_pid(child.id());
 
+    // Fehlerausgabe mitlesen (dort steht oft der eigentliche Grund) – und damit die Pipe nicht vollläuft
+    let stderr = child.stderr.take();
+    let err_reader = tokio::spawn(async move {
+        let mut tail: Vec<String> = Vec::new();
+        if let Some(err) = stderr {
+            let mut lines = BufReader::new(err).lines();
+            while let Ok(Some(line)) = lines.next_line().await {
+                tail.push(line);
+                if tail.len() > 40 {
+                    tail.remove(0);
+                }
+            }
+        }
+        tail
+    });
+
     // Fortschritt aus der Orca-Ausgabe weiterreichen
     let stdout = child.stdout.take();
     let reader = tokio::spawn(async move {
@@ -407,6 +423,7 @@ pub async fn run_orca(
     let status = tokio::time::timeout(SLICE_TIMEOUT, child.wait()).await;
     on_pid(None);
     let log_tail = reader.await.unwrap_or_default();
+    let err_tail = err_reader.await.unwrap_or_default();
     let status = match status {
         Err(_) => {
             let _ = child.kill().await;
@@ -425,13 +442,7 @@ pub async fn run_orca(
         if status.code().is_none() {
             return Err(crate::i18n::tr("Slicen abgebrochen.", "Slicing cancelled.").into());
         }
-        let msg = result_json["error_string"]
-            .as_str()
-            .filter(|s| !s.is_empty() && *s != "Success.")
-            .map(str::to_string)
-            .or_else(|| log_tail.iter().rev().find(|l| l.to_lowercase().contains("error")).cloned())
-            .unwrap_or_else(|| "Unbekannter Fehler".into());
-        return Err(crate::trf!("OrcaSlicer konnte nicht slicen: {msg}", "OrcaSlicer could not slice: {msg}"));
+        return Err(slice_error_message(&result_json, &err_tail, &log_tail));
     }
 
     let warnings: Vec<String> = result_json["sliced_plates"]
@@ -487,9 +498,80 @@ pub fn cancel(app: &AppHandle) {
     }
 }
 
+/// Verständliche Fehlermeldung, wenn Orca nichts erzeugt hat. Orca meldet oft nur
+/// „Failed slicing the model…“; der eigentliche Grund steht in `sliced_plates[].warning_message`
+/// oder auf der Fehlerausgabe.
+pub fn slice_error_message(result: &Value, stderr: &[String], log: &[String]) -> String {
+    let headline = result["error_string"].as_str().filter(|s| !s.is_empty() && *s != "Success.").map(str::to_string);
+    let generic = headline.as_deref().map_or(true, |h| h.starts_with("Failed slicing the model"));
+    let detail = result["sliced_plates"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|p| p["warning_message"].as_str())
+        .find(|w| !w.trim().is_empty())
+        .map(str::to_string)
+        .or_else(|| {
+            let lines: Vec<&str> = stderr.iter().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+            (!lines.is_empty()).then(|| lines[lines.len().saturating_sub(3)..].join(" "))
+        })
+        .or_else(|| log.iter().rev().find(|l| l.to_lowercase().contains("error")).cloned());
+
+    let lower = detail.as_deref().unwrap_or("").to_lowercase();
+    if lower.contains("empty layers between") {
+        // „The object has empty layers between 12.4 and 14.2 …“
+        let nums: Vec<String> = lower
+            .split("empty layers between")
+            .nth(1)
+            .unwrap_or("")
+            .split(|c: char| !(c.is_ascii_digit() || c == '.'))
+            .filter(|t| !t.is_empty() && t.chars().any(|c| c.is_ascii_digit()))
+            .take(2)
+            .map(|t| t.trim_end_matches('.').to_string())
+            .collect();
+        let (a, b) = (nums.first().cloned().unwrap_or_default(), nums.get(1).cloned().unwrap_or_default());
+        return crate::trf!(
+            "Das Modell hat leere Schichten zwischen {a} und {b} mm Höhe. Dort schwebt ein Teil in der Luft, ist zu dünn zum Drucken oder das Modell ist fehlerhaft. Abhilfe: Stützen einschalten, das Teil anders hinlegen oder das Modell in einem 3D-Programm reparieren.",
+            "The model has empty layers between {a} and {b} mm height. A part floats in mid-air there, is too thin to print, or the mesh is faulty. Fix: turn on supports, place the part differently, or repair the model in a 3D program."
+        );
+    }
+    if lower.contains("path conflict") || lower.contains("gcode overlap") || lower.contains("g-code overlap") {
+        return crate::i18n::tr(
+            "Zwei Teile kommen sich beim Drucken in die Quere (überlappende Bahnen). Bitte die Teile auf der Platte weiter auseinanderschieben.",
+            "Two parts get in each other's way while printing (overlapping paths). Please move the parts further apart on the plate.",
+        )
+        .into();
+    }
+    let msg = match (headline, detail) {
+        (Some(h), Some(d)) if generic => format!("{h} ({d})"),
+        (Some(h), _) => h,
+        (None, Some(d)) => d,
+        (None, None) => crate::i18n::tr("Unbekannter Fehler", "Unknown error").into(),
+    };
+    crate::trf!("OrcaSlicer konnte nicht slicen: {msg}", "OrcaSlicer could not slice: {msg}")
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn explains_slice_errors() {
+        let generic = "Failed slicing the model. Please verify the slicing of all plates on Orca Slicer before uploading.";
+        // leere Schichten (Grund steckt in sliced_plates)
+        let r = serde_json::json!({ "error_string": generic, "sliced_plates": [{ "warning_message": "The object has empty layers between 12.4 and 14.2 and can’t be printed.\nObject: Halter" }] });
+        let m = slice_error_message(&r, &[], &[]);
+        assert!(m.contains("12.4") && m.contains("14.2") && m.contains("Stützen"), "{m}");
+        // Grund nur auf stderr
+        let r = serde_json::json!({ "error_string": generic });
+        let m = slice_error_message(&r, &["".into(), "Some objects are too close".into()], &[]);
+        assert!(m.contains("too close") && m.contains("Failed slicing"), "{m}");
+        // konkrete Meldung bleibt, wie sie ist
+        let r = serde_json::json!({ "error_string": "The input model file to the slicer can not be parsed." });
+        assert!(slice_error_message(&r, &[], &[]).contains("can not be parsed"));
+        // gar nichts bekannt
+        assert!(slice_error_message(&Value::Null, &[], &[]).contains("Unbekannter Fehler"));
+    }
 
     /// T-förmiges Modell (Säule + waagerechter Arm in 15 mm Höhe) als STL mit Dreiecksliste;
     /// liefert außerdem die Indizes der nach unten zeigenden Arm-Unterseite.
