@@ -3,7 +3,7 @@
  * Orange ist der Standard; die übrigen Farben sind so gewählt, dass sie sich von
  * Erfolg (Grün), Warnung (Gelb) und Fehler (Rot) unterscheiden.
  */
-export type ThemeId = "orange" | "blue" | "green" | "purple" | "pink";
+export type ThemeId = "orange" | "blue" | "green" | "purple" | "pink" | "cyan" | "lime";
 
 interface Theme {
   accent: string;
@@ -19,6 +19,8 @@ export const THEMES: Record<ThemeId, Theme> = {
   green: { accent: "#2fb59a", hover: "#4cc9ae", light: "#c4f2e6", deep: "#1f8f78", deepDark: "#145548" },
   purple: { accent: "#9b7cf0", hover: "#b096f5", light: "#e3d8ff", deep: "#7a5bd6", deepDark: "#46348a" },
   pink: { accent: "#e06c9f", hover: "#ea88b3", light: "#ffd6e8", deep: "#c04e83", deepDark: "#7a2c50" },
+  cyan: { accent: "#1fb8cd", hover: "#45cddd", light: "#c2f3fa", deep: "#14899a", deepDark: "#0b4a54" },
+  lime: { accent: "#a3c93a", hover: "#b8dc55", light: "#ecf8c8", deep: "#7c9c22", deepDark: "#3f5210" },
 };
 
 export const THEME_IDS = Object.keys(THEMES) as ThemeId[];

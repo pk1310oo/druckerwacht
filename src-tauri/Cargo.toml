@@ -1,6 +1,6 @@
 [package]
 name = "druckerwacht"
-version = "0.9.3"
+version = "0.10.0"
 description = "Live-Überwachung für Creality Ender 3 V3 KE"
 edition = "2021"
 license = "AGPL-3.0-or-later"

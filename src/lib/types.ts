@@ -61,7 +61,7 @@ export interface Settings {
   /** "" = wie das System, "de" oder "en" */
   language: "" | "de" | "en";
   /** Farbthema der Akzentfarbe */
-  accent: "orange" | "blue" | "green" | "purple" | "pink";
+  accent: "orange" | "blue" | "green" | "purple" | "pink" | "cyan" | "lime";
   /** Thema für Push-Nachrichten aufs Handy (ntfy.sh), leer = aus */
   ntfyTopic: string;
 }

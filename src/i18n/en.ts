@@ -512,4 +512,6 @@ export const EN: Record<string, string> = {
   "z. B. Hyper PLA Schwarz": "e.g. Hyper PLA Black",
   "{n} Farbwechsel": "{n} colour changes",
   "{n} Spulen · Wert ca. {v} €": "{n} spools · worth approx. €{v}",
+  "Türkis": "Cyan",
+  "Limette": "Lime",
 };

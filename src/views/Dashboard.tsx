@@ -299,6 +299,12 @@ function HeroCard({ s, celebrate }: { s: PrinterStatus | null; celebrate: boolea
 }
 
 const TICKS = 60;
+/** Funken, die vom Lichtpunkt des Rings wegspritzen (feste Werte, damit nichts flackert) */
+const SPARKS = Array.from({ length: 12 }, (_, i) => {
+  const ang = (i / 12) * Math.PI * 2 + (i % 3) * 0.4;
+  const dist = 14 + ((i * 7) % 11);
+  return { dx: Math.round(Math.cos(ang) * dist), dy: Math.round(Math.sin(ang) * dist), r: 1 + (i % 3) * 0.6, d: (i * 137) % 1100 };
+});
 
 function HeroRing({ s, job }: { s: PrinterStatus; job: boolean }) {
   const pct = job ? Math.max(0, Math.min(100, s.state === "finished" ? 100 : s.progress ?? 0)) : 0;
@@ -337,6 +343,13 @@ function HeroRing({ s, job }: { s: PrinterStatus; job: boolean }) {
             <circle className="hr-glow" cx={C} cy={C} r={R} pathLength={100} strokeDasharray={`${pct} 100`} transform={`rotate(-90 ${C} ${C})`} />
             <circle className="hr-fill" cx={C} cy={C} r={R} pathLength={100} strokeDasharray={`${pct} 100`} transform={`rotate(-90 ${C} ${C})`} />
             <circle className="hr-head" cx={C + Math.cos(a) * R} cy={C + Math.sin(a) * R} r={6} />
+            {s.state === "printing" && !s.preparing && (
+              <g className="hr-sparks" transform={`translate(${C + Math.cos(a) * R} ${C + Math.sin(a) * R})`}>
+                {SPARKS.map((sp, i) => (
+                  <circle key={i} r={sp.r} style={{ ["--dx" as string]: `${sp.dx}px`, ["--dy" as string]: `${sp.dy}px`, animationDelay: `${sp.d}ms` }} />
+                ))}
+              </g>
+            )}
           </>
         )}
       </svg>

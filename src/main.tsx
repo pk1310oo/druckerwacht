@@ -5,6 +5,7 @@ import "./styles.css";
 import "./effects.css";
 import App from "./App";
 import { init, isTauri } from "./lib/api";
+import { installRipple } from "./components/Fx";
 
 if (/Mac/i.test(navigator.userAgent)) document.documentElement.classList.add("mac");
 
@@ -16,18 +17,43 @@ if (import.meta.env.DEV && !isTauri) {
 
 void init();
 
-// Lichtschein auf Karten folgt der Maus (setzt nur zwei CSS-Variablen)
+installRipple();
+
+// Lichtschein auf Karten folgt der Maus; kleinere Karten neigen sich zusätzlich in 3D zur Maus
+const TILT = ".stats > .card, .spool-card, .fil-stat";
+const calm = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
+let tilted: HTMLElement | null = null;
 window.addEventListener(
   "pointermove",
   (e) => {
     const card = (e.target as HTMLElement | null)?.closest?.(".view .card") as HTMLElement | null;
+    if (tilted && tilted !== card) {
+      tilted.style.removeProperty("--rx");
+      tilted.style.removeProperty("--ry");
+      tilted.classList.remove("tilting");
+      tilted = null;
+    }
     if (!card) return;
     const r = card.getBoundingClientRect();
     card.style.setProperty("--mx", `${e.clientX - r.left}px`);
     card.style.setProperty("--my", `${e.clientY - r.top}px`);
+    if (!calm && card.matches(TILT)) {
+      const nx = (e.clientX - r.left) / r.width - 0.5;
+      const ny = (e.clientY - r.top) / r.height - 0.5;
+      card.style.setProperty("--rx", `${(-ny * 7).toFixed(2)}deg`);
+      card.style.setProperty("--ry", `${(nx * 9).toFixed(2)}deg`);
+      card.classList.add("tilting");
+      tilted = card;
+    }
   },
   { passive: true },
 );
+document.addEventListener("pointerleave", () => {
+  tilted?.style.removeProperty("--rx");
+  tilted?.style.removeProperty("--ry");
+  tilted?.classList.remove("tilting");
+  tilted = null;
+});
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

@@ -11,7 +11,7 @@ import { slicerInfo, type SlicerInfo } from "../slicer/api";
 import { APP_VERSION, REPO_URL, checkForUpdate, openProjectLink, type UpdateInfo } from "../lib/update";
 import { ntfyTest, randomTopic } from "../lib/extras";
 
-const THEME_NAMES: Record<(typeof THEME_IDS)[number], string> = { orange: "Orange", blue: "Blau", green: "Grün", purple: "Lila", pink: "Pink" };
+const THEME_NAMES: Record<(typeof THEME_IDS)[number], string> = { orange: "Orange", blue: "Blau", green: "Grün", purple: "Lila", pink: "Pink", cyan: "Türkis", lime: "Limette" };
 
 const HOST_RE = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?!$)|$)){4}$|^[a-zA-Z0-9][a-zA-Z0-9.-]*$/;
 

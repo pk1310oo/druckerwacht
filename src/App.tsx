@@ -10,7 +10,7 @@ import { useStore } from "./lib/store";
 import { resolveLang, setLang } from "./lib/i18n";
 import { setBackendLanguage } from "./lib/api";
 import { applyTheme, resolveTheme } from "./lib/theme";
-import { Intro } from "./components/Fx";
+import { BackgroundFx, Intro, TopBeam } from "./components/Fx";
 
 export default function App() {
   const [view, setView] = useState<ViewId>("dashboard");
@@ -26,6 +26,16 @@ export default function App() {
   }, [lang]);
 
   useFilamentTracking();
+  // Nur einfache Werte aus dem Store lesen (neue Objekte würden ständig neu zeichnen lassen)
+  const beamTone = useStore((s) => {
+    const st = s.status;
+    if (!st || s.connection.kind !== "connected") return null;
+    if (st.state === "printing" && !st.preparing) return "live" as const;
+    if (st.state === "paused") return "paused" as const;
+    return null;
+  });
+  const beamPct = useStore((s) => s.status?.progress ?? 0);
+  const printing = beamTone === "live";
 
   // Richtung des Ansichtswechsels (nach unten in der Seitenleiste → Inhalt gleitet von unten herein)
   const order: ViewId[] = ["dashboard", "slicer", "history", "filament", "settings"];
@@ -41,7 +51,9 @@ export default function App() {
     <Intro />
     <div className="app" key={`${lang}-${theme}`}>
       <Sidebar view={view} onChange={setView} />
+      <TopBeam pct={beamTone ? beamPct : null} tone={beamTone} />
       <div className="main">
+        <BackgroundFx printing={printing} off={view === "slicer"} />
         <div className="ambient" aria-hidden>
           <i />
           <i />

@@ -15,7 +15,7 @@ pub struct Settings {
     pub orca_path: String,
     /// Sprache der Oberfläche: "" = wie das System, "de" oder "en"
     pub language: String,
-    /// Farbthema (Akzentfarbe): orange, blue, green, purple, pink
+    /// Farbthema (Akzentfarbe): orange, blue, green, purple, pink, cyan, lime
     pub accent: String,
     /// Thema für Push-Nachrichten aufs Handy über ntfy.sh (leer = aus)
     pub ntfy_topic: String,
@@ -60,7 +60,7 @@ impl Settings {
         if !matches!(self.language.as_str(), "" | "de" | "en") {
             self.language.clear();
         }
-        if !matches!(self.accent.as_str(), "orange" | "blue" | "green" | "purple" | "pink") {
+        if !matches!(self.accent.as_str(), "orange" | "blue" | "green" | "purple" | "pink" | "cyan" | "lime") {
             self.accent = "orange".into();
         }
         self.printer_name = self.printer_name.trim().to_string();
