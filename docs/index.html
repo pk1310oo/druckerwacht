@@ -1,0 +1,1236 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Druckerwacht – kostenlose App für den Ender 3 V3 KE (Mac &amp; Linux)</title>
+<meta name="description" content="Druckerwacht – kostenlose Open-Source-App für den Creality Ender 3 V3 KE: Live-Überwachung, Slicer mit OrcaSlicer-Motor, Tempo live von Flüster bis Turbo, Farbwechsel, Warteschlange und Filament-Lager. Für Mac und Linux.">
+<link rel="canonical" href="https://pk1310oo.github.io/druckerwacht/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='100 100 824 824'%3E%3Crect x='100' y='100' width='824' height='824' rx='190' fill='%231A1A1A'/%3E%3Cpath d='M432 250h160v70l-40 60h-80l-40-60z' fill='%23F5F4EF'/%3E%3Crect x='300' y='520' width='424' height='56' rx='28' fill='%23D97757'/%3E%3Crect x='300' y='604' width='424' height='56' rx='28' fill='%23D97757' opacity='.75'/%3E%3Crect x='300' y='688' width='424' height='56' rx='28' fill='%23D97757' opacity='.5'/%3E%3C/svg%3E">
+<meta name="theme-color" content="#0c0c0c">
+<meta property="og:type" content="website">
+<meta property="og:title" content="Druckerwacht – dein Ender 3 V3 KE, in Ruhe im Blick">
+<meta property="og:description" content="Druckerwacht – kostenlose Open-Source-App für den Creality Ender 3 V3 KE: Live-Überwachung, Slicer mit OrcaSlicer-Motor, Tempo live von Flüster bis Turbo, Farbwechsel, Warteschlange und Filament-Lager. Für Mac und Linux.">
+<meta property="og:url" content="https://pk1310oo.github.io/druckerwacht/">
+<meta property="og:image" content="https://pk1310oo.github.io/druckerwacht/img/neon.jpg">
+<meta name="twitter:card" content="summary_large_image">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600;700&family=Geist+Mono:wght@400;500&family=Inter:wght@400;500;600&display=swap">
+<style>
+  /* Layout: eine ruhige Mittelspalte (1120px), große Produktbilder als Anker, Text links ausgerichtet,
+     Abschnitte durch Luft statt Linien getrennt. Einheitlich dunkel wie die App selbst. */
+  :root {
+    color-scheme: dark;
+    --bg: #0c0c0c;
+    --bg-raise: #141413;
+    --card: #191918;
+    --line: #262524;
+    --line-soft: #1e1d1c;
+    --fg: #f5f4ef;
+    --muted: #a19f99;
+    --faint: #6d6b66;
+    --accent: #d97757;
+    --accent-hi: #e68a6b;
+    --accent-soft: rgba(217, 119, 87, 0.12);
+    --ok: #4caf7a;
+
+    --display: "Geist", "Inter", system-ui, -apple-system, sans-serif;
+    --body: "Inter", system-ui, -apple-system, sans-serif;
+    --mono: "Geist Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+
+    --wrap: 1120px;
+    --ease: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  * { box-sizing: border-box; }
+  html { scroll-behavior: smooth; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--fg);
+    font: 16px/1.6 var(--body);
+    -webkit-font-smoothing: antialiased;
+    font-feature-settings: "cv11", "ss01";
+    overflow-x: hidden;
+  }
+  body::before {
+    content: "";
+    position: fixed;
+    inset: 0 0 auto;
+    height: env(safe-area-inset-top, 0px);
+    z-index: 30;
+    background: var(--bg);
+  }
+  img { max-width: 100%; display: block; }
+  a { color: inherit; }
+  ::selection { background: var(--accent-soft); }
+
+  .wrap {
+    max-width: var(--wrap);
+    margin: 0 auto;
+    padding-left: max(24px, env(safe-area-inset-left, 0px));
+    padding-right: max(24px, env(safe-area-inset-right, 0px));
+  }
+
+  /* ------------------------------------------------------------ Navigation */
+  .nav {
+    position: sticky;
+    top: env(safe-area-inset-top, 0px);
+    z-index: 20;
+    transition: background 300ms var(--ease), border-color 300ms var(--ease), backdrop-filter 300ms var(--ease);
+    border-bottom: 1px solid transparent;
+  }
+  .nav.scrolled {
+    background: rgba(12, 12, 12, 0.72);
+    backdrop-filter: saturate(140%) blur(14px);
+    -webkit-backdrop-filter: saturate(140%) blur(14px);
+    border-bottom-color: var(--line-soft);
+  }
+  .nav .wrap {
+    display: flex;
+    align-items: center;
+    gap: 32px;
+    height: 64px;
+  }
+  .brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font: 600 16px/1 var(--display);
+    letter-spacing: -0.01em;
+    text-decoration: none;
+  }
+  .brand svg { width: 26px; height: 26px; }
+  .nav-links {
+    display: flex;
+    gap: 28px;
+    margin-left: auto;
+    font-size: 14px;
+    color: var(--muted);
+  }
+  .nav-links a {
+    text-decoration: none;
+    position: relative;
+    transition: color 200ms var(--ease);
+  }
+  .nav-links a::after {
+    content: "";
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: -6px;
+    height: 1px;
+    background: var(--accent);
+    transform: scaleX(0);
+    transform-origin: left;
+    transition: transform 300ms var(--ease);
+  }
+  .nav-links a:hover { color: var(--fg); }
+  .nav-links a:hover::after { transform: scaleX(1); }
+
+  /* ------------------------------------------------------------ Buttons */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 44px;
+    padding: 0 20px;
+    border-radius: 10px;
+    border: 1px solid var(--line);
+    background: var(--bg-raise);
+    color: var(--fg);
+    font: 500 15px/1 var(--body);
+    text-decoration: none;
+    cursor: pointer;
+    transition: transform 200ms var(--ease), background 200ms var(--ease), border-color 200ms var(--ease), box-shadow 300ms var(--ease);
+  }
+  .btn:hover { transform: translateY(-1px); border-color: #3a3835; background: #1c1b1a; }
+  .btn.primary {
+    background: var(--accent);
+    border-color: transparent;
+    color: #1d0f09;
+    box-shadow: 0 8px 28px -12px rgba(217, 119, 87, 0.7);
+  }
+  .btn.primary:hover { background: var(--accent-hi); box-shadow: 0 12px 34px -12px rgba(217, 119, 87, 0.85); }
+  .btn.sm { height: 36px; padding: 0 14px; font-size: 14px; }
+  .btn svg { width: 16px; height: 16px; }
+  a:focus-visible, button:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; border-radius: 10px; }
+
+  /* ------------------------------------------------------------ Hero */
+  .hero { padding-block: 88px 0; }
+  .eyebrow {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    font: 500 13px/1 var(--mono);
+    color: var(--muted);
+    letter-spacing: 0.02em;
+  }
+  .eyebrow .dot {
+    width: 8px; height: 8px; border-radius: 50%;
+    background: var(--ok);
+    box-shadow: 0 0 0 4px rgba(76, 175, 122, 0.15);
+    animation: pulse 2.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { box-shadow: 0 0 0 7px rgba(76, 175, 122, 0.05); } }
+  h1 {
+    font: 600 clamp(44px, 7vw, 84px)/0.98 var(--display);
+    letter-spacing: -0.045em;
+    margin: 24px 0 0;
+    max-width: 14ch;
+  }
+  h1 em { font-style: normal; color: var(--accent); }
+  .lead {
+    margin: 24px 0 0;
+    max-width: 56ch;
+    font-size: clamp(17px, 1.6vw, 19px);
+    line-height: 1.55;
+    color: var(--muted);
+    text-wrap: pretty;
+  }
+  .hero-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 36px; }
+  .hero-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 20px;
+    margin-top: 24px;
+    font: 13px/1.4 var(--mono);
+    color: var(--faint);
+  }
+
+  .stage { position: relative; margin-top: 72px; }
+  .stage::before {
+    content: "";
+    position: absolute;
+    left: 10%;
+    right: 10%;
+    top: 12%;
+    bottom: -6%;
+    background: radial-gradient(60% 60% at 50% 60%, rgba(217, 119, 87, 0.22), transparent 70%);
+    filter: blur(40px);
+    z-index: 0;
+    pointer-events: none;
+  }
+
+  /* Fensterrahmen für App-Bilder */
+  .window {
+    position: relative;
+    z-index: 1;
+    border-radius: 14px;
+    border: 1px solid var(--line);
+    background: var(--card);
+    overflow: hidden;
+    box-shadow: 0 40px 80px -40px rgba(0, 0, 0, 0.9), 0 0 0 1px rgba(255, 255, 255, 0.02) inset;
+  }
+  .window .bar {
+    display: flex;
+    gap: 7px;
+    padding: 12px 14px;
+    border-bottom: 1px solid var(--line-soft);
+    background: var(--bg-raise);
+  }
+  .window .bar i { width: 11px; height: 11px; border-radius: 50%; background: #2c2b29; }
+  .window img { width: 100%; height: auto; transition: transform 900ms var(--ease); }
+  .window:hover img { transform: scale(1.012); }
+
+  /* Ladesequenz: sichtbar im Ruhezustand, sanft hineingleitend */
+  .rise { animation: rise 900ms var(--ease) both; }
+  .rise.d1 { animation-delay: 80ms; }
+  .rise.d2 { animation-delay: 160ms; }
+  .rise.d3 { animation-delay: 240ms; }
+  .rise.d4 { animation-delay: 360ms; animation-duration: 1200ms; }
+  @keyframes rise { from { opacity: 0.001; transform: translateY(18px); filter: blur(6px); } }
+
+  /* Beim Scrollen: Abschnitte gleiten weich herein (nur wo der Browser das kann; sonst einfach sichtbar) */
+  @supports (animation-timeline: view()) {
+    .reveal {
+      animation: reveal linear both;
+      animation-timeline: view();
+      animation-range: entry 0% cover 28%;
+    }
+    @keyframes reveal { from { opacity: 0.25; transform: translateY(36px) scale(0.985); } }
+  }
+
+  /* ------------------------------------------------------------ Abschnitte */
+  section.block { padding-block: 140px 0; }
+  .kicker {
+    font: 500 13px/1 var(--mono);
+    color: var(--accent);
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+  }
+  h2 {
+    font: 600 clamp(32px, 4.4vw, 52px)/1.04 var(--display);
+    letter-spacing: -0.035em;
+    margin: 16px 0 0;
+    max-width: 18ch;
+    text-wrap: balance;
+  }
+  .sub {
+    margin: 18px 0 0;
+    max-width: 58ch;
+    color: var(--muted);
+    font-size: 17px;
+    text-wrap: pretty;
+  }
+  .split {
+    display: grid;
+    grid-template-columns: minmax(0, 5fr) minmax(0, 7fr);
+    gap: 56px;
+    align-items: center;
+    margin-top: 56px;
+  }
+  .split > * { min-width: 0; }
+
+  .facts { display: grid; gap: 4px; margin: 0; padding: 0; list-style: none; }
+  .facts li {
+    display: grid;
+    grid-template-columns: 36px minmax(0, 1fr);
+    gap: 14px;
+    align-items: start;
+    padding: 16px 0;
+    border-top: 1px solid var(--line-soft);
+  }
+  .facts li:first-child { border-top: 0; padding-top: 0; }
+  .facts .ico {
+    display: grid;
+    place-items: center;
+    width: 36px; height: 36px;
+    border-radius: 10px;
+    background: var(--bg-raise);
+    border: 1px solid var(--line);
+    color: var(--accent);
+  }
+  .facts .ico svg { width: 18px; height: 18px; }
+  .facts b { display: block; font-weight: 600; font-size: 15px; }
+  .facts span { color: var(--muted); font-size: 15px; }
+
+  .wide { margin-top: 56px; }
+
+  /* Funktionsraster unter dem Slicer-Bild */
+  .grid3 {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 1px;
+    margin-top: 40px;
+    background: var(--line-soft);
+    border: 1px solid var(--line-soft);
+    border-radius: 14px;
+    overflow: hidden;
+  }
+  .cell {
+    padding: 28px;
+    background: var(--bg);
+    transition: background 300ms var(--ease);
+  }
+  .cell:hover { background: var(--bg-raise); }
+  .cell h3 { font: 600 17px/1.3 var(--display); letter-spacing: -0.01em; margin: 14px 0 8px; }
+  .cell p { margin: 0; color: var(--muted); font-size: 15px; line-height: 1.55; }
+  .cell .ico { color: var(--accent); }
+  .cell .ico svg { width: 20px; height: 20px; }
+  .num { font-variant-numeric: tabular-nums; }
+
+  /* Zwei Bilder nebeneinander */
+  .pair {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    margin-top: 56px;
+  }
+  .pair figure { margin: 0; min-width: 0; }
+  .pair figcaption { margin-top: 16px; color: var(--muted); font-size: 15px; }
+  .pair figcaption b { color: var(--fg); font-weight: 600; }
+
+  /* Protokoll – ein Detail, das nur dieses Gerät hat */
+  .proto {
+    margin-top: 48px;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    background: var(--bg-raise);
+    overflow-x: auto;
+  }
+  .proto table { width: 100%; border-collapse: collapse; font: 14px/1.5 var(--mono); min-width: 640px; }
+  .proto td { padding: 14px 22px; border-top: 1px solid var(--line-soft); vertical-align: top; }
+  .proto tr:first-child td { border-top: 0; }
+  .proto td:first-child { color: var(--muted); width: 34%; font-family: var(--body); font-size: 15px; }
+  .proto code { color: var(--fg); }
+  .proto .k { color: var(--accent); }
+
+  /* ------------------------------------------------------------ Effekte */
+  .aurora { position: fixed; inset: 0; z-index: -1; overflow: hidden; pointer-events: none; }
+  .aurora i { position: absolute; border-radius: 50%; filter: blur(110px); opacity: .32; will-change: transform; }
+  .aurora i:nth-child(1) { width: 62vw; height: 62vw; left: 48%; top: -22vw; background: #d97757; animation: drift1 26s ease-in-out infinite alternate; }
+  .aurora i:nth-child(2) { width: 46vw; height: 46vw; left: -14vw; top: 30vh; background: #8c3d26; animation: drift2 32s ease-in-out infinite alternate; opacity: .38; }
+  .aurora i:nth-child(3) { width: 38vw; height: 38vw; left: 60%; top: 85vh; background: #e68a6b; animation: drift3 29s ease-in-out infinite alternate; opacity: .16; }
+  @keyframes drift1 { to { transform: translate(-18vw, 14vh) scale(1.15); } }
+  @keyframes drift2 { to { transform: translate(22vw, -12vh) scale(.9); } }
+  @keyframes drift3 { to { transform: translate(-30vw, -40vh) scale(1.2); } }
+  .aurora::after { content: ""; position: absolute; inset: 0;
+    background-image: linear-gradient(rgba(255,255,255,.028) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,.028) 1px, transparent 1px);
+    background-size: 72px 72px; mask-image: radial-gradient(ellipse 70% 55% at 50% 30%, #000 20%, transparent 80%); }
+
+  h1 em { background: linear-gradient(100deg, #d97757 20%, #ffd2bf 45%, #e68a6b 60%, #d97757 80%); background-size: 220% 100%;
+    -webkit-background-clip: text; background-clip: text; color: transparent; animation: shine 6s ease-in-out infinite; }
+  @keyframes shine { 0%, 100% { background-position: 100% 0; } 50% { background-position: 0 0; } }
+
+  .stage { perspective: 1800px; }
+  .stage .window { transform-origin: 50% 0; transform: rotateX(calc(16deg * (1 - var(--p, 0)) + var(--ty, 0deg))) rotateY(var(--tx, 0deg)) scale(calc(.94 + .06 * var(--p, 0)));
+    transition: transform 120ms linear; box-shadow: 0 60px 140px -40px rgba(0,0,0,.95), 0 0 0 1px rgba(255,255,255,.03) inset, 0 0 160px -40px rgba(217,119,87,.45); }
+  .float { position: absolute; z-index: 3; display: inline-flex; align-items: center; gap: 10px; padding: 12px 16px; border-radius: 14px;
+    background: rgba(25,25,24,.82); border: 1px solid var(--line); backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+    box-shadow: 0 24px 50px -20px rgba(0,0,0,.9); font: 500 14px/1.2 var(--body); color: var(--muted); white-space: nowrap; animation: bob 6s ease-in-out infinite; }
+  .float b { font: 600 20px/1 var(--display); color: var(--fg); font-variant-numeric: tabular-nums; }
+  .float .dotk { width: 9px; height: 9px; border-radius: 50%; background: var(--ok); box-shadow: 0 0 0 4px rgba(76,175,122,.18); }
+  .float .ring { width: 34px; height: 34px; }
+  .float.f1 { left: -46px; top: 18%; }
+  .float.f2 { right: -40px; top: 8%; animation-delay: -2s; }
+  .float.f3 { right: -56px; top: 58%; animation-delay: -4s; }
+  .float.f4 { left: -30px; top: 72%; animation-delay: -1s; }
+  @keyframes bob { 50% { transform: translateY(-10px); } }
+
+  .marquee { margin-top: 110px; border-block: 1px solid var(--line-soft); background: rgba(20,20,19,.6); overflow: hidden; }
+  .marquee .track { display: flex; gap: 56px; width: max-content; padding: 22px 0; animation: marq 38s linear infinite; }
+  .marquee span { display: inline-flex; align-items: center; gap: 56px; font: 600 22px/1 var(--display); letter-spacing: -.02em; color: var(--muted); white-space: nowrap; }
+  .marquee span::after { content: "✦"; color: var(--accent); font-size: 16px; }
+  @keyframes marq { to { transform: translateX(-50%); } }
+
+  .stats { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 24px; margin-top: 72px; }
+  .stat-big { padding: 28px; border-radius: 18px; border: 1px solid var(--line); background: linear-gradient(180deg, rgba(25,25,24,.9), rgba(20,20,19,.7)); }
+  .stat-big b { display: block; font: 600 clamp(40px, 5vw, 64px)/1 var(--display); letter-spacing: -.04em; color: var(--fg); }
+  .stat-big b em { font-style: normal; color: var(--accent); }
+  .stat-big span { display: block; margin-top: 10px; color: var(--muted); font-size: 15px; }
+
+  .player { position: relative; margin-top: 56px; border-radius: 22px; overflow: hidden; border: 1px solid var(--line); background: #000;
+    box-shadow: 0 60px 140px -50px rgba(0,0,0,.95), 0 0 180px -60px rgba(217,119,87,.5); aspect-ratio: 16 / 9; }
+  .player video { width: 100%; height: 100%; display: block; object-fit: cover; }
+  .player .play { position: absolute; inset: 0; display: grid; place-items: center; border: 0; background: radial-gradient(circle at 50% 50%, rgba(0,0,0,.15), rgba(0,0,0,.55)); cursor: pointer; transition: opacity 400ms var(--ease); }
+  .player .play span { width: 96px; height: 96px; border-radius: 50%; display: grid; place-items: center; background: var(--accent); box-shadow: 0 0 0 14px rgba(217,119,87,.22), 0 20px 60px -10px rgba(217,119,87,.8); transition: transform 300ms var(--ease); }
+  .player .play:hover span { transform: scale(1.08); }
+  .player .play svg { width: 34px; height: 34px; margin-left: 6px; fill: #151515; }
+  .player.on .play { opacity: 0; pointer-events: none; }
+
+  .live { margin-top: 56px; padding: 24px; border-radius: 22px; border: 1px solid var(--line); background: rgba(16,16,15,.75); backdrop-filter: blur(8px); }
+  .live-grid { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; }
+  .lc { padding: 18px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-soft); }
+  .lc .k { font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .lc .v { margin-top: 12px; font: 600 38px/1 var(--display); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+  .lc .v small { font: 500 15px var(--body); color: var(--muted); margin-left: 4px; }
+  .lc .m { height: 4px; margin-top: 16px; border-radius: 2px; background: #2a2928; overflow: hidden; }
+  .lc .m i { display: block; height: 100%; width: 0; background: var(--accent); border-radius: 2px; transition: width 600ms var(--ease); }
+  .lc .s { margin-top: 10px; font-size: 13px; color: var(--faint); }
+  .live-chart { position: relative; margin-top: 14px; height: 220px; border-radius: 14px; background: var(--card); border: 1px solid var(--line-soft); overflow: hidden; }
+  .live-chart svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+  .live-chart .lbl { position: absolute; left: 18px; top: 14px; font: 500 12px/1 var(--mono); letter-spacing: .08em; text-transform: uppercase; color: var(--muted); }
+  .live-chart .lg { position: absolute; right: 18px; top: 12px; display: flex; gap: 16px; font-size: 13px; color: var(--muted); }
+  .live-chart .lg i { display: inline-block; width: 14px; height: 2px; vertical-align: middle; margin-right: 6px; }
+
+  .spot { position: relative; isolation: isolate; }
+  .spot::before { content: ""; position: absolute; inset: 0; z-index: -1; opacity: 0; transition: opacity 300ms var(--ease);
+    background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), rgba(217,119,87,.16), transparent 60%); }
+  .spot:hover::before { opacity: 1; }
+
+  @media (max-width: 900px) {
+    .float { display: none; }
+    .stats, .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .aurora i, .marquee .track, .float, h1 em { animation: none !important; }
+    .stage .window { transform: none !important; }
+  }
+
+  /* ------------------------------------------------------------ Bildschau */
+  .showcase { display: grid; grid-template-columns: minmax(0, 300px) minmax(0, 1fr); gap: 28px; margin-top: 56px; align-items: center; }
+  .sc-tabs { display: grid; gap: 8px; }
+  .sc-tab { position: relative; overflow: hidden; text-align: left; padding: 16px 18px; border-radius: 14px; border: 1px solid transparent; background: transparent; color: var(--muted); cursor: pointer; font: inherit; transition: background 300ms var(--ease), border-color 300ms var(--ease), color 300ms var(--ease); }
+  .sc-tab b { display: block; font: 600 17px/1.2 var(--display); color: var(--fg); opacity: .7; transition: opacity 300ms; }
+  .sc-tab span { display: block; margin-top: 4px; font-size: 14px; line-height: 1.4; max-height: 0; opacity: 0; transition: max-height 500ms var(--ease), opacity 400ms; }
+  .sc-tab:hover b { opacity: 1; }
+  .sc-tab.on { background: rgba(25,25,24,.85); border-color: var(--line); }
+  .sc-tab.on b { opacity: 1; }
+  .sc-tab.on span { max-height: 60px; opacity: 1; }
+  .sc-bar { position: absolute; left: 0; bottom: 0; height: 2px; width: 0; background: var(--accent); }
+  .sc-tab.on .sc-bar { animation: scbar 5s linear forwards; }
+  .showcase.paused .sc-tab.on .sc-bar { animation-play-state: paused; }
+  @keyframes scbar { to { width: 100%; } }
+  .sc-stage { position: relative; border-radius: 18px; }
+  .sc-window { box-shadow: 0 60px 140px -50px rgba(0,0,0,.95), 0 0 180px -60px rgba(217,119,87,.55); }
+  .sc-imgs { position: relative; aspect-ratio: 16 / 10; overflow: hidden; }
+  .sc-imgs img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; opacity: 0; transform: scale(1.04); transition: opacity 700ms var(--ease), transform 5.5s linear; }
+  .sc-imgs img.on { opacity: 1; transform: scale(1); }
+
+  /* ------------------------------------------------------------ Druck-Animation im Hero */
+  .hero { position: relative; }
+  #printer { position: absolute; right: max(0px, calc(50% - 640px)); top: 40px; width: min(520px, 42vw); height: 520px; pointer-events: none; z-index: 0; opacity: .95; }
+  .hero .wrap > *:not(.stage) { position: relative; z-index: 1; }
+  .scrollbar { position: fixed; left: 0; top: 0; height: 2px; width: 0; z-index: 60; background: linear-gradient(90deg, #d97757, #ffb79c); box-shadow: 0 0 12px rgba(217,119,87,.8); }
+  h2 { background: linear-gradient(180deg, #fff 30%, #c9c5bc); -webkit-background-clip: text; background-clip: text; color: transparent; }
+  @media (max-width: 900px) {
+    .showcase { grid-template-columns: minmax(0, 1fr); }
+    .sc-tabs { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+    .sc-tab span { display: none; }
+    #printer { display: none; }
+  }
+
+  /* ------------------------------------------------------------ Sprache */
+  .lang { display: inline-flex; padding: 3px; border: 1px solid var(--line); border-radius: 10px; background: var(--bg-raise); }
+  .lang button { height: 28px; min-width: 36px; padding: 0 8px; border: 0; border-radius: 7px; background: transparent; color: var(--muted); font: 600 12px/1 var(--body); letter-spacing: 0.04em; cursor: pointer; transition: color 200ms var(--ease), background 200ms var(--ease); }
+  .lang button:hover { color: var(--fg); }
+  .lang button[aria-pressed="true"] { background: var(--card); color: var(--fg); }
+  .lang + .btn { margin-left: -20px; }
+
+  /* ------------------------------------------------------------ Download */
+  .dl {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 24px;
+    margin-top: 56px;
+  }
+  .card {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding: 32px;
+    border-radius: 16px;
+    border: 1px solid var(--line);
+    background: linear-gradient(180deg, var(--card), var(--bg-raise));
+    transition: border-color 300ms var(--ease), transform 300ms var(--ease);
+  }
+  .card:hover { border-color: #3a3835; transform: translateY(-2px); }
+  .card-head { display: flex; align-items: center; gap: 14px; }
+  .card-head .os {
+    display: grid; place-items: center;
+    width: 44px; height: 44px; border-radius: 12px;
+    background: var(--accent-soft); color: var(--accent);
+  }
+  .card-head .os svg { width: 22px; height: 22px; }
+  .card h3 { margin: 0; font: 600 22px/1.2 var(--display); letter-spacing: -0.02em; }
+  .card .meta { color: var(--muted); font-size: 14px; }
+  .steps { margin: 0; padding-left: 20px; color: var(--muted); font-size: 15px; display: grid; gap: 6px; }
+  .steps b { color: var(--fg); font-weight: 600; }
+  .cmd {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding-right: 8px;
+    border: 1px solid var(--line);
+    border-radius: 10px;
+    background: #0e0e0d;
+  }
+  .cmd pre {
+    flex: 1;
+    min-width: 0;
+    margin: 0;
+    padding: 14px 16px;
+    overflow-x: auto;
+    font: 13px/1.6 var(--mono);
+    color: #dcdad3;
+    white-space: pre;
+  }
+  .copy {
+    flex: none;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 7px;
+    border: 1px solid var(--line);
+    background: var(--bg-raise);
+    color: var(--muted);
+    font: 500 12px/1 var(--body);
+    cursor: pointer;
+    transition: color 200ms var(--ease), border-color 200ms var(--ease);
+  }
+  .copy:hover { color: var(--fg); border-color: #3a3835; }
+  .copy.done { color: var(--ok); border-color: rgba(76, 175, 122, 0.4); }
+  .card .btn { align-self: flex-start; margin-top: auto; }
+  .os-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 24px; margin-top: 56px; }
+  .os-grid .card p { margin: 0; color: var(--muted); font-size: 15px; }
+  .os-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 32px; }
+  .note { margin-top: 24px; color: var(--faint); font-size: 14px; max-width: 72ch; }
+  .note b { color: var(--muted); font-weight: 500; }
+
+  /* ------------------------------------------------------------ Credits */
+  .credits { padding-block: 140px 0; }
+  .credit-card {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px 24px;
+    padding: 28px 32px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: linear-gradient(120deg, var(--card), var(--bg-raise));
+  }
+  .avatar {
+    display: grid;
+    place-items: center;
+    flex: none;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    background: var(--accent-soft);
+    border: 1px solid rgba(217, 119, 87, 0.35);
+    color: var(--accent);
+    font: 600 18px/1 var(--display);
+    letter-spacing: 0.02em;
+  }
+  .credit-text { display: flex; flex-direction: column; gap: 6px; min-width: 0; flex: 1; }
+  .credit-name { font: 600 24px/1.1 var(--display); letter-spacing: -0.02em; }
+  .credit-sub { color: var(--muted); font-size: 15px; }
+  .credit-card .btn { margin-left: auto; }
+  footer a { color: var(--muted); text-decoration: none; transition: color 200ms var(--ease); }
+  footer a:hover { color: var(--accent); }
+
+  /* ------------------------------------------------------------ Footer */
+  footer { padding-block: 56px 56px; }
+  footer .wrap {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 16px 32px;
+    justify-content: space-between;
+    padding-top: 28px;
+    border-top: 1px solid var(--line-soft);
+    color: var(--faint);
+    font-size: 13px;
+  }
+  footer .wrap > * { min-width: 0; }
+
+  /* ------------------------------------------------------------ Responsive */
+  @media (max-width: 900px) {
+    .split { grid-template-columns: minmax(0, 1fr); gap: 40px; }
+    .grid3 { grid-template-columns: minmax(0, 1fr); }
+    .pair, .dl, .os-grid { grid-template-columns: minmax(0, 1fr); }
+    section.block { padding-block: 104px 0; }
+    .nav-links { display: none; }
+    .nav .lang { margin-left: auto; }
+  }
+  @media (max-width: 520px) {
+    .hero { padding-block: 56px 0; }
+    .card { padding: 24px; }
+    .cell { padding: 22px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    html { scroll-behavior: auto; }
+    *, *::before, *::after { animation: none !important; transition: none !important; }
+  }
+</style>
+</head>
+<body>
+<div class="aurora" aria-hidden="true"><i></i><i></i><i></i></div>
+
+<header class="nav" id="nav">
+  <div class="wrap">
+    <a class="brand" href="#top" aria-label="Druckerwacht – nach oben" data-en-aria="Druckerwacht – back to top">
+      <svg viewBox="100 100 824 824" aria-hidden="true"><rect x="100" y="100" width="824" height="824" rx="190" fill="#1A1A1A" stroke="#2A2A2A" stroke-width="16"/><path d="M432 250h160v70l-40 60h-80l-40-60z" fill="#F5F4EF"/><rect x="496" y="380" width="32" height="44" rx="8" fill="#F5F4EF"/><rect x="300" y="520" width="424" height="56" rx="28" fill="#D97757"/><rect x="300" y="604" width="424" height="56" rx="28" fill="#D97757" opacity=".75"/><rect x="300" y="688" width="424" height="56" rx="28" fill="#D97757" opacity=".5"/></svg>
+      Druckerwacht
+    </a>
+    <nav class="nav-links" aria-label="Abschnitte" data-en-aria="Sections">
+      <a href="#video" data-en="Tour">Rundgang</a>
+      <a href="#ueberwachung" data-en="Monitoring">Überwachung</a>
+      <a href="#slicer">Slicer</a>
+      <a href="#verlauf" data-en="Under the hood">Verlauf</a>
+      <a href="#opensource">Open Source</a>
+      <a href="#download">Download</a>
+    </nav>
+    <div class="lang" role="group" aria-label="Sprache / Language"><button type="button" data-lang="de">DE</button><button type="button" data-lang="en">EN</button></div>
+    <a class="btn sm primary" href="#download" data-en="Download">Herunterladen</a>
+  </div>
+</header>
+
+<main id="top">
+  <!-- ======================================================= Hero -->
+  <section class="hero">
+    <canvas id="printer" aria-hidden="true"></canvas>
+    <div class="wrap">
+      <div class="eyebrow rise"><span class="dot"></span><span data-en="Version 0.10.0 Beta · free &amp; open source · for the Ender 3 V3 KE">Version 0.10.0 Beta · kostenlos &amp; Open Source · für den Ender 3 V3 KE</span></div>
+      <h1 class="rise d1" data-en="Your printer.&lt;br&gt;&lt;em&gt;Calmly&lt;/em&gt; in view.">Dein Drucker.<br><em>In Ruhe</em> im Blick.</h1>
+      <p class="lead rise d2" data-en="Druckerwacht monitors your Ender 3 V3 KE live over Wi-Fi, slices your models with the OrcaSlicer engine and sends them straight to the printer. One clean app for everything – in English or German.">Druckerwacht überwacht deinen Ender 3 V3 KE live über das WLAN, slict deine Modelle mit dem OrcaSlicer-Motor und schickt sie direkt an den Drucker. Eine App für alles, klar und auf Deutsch oder Englisch.</p>
+      <div class="hero-actions rise d3">
+        <a class="btn primary" href="#download">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+          <span data-en="Download for Mac &amp; Linux">Für Mac &amp; Linux laden</span>
+        </a>
+        <a class="btn" href="https://github.com/pk1310oo/druckerwacht" target="_blank" rel="noopener">
+          <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.280-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.690 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.27 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+          <span data-en="View source code">Quellcode ansehen</span>
+        </a>
+      </div>
+      <div class="hero-meta rise d3">
+        <span>macOS 11+ · Apple Silicon</span>
+        <span>Linux Mint 21 / 22 · x86_64</span>
+        <span data-en="no root needed">ohne Root am Drucker</span>
+      </div>
+
+      <div class="stage rise d4" id="stage">
+        <div class="float f1" aria-hidden="true"><span class="dotk"></span><span data-en="Connected">Verbunden</span></div>
+        <div class="float f2" aria-hidden="true"><span data-en="Nozzle">Düse</span> <b class="js-noz">215,0 °C</b></div>
+        <div class="float f3" aria-hidden="true"><svg class="ring" viewBox="0 0 36 36"><circle cx="18" cy="18" r="15" fill="none" stroke="#2a2928" stroke-width="4"/><circle class="js-ring" cx="18" cy="18" r="15" fill="none" stroke="#d97757" stroke-width="4" stroke-linecap="round" stroke-dasharray="94.2" stroke-dashoffset="50" transform="rotate(-90 18 18)"/></svg><b class="js-pct">47 %</b></div>
+        <div class="float f4" aria-hidden="true"><span data-en="Layer">Schicht</span> <b class="js-layer">112 / 240</b></div>
+        <div class="window">
+          <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+          <img src="img/dashboard.jpg" data-shot="dashboard" width="2880" height="1800" alt="Druckerwacht-Dashboard während eines Drucks: Düse 215 °C, Bett 60 °C, 182 mm/s, 47 % Fortschritt, Restzeit und voraussichtliches Ende, darunter Temperatur- und Geschwindigkeitsdiagramme" data-en-alt="Druckerwacht dashboard during a print: nozzle 215 °C, bed 60 °C, 182 mm/s, 47 % progress, remaining time and estimated finish, with temperature and speed charts below">
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <div class="marquee" aria-hidden="true"><div class="track"><span data-en="Live monitoring">Live-Überwachung</span><span data-en="Slicer with OrcaSlicer engine">Slicer mit OrcaSlicer-Motor</span><span data-en="Pause &amp;amp; resume">Pause &amp; Fortsetzen</span><span data-en="Notifications">Benachrichtigungen</span><span data-en="29 infill patterns">29 Füllmuster</span><span data-en="Paint supports">Stützen malen</span><span data-en="Colour changes">Farbwechsel</span><span data-en="Speed live: whisper to turbo">Tempo live: Flüster bis Turbo</span><span data-en="Print queue">Warteschlange</span><span data-en="Filament stock">Filament-Lager</span><span data-en="Push to your phone">Push aufs Handy</span><span data-en="Print history">Druckverlauf</span><span data-en="Free &amp;amp; open source">Kostenlos &amp; Open Source</span><span data-en="English &amp;amp; German">Deutsch &amp; English</span><span data-en="Live monitoring">Live-Überwachung</span><span data-en="Slicer with OrcaSlicer engine">Slicer mit OrcaSlicer-Motor</span><span data-en="Pause &amp;amp; resume">Pause &amp; Fortsetzen</span><span data-en="Notifications">Benachrichtigungen</span><span data-en="29 infill patterns">29 Füllmuster</span><span data-en="Paint supports">Stützen malen</span><span data-en="Colour changes">Farbwechsel</span><span data-en="Speed live: whisper to turbo">Tempo live: Flüster bis Turbo</span><span data-en="Print queue">Warteschlange</span><span data-en="Filament stock">Filament-Lager</span><span data-en="Push to your phone">Push aufs Handy</span><span data-en="Print history">Druckverlauf</span><span data-en="Free &amp;amp; open source">Kostenlos &amp; Open Source</span><span data-en="English &amp;amp; German">Deutsch &amp; English</span></div></div>
+
+  <!-- ======================================================= Video -->
+  <section class="block" id="video" style="padding-top:110px">
+    <div class="wrap">
+      <div class="kicker reveal" data-en="See it in action">In Aktion</div>
+      <h2 class="reveal" data-en="One app. Everything your KE needs.">Eine App. Alles, was dein KE braucht.</h2>
+      <p class="sub reveal" data-en="Monitor, slice, print – take a tour through Druckerwacht.">Überwachen, slicen, drucken – ein Rundgang durch Druckerwacht.</p>
+      <div class="showcase reveal" id="showcase">
+        <div class="sc-tabs" role="tablist"><button type="button" class="sc-tab on" data-i="0"><b data-en="Live dashboard">Live-Dashboard</b><span data-en="Nozzle, bed, speed, progress – refreshed every second.">Düse, Bett, Tempo, Fortschritt – jede Sekunde neu.</span><i class="sc-bar"></i></button><button type="button" class="sc-tab" data-i="1"><b data-en="Preparing">Vorbereitung</b><span data-en="Heating and leveling with the heat-up curve.">Heizen und Leveling mit Aufheizkurve.</span><i class="sc-bar"></i></button><button type="button" class="sc-tab" data-i="2"><b data-en="Control">Steuern</b><span data-en="Pause, resume, cancel.">Pausieren, fortsetzen, abbrechen.</span><i class="sc-bar"></i></button><button type="button" class="sc-tab" data-i="3"><b data-en="Slicer">Slicer</b><span data-en="Original KE build plate, every setting.">Original-KE-Druckbett, alle Einstellungen.</span><i class="sc-bar"></i></button><button type="button" class="sc-tab" data-i="4"><b data-en="Preview">Vorschau</b><span data-en="Real strands, layer by layer.">Echte Stränge, Schicht für Schicht.</span><i class="sc-bar"></i></button><button type="button" class="sc-tab" data-i="5"><b data-en="History">Verlauf</b><span data-en="The last 50 prints, straight from the printer.">Die letzten 50 Drucke direkt vom Drucker.</span><i class="sc-bar"></i></button></div>
+        <div class="sc-stage spot">
+          <div class="window sc-window"><div class="bar" aria-hidden="true"><i></i><i></i><i></i></div><div class="sc-imgs"><img src="img/dashboard.jpg" data-shot="dashboard" class="sc-img on" width="2880" height="1800" alt="" loading="eager"><img src="img/vorbereitung.jpg" data-shot="vorbereitung" class="sc-img" width="2880" height="1800" alt="" loading="lazy"><img src="img/pausiert.jpg" data-shot="pausiert" class="sc-img" width="2880" height="1800" alt="" loading="lazy"><img src="img/slicer.jpg" data-shot="slicer" class="sc-img" width="2880" height="1800" alt="" loading="lazy"><img src="img/vorschau.jpg" data-shot="vorschau" class="sc-img" width="2880" height="1800" alt="" loading="lazy"><img src="img/verlauf.jpg" data-shot="verlauf" class="sc-img" width="2880" height="1800" alt="" loading="lazy"></div></div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat-big spot reveal"><b><span class="js-count" data-to="563">0</span></b><span data-en="settings, all searchable">Einstellungen, alle durchsuchbar</span></div>
+        <div class="stat-big spot reveal"><b><span class="js-count" data-to="29">0</span></b><span data-en="infill patterns with previews">Füllmuster mit Vorschaubild</span></div>
+        <div class="stat-big spot reveal"><b><span class="js-count" data-to="0">0</span><em> €</em></b><span data-en="forever – open source">für immer – Open Source</span></div>
+        <div class="stat-big spot reveal"><b><span class="js-count" data-to="1">0</span><em> s</em></b><span data-en="refresh – live over Wi-Fi">Aktualisierung – live per WLAN</span></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= Überwachung -->
+  <section class="block" id="ueberwachung">
+    <div class="wrap">
+      <div class="kicker reveal" data-en="Monitoring">Überwachung</div>
+      <h2 class="reveal" data-en="See what’s happening on the bed. Every second.">Du siehst, was auf dem Bett passiert. Jede Sekunde.</h2>
+      <p class="sub reveal" data-en="Temperatures, speed, layer and remaining time come straight from the printer in real time. Numbers glide smoothly to new values instead of jumping. If the connection drops, the app reconnects on its own.">Temperaturen, Geschwindigkeit, Schicht und Restzeit kommen in Echtzeit vom Drucker. Die Zahlen gleiten weich in neue Werte, statt zu springen. Fällt die Verbindung weg, verbindet sich die App von selbst wieder.</p>
+
+      <div class="live reveal" aria-label="Live-Demo" data-en-aria="Live demo">
+        <div class="live-grid">
+          <div class="lc"><div class="k" data-en="Nozzle">Düse</div><div class="v"><span class="js-l-noz">215</span><small>°C</small></div><div class="m"><i class="js-m-noz"></i></div><div class="s" data-en="Target 215 °C">Soll 215 °C</div></div>
+          <div class="lc"><div class="k" data-en="Bed">Bett</div><div class="v"><span class="js-l-bed">60</span><small>°C</small></div><div class="m"><i class="js-m-bed"></i></div><div class="s" data-en="Target 60 °C">Soll 60 °C</div></div>
+          <div class="lc"><div class="k" data-en="Speed">Geschwindigkeit</div><div class="v"><span class="js-l-spd">182</span><small>mm/s</small></div><div class="m"><i class="js-m-spd"></i></div><div class="s">Flow 100 % · <span data-en="Fan">Lüfter</span> 100 %</div></div>
+          <div class="lc"><div class="k" data-en="Progress">Fortschritt</div><div class="v"><span class="js-l-pct">47</span><small>%</small></div><div class="m"><i class="js-m-pct"></i></div><div class="s"><span data-en="Layer">Schicht</span> <span class="js-l-layer">112 / 240</span></div></div>
+        </div>
+        <div class="live-chart">
+          <span class="lbl" data-en="Speed · live">Geschwindigkeit · live</span>
+          <span class="lg"><span><i style="background:#d97757"></i>mm/s</span><span><i style="background:#c9c7bf"></i>Flow</span></span>
+          <svg viewBox="0 0 1000 220" preserveAspectRatio="none" aria-hidden="true">
+            <defs><linearGradient id="fillg" x1="0" x2="0" y1="0" y2="1"><stop offset="0" stop-color="#d97757" stop-opacity=".35"/><stop offset="1" stop-color="#d97757" stop-opacity="0"/></linearGradient></defs>
+            <path class="js-area" fill="url(#fillg)" d=""/>
+            <path d="M0 70 H1000" stroke="#c9c7bf" stroke-width="2" fill="none" opacity=".7"/>
+            <path class="js-line" stroke="#d97757" stroke-width="3" fill="none" stroke-linejoin="round" d=""/>
+          </svg>
+        </div>
+      </div>
+
+      <div class="split">
+        <ul class="facts reveal">
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z"/></svg></span>
+            <div data-en="&lt;b&gt;Nozzle and bed, actual and target&lt;/b&gt;&lt;span&gt;With history over 5, 15 or 60 minutes.&lt;/span&gt;"><b>Düse und Bett, Ist und Soll</b><span>Mit Verlauf über 5, 15 oder 60 Minuten.</span></div>
+          </li>
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg></span>
+            <div data-en="&lt;b&gt;Remaining time and “done at”&lt;/b&gt;&lt;span&gt;As a real clock time, not just a countdown.&lt;/span&gt;"><b>Restzeit und „Fertig um“</b><span>Als echte Uhrzeit, nicht nur als Countdown.</span></div>
+          </li>
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="5" width="4" height="14" rx="1"/><rect x="14" y="5" width="4" height="14" rx="1"/></svg></span>
+            <div data-en="&lt;b&gt;Pause, resume, cancel&lt;/b&gt;&lt;span&gt;Cancel asks first. Pause stays locked while heating and leveling.&lt;/span&gt;"><b>Pause, Fortsetzen, Abbrechen</b><span>Abbrechen fragt vorher nach. Während Heizen und Leveling bleibt Pause gesperrt.</span></div>
+          </li>
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg></span>
+            <div data-en="&lt;b&gt;Speed live, from whisper to turbo&lt;/b&gt;&lt;span&gt;25 to 150 % during the print – quiet at night, full power when it has to be fast.&lt;/span&gt;"><b>Tempo live, von Flüster bis Turbo</b><span>25 bis 150 % während des Drucks – leise in der Nacht, volle Leistung, wenn es schnell gehen muss.</span></div>
+          </li>
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg></span>
+            <div data-en="&lt;b&gt;Notifications&lt;/b&gt;&lt;span&gt;Print finished, printer error, connection lost.&lt;/span&gt;"><b>Benachrichtigungen</b><span>Druck fertig, Fehler am Drucker, Verbindung verloren.</span></div>
+          </li>
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5"/><path d="M12 7v5l4 2"/></svg></span>
+            <div data-en="&lt;b&gt;Print history from the printer&lt;/b&gt;&lt;span&gt;The last 50 prints with duration, filament and result, plus totals.&lt;/span&gt;"><b>Druckverlauf vom Drucker</b><span>Die letzten 50 Drucke mit Dauer, Filament und Ergebnis, dazu die Gesamtwerte.</span></div>
+          </li>
+        </ul>
+        <figure class="window reveal" style="margin:0">
+          <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+          <img src="img/diagramme.jpg" data-shot="diagramme" width="2880" height="1800" alt="Laufender Druck mit Pause- und Abbrechen-Knopf, darunter Temperatur- und Geschwindigkeitsverlauf der letzten 15 Minuten" data-en-alt="Running print with pause and cancel buttons, temperature and speed history of the last 15 minutes below" loading="lazy">
+        </figure>
+      </div>
+
+      <div class="pair">
+        <figure class="reveal">
+          <div class="window">
+            <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+            <img src="img/vorbereitung.jpg" data-shot="vorbereitung" width="2880" height="1800" alt="Vorbereitung: Bett hat 59 °C erreicht, Düse heizt auf 215 °C, Bett-Leveling läuft" data-en-alt="Preparing: bed has reached 59 °C, nozzle heating to 215 °C, bed leveling running" loading="lazy">
+          </div>
+          <figcaption data-en="&lt;b&gt;From the very first degree.&lt;/b&gt; Heating and bed leveling show up as their own phase, with the heat-up curve to the target temperature."><b>Vom ersten Grad an.</b> Heizen und Bett-Leveling erscheinen als eigene Phase, mit Aufheizkurve bis zur Solltemperatur.</figcaption>
+        </figure>
+        <figure class="reveal">
+          <div class="window">
+            <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+            <img src="img/pausiert.jpg" data-shot="pausiert" width="2880" height="1800" alt="Pausierter Druck mit Fortsetzen-Knopf und gelbem Fortschrittsbalken" data-en-alt="Paused print with resume button and yellow progress bar" loading="lazy">
+          </div>
+          <figcaption data-en="&lt;b&gt;Paused, resumed, done.&lt;/b&gt; Every state is clear at a glance, and a notification tells you when it’s finished."><b>Pausiert, fortgesetzt, fertig.</b> Jeder Zustand ist auf einen Blick klar, und eine Benachrichtigung meldet das Ende.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= Slicer -->
+  <section class="block" id="slicer">
+    <div class="wrap">
+      <div class="kicker reveal">Slicer</div>
+      <h2 class="reveal" data-en="Slice like in Creality Print. Just tidier.">Slicen wie in Creality Print. Nur aufgeräumter.</h2>
+      <p class="sub reveal" data-en="Under the hood runs the OrcaSlicer engine – the same foundation Creality Print is built on. The official KE profiles are built in. Enter your nozzle and bed temperature once at the top and it applies to every print.">Unter der Oberfläche rechnet der OrcaSlicer-Motor, dieselbe Grundlage, auf der auch Creality Print aufbaut. Die offiziellen Profile für den KE sind eingebaut. Deine Düsen- und Betttemperatur trägst du einmal oben ein, und sie gilt für jeden Druck.</p>
+
+      <div class="window wide reveal">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <img src="img/slicer.jpg" data-shot="slicer" width="2880" height="1800" alt="Slicer mit dem originalen Druckbett des Ender 3 V3 KE, drei Modellen, Werkzeugleiste und Einstellungen" data-en-alt="Slicer with the original Ender 3 V3 KE build plate, three models, toolbar and settings" loading="lazy">
+      </div>
+
+      <div class="grid3 reveal">
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h16M4 18h10"/></svg></span>
+          <h3 data-en="Every setting">Alle Einstellungen</h3>
+          <p data-en="All &lt;span class=&quot;num&quot;&gt;563&lt;/span&gt; OrcaSlicer options, searchable. The important ones arranged like in Creality Print."><span class="num">563</span> Orca-Optionen auf Deutsch, mit Suche. Die wichtigsten sortiert wie in Creality Print.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M3 9c3 0 3 6 6 6s3-6 6-6 3 6 6 6"/></svg></span>
+          <h3 data-en="Infill with previews">Infill mit Vorschau</h3>
+          <p data-en="All &lt;span class=&quot;num&quot;&gt;29&lt;/span&gt; infill patterns, each with its own picture. From gyroid to lightning.">Alle <span class="num">29</span> Füllmuster, jedes mit eigenem Bild. Von Gyroid bis Blitz.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m9.06 11.9 8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg></span>
+          <h3 data-en="Paint supports and seams">Stützen und Naht malen</h3>
+          <p data-en="Enforce or block supports, and put the seam where it doesn’t bother you.">Stützen erzwingen oder blockieren, die Naht dorthin legen, wo sie nicht stört.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 3a2 2 0 0 0-2 2"/><path d="M19 3a2 2 0 0 1 2 2"/><path d="M21 19a2 2 0 0 1-2 2"/><path d="M5 21a2 2 0 0 1-2-2"/><path d="M9 3h1M9 21h1M14 3h1M14 21h1M3 9v1M21 9v1M3 14v1M21 14v1"/></svg></span>
+          <h3 data-en="Box selection">Rechteck-Auswahl</h3>
+          <p data-en="Just like on your desktop: drag on empty space to select several parts, then move, rotate and scale them together.">Wie auf dem Desktop: auf freier Fläche ziehen, mehrere Teile wählen und gemeinsam verschieben, drehen und skalieren.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.93 0 1.65-.75 1.65-1.69 0-.44-.18-.84-.44-1.13-.29-.29-.44-.65-.44-1.13a1.64 1.64 0 0 1 1.67-1.67h2c3.05 0 5.56-2.5 5.56-5.55C21.97 6.01 17.46 2 12 2z"/></svg></span>
+          <h3 data-en="Colour changes">Farbwechsel</h3>
+          <p data-en="Mark any layer after slicing – the printer pauses there so you can load a new colour. Multi-colour prints with one nozzle.">Nach dem Slicen beliebige Schichten markieren – dort pausiert der Drucker für die neue Farbe. Mehrfarbig drucken mit einer Düse.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg></span>
+          <h3 data-en="Print directly">Direkt drucken</h3>
+          <p data-en="Upload and start with one click. The app checks temperatures and asks if the plate is clear.">Hochladen und starten mit einem Klick. Vorher fragt die App, ob die Platte frei ist.</p>
+        </div>
+      </div>
+
+      <div class="pair">
+        <figure class="reveal">
+          <div class="window">
+            <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+            <img src="img/vorschau.jpg" data-shot="vorschau" width="2880" height="1800" alt="Schichtvorschau mit runden Filament-Strängen, nach Linientyp eingefärbt" data-en-alt="Layer preview with round filament strands, colored by line type" loading="lazy">
+          </div>
+          <figcaption data-en="&lt;b&gt;Preview in real strands.&lt;/b&gt; Every line at its true width and layer height, layer by layer."><b>Vorschau in echten Strängen.</b> Jede Bahn in ihrer Breite und Schichthöhe, Schicht für Schicht durchblätterbar.</figcaption>
+        </figure>
+        <figure class="reveal">
+          <div class="window">
+            <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+            <img src="img/muster.jpg" data-shot="muster" width="2880" height="1800" alt="Auswahl der Füllmuster mit Vorschaubildern" data-en-alt="Infill pattern picker with preview images" loading="lazy">
+          </div>
+          <figcaption data-en="&lt;b&gt;Patterns you can see.&lt;/b&gt; The infill picker shows every pattern as a picture, not just a name."><b>Muster, die man sieht.</b> Die Infill-Auswahl zeigt jedes Muster als Bild statt nur als Namen.</figcaption>
+        </figure>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= Neu in 0.10 -->
+  <section class="block" id="neu">
+    <div class="wrap">
+      <div class="kicker reveal" data-en="New in 0.10">Neu in 0.10</div>
+      <h2 class="reveal" data-en="Your workshop, fully in view.">Deine Werkstatt, voll im Griff.</h2>
+      <p class="sub reveal" data-en="Queue, filament stock, push messages and a look that glows – Druckerwacht now runs the whole workshop.">Warteschlange, Filament-Lager, Push aufs Handy und eine Optik, die leuchtet – Druckerwacht organisiert jetzt die ganze Werkstatt.</p>
+
+      <div class="window wide reveal">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <img src="img/neon.jpg" width="2880" height="1800" loading="lazy" alt="Dashboard mit Neon-Hintergrund, Leuchtring, Tempo-Regler und glühenden Temperaturkarten" data-en-alt="Dashboard with neon background, glowing ring, speed control and hot temperature cards">
+      </div>
+
+      <div class="grid3 reveal">
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/><path d="m17 16 3 2-3 2"/></svg></span>
+          <h3 data-en="Print queue">Warteschlange</h3>
+          <p data-en="Queue up sliced prints and start the next one with a click once the plate is clear.">Geslicete Drucke vormerken und den nächsten mit einem Klick starten, sobald die Platte frei ist.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg></span>
+          <h3 data-en="Filament stock">Filament-Lager</h3>
+          <p data-en="Your spools with what’s left and the price. Every print is subtracted, the cost shown – and you’re warned before a spool runs short.">Deine Spulen mit Rest und Preis. Jeder Druck wird abgezogen, die Kosten angezeigt – und du wirst gewarnt, bevor eine Spule nicht reicht.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="2" width="10" height="20" rx="2"/><path d="M11 18h2"/></svg></span>
+          <h3 data-en="On your phone">Aufs Handy</h3>
+          <p data-en="Done, error, paused or next print waiting – push messages via the free ntfy app, even when you’re out.">Fertig, Fehler, pausiert oder nächster Druck wartet – Push-Nachrichten über die kostenlose App ntfy, auch unterwegs.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="14" rx="2"/><path d="M2 8h20"/></svg></span>
+          <h3 data-en="Mac menu bar">Mac-Menüleiste</h3>
+          <p data-en="Progress and finish time right next to the clock – without opening the app.">Fortschritt und Fertig-Uhrzeit direkt neben der Uhr – ohne die App zu öffnen.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="m13 2-9 12h8l-1 8 9-12h-8z"/></svg></span>
+          <h3 data-en="Neon look">Neon-Optik</h3>
+          <p data-en="Living grid floor, rising sparks, a glowing progress beam and cards that tilt towards your mouse.">Lebender Gitterboden, aufsteigende Funken, ein leuchtender Fortschritts-Strahl und Karten, die sich zur Maus neigen.</p>
+        </div>
+        <div class="cell spot">
+          <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="13.5" cy="6.5" r="1.5"/><circle cx="17.5" cy="10.5" r="1.5"/><circle cx="8.5" cy="7.5" r="1.5"/><circle cx="6.5" cy="12.5" r="1.5"/><path d="M12 2a10 10 0 0 0 0 20c1 0 1.6-.8 1.6-1.7 0-.5-.2-.9-.4-1.1-.3-.3-.5-.7-.5-1.1 0-.9.8-1.7 1.7-1.7h2c3 0 5.6-2.5 5.6-5.6C22 6 17.5 2 12 2z"/></svg></span>
+          <h3 data-en="Seven colour themes">Sieben Farbthemen</h3>
+          <p data-en="Orange, blue, green, purple, pink – and new: cyan and lime. Every effect takes on your colour.">Orange, Blau, Grün, Lila, Pink – und neu: Türkis und Limette. Jeder Effekt übernimmt deine Farbe.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= Verlauf & Technik -->
+  <section class="block" id="verlauf">
+    <div class="wrap">
+      <div class="kicker reveal" data-en="Under the hood">Unter der Haube</div>
+      <h2 class="reveal" data-en="Speaks your printer’s language.">Spricht die Sprache deines Druckers.</h2>
+      <p class="sub reveal" data-en="No root, no mods. Druckerwacht uses the same local interface as Creality Print. Every field was measured on a real Ender 3 V3 KE and is stored as a test in the project.">Kein Root, kein Umbau. Druckerwacht nutzt dieselbe lokale Schnittstelle wie Creality Print. Jedes Feld ist an einem echten Ender 3 V3 KE gemessen und als Test im Projekt hinterlegt.</p>
+      <div class="proto reveal" role="region" aria-label="Schnittstelle" data-en-aria="Interface" tabindex="0">
+        <table>
+          <tr><td data-en="Live data">Live-Daten</td><td><code><span class="k">ws://</span>&lt;IP&gt;<span class="k">:9999</span> · nozzleTemp · bedTemp0 · printProgress · layer</code></td></tr>
+          <tr><td data-en="State">Zustand</td><td><code data-en="state <span class=&quot;k&quot;>1</span> printing · <span class=&quot;k&quot;>5</span> paused · <span class=&quot;k&quot;>2</span> done · withSelfTest 5→100 = preparing">state <span class="k">1</span> druckt · <span class="k">5</span> pausiert · <span class="k">2</span> fertig · withSelfTest 5→100 = Vorbereitung</code></td></tr>
+          <tr><td data-en="Send file">Datei senden</td><td><code>POST /upload/&lt;file&gt;.gcode → /usr/data/printer_data/gcodes/</code></td></tr>
+          <tr><td data-en="Start print">Druck starten</td><td><code>{"method":"set","params":{"<span class="k">opGcodeFile</span>":"printprt:…"}}</code></td></tr>
+          <tr><td data-en="Pause / cancel">Pause / Abbrechen</td><td><code>{"pause":<span class="k">1</span>} · {"pause":<span class="k">0</span>} · {"stop":<span class="k">1</span>}</code></td></tr>
+          <tr><td data-en="Printer history">Druckerverlauf</td><td><code>historyList · totalJob · totalUsageTime · totalUsageMaterial</code></td></tr>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= Open Source -->
+  <section class="block" id="opensource">
+    <div class="wrap">
+      <div class="kicker reveal">Open Source</div>
+      <h2 class="reveal" data-en="Free. Open. For everyone.">Frei. Offen. Für alle.</h2>
+      <p class="sub reveal" data-en="Druckerwacht costs nothing and the complete source code is on GitHub. No ads in the app, no account, no cloud: your data stays on your network.">Druckerwacht kostet nichts und der komplette Quellcode liegt offen auf GitHub. Keine Werbung in der App, kein Konto, keine Cloud: Deine Daten bleiben in deinem Netz.</p>
+      <div class="os-grid">
+        <div class="card spot reveal">
+          <div class="card-head"><span class="os"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m16 18 6-6-6-6"/><path d="m8 6-6 6 6 6"/></svg></span><h3 data-en="Open code">Offener Code</h3></div>
+          <p data-en="Licensed under the AGPL-3.0. Read it, change it, share it – and improvements stay open for everyone.">Lizenziert unter der AGPL-3.0. Lesen, verändern, weitergeben, und Verbesserungen bleiben für alle offen.</p>
+        </div>
+        <div class="card spot reveal">
+          <div class="card-head"><span class="os"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg></span><h3 data-en="More printers">Weitere Drucker</h3></div>
+          <p data-en="Coming next: the Creality K1 series and Klipper printers via Moonraker. Recordings from your printer help.">Als Nächstes geplant: die Creality-K1-Reihe und Klipper-Drucker über Moonraker. Mitschnitte deines Druckers helfen dabei.</p>
+        </div>
+        <div class="card spot reveal">
+          <div class="card-head"><span class="os"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></span><h3 data-en="Get involved">Mitmachen</h3></div>
+          <p data-en="Found a bug or have an idea? Open an issue on GitHub. Pull requests are very welcome.">Fehler gefunden oder eine Idee? Ein Issue auf GitHub genügt. Pull Requests sind herzlich willkommen.</p>
+        </div>
+      </div>
+      <div class="os-actions reveal">
+        <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht" target="_blank" rel="noopener" data-en="View repository">Zum Repository</a>
+        <a class="btn" href="https://github.com/pk1310oo/druckerwacht/issues" target="_blank" rel="noopener" data-en="Report bugs &amp; ideas">Fehler melden &amp; Wünsche</a>
+      </div>
+    </div>
+  </section>
+
+  <!-- ======================================================= Download -->
+  <section class="block" id="download">
+    <div class="wrap">
+      <div class="kicker reveal">Download</div>
+      <h2 class="reveal" data-en="Up and running in two minutes.">In zwei Minuten startklar.</h2>
+      <p class="sub reveal" data-en="Download, install, let the app find your printer on the network. You can also find the IP on the printer display under Settings → Network.">Herunterladen, installieren, im Netz nach dem Drucker suchen lassen. Die IP findest du alternativ am Druckerdisplay unter Einstellungen → Netzwerk.</p>
+
+      <div class="dl">
+        <div class="card spot reveal">
+          <div class="card-head">
+            <span class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.58c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.17-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.24 2.73 2.2 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.85.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.41 1.2-2.47-.03-.01-2.3-.88-2.33-3.51zM14.2 6.12c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.64-1.05 1.67-.92 2.66.97.08 1.96-.49 2.56-1.21z"/></svg></span>
+            <div>
+              <h3>Mac</h3>
+              <div class="meta" data-en="Apple Silicon · macOS 11 or later · &lt;span class=&quot;num&quot;&gt;4.5&lt;/span&gt; MB">Apple Silicon · macOS 11 oder neuer · <span class="num">4,5</span> MB</div>
+            </div>
+          </div>
+          <ol class="steps">
+            <li data-en="Download the &lt;b&gt;.dmg&lt;/b&gt; and drag Druckerwacht into &lt;b&gt;Applications&lt;/b&gt;."><b>.dmg</b> laden und Druckerwacht in <b>Programme</b> ziehen.</li>
+            <li data-en="Allow it once, since the app isn’t registered with Apple:">Einmal freigeben, weil die App nicht bei Apple registriert ist:</li>
+          </ol>
+          <div class="cmd">
+            <pre id="cmd-mac">xattr -dr com.apple.quarantine /Applications/Druckerwacht.app</pre>
+            <button class="copy" type="button" data-copy="cmd-mac" data-en="Copy">Kopieren</button>
+          </div>
+          <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/tag/v0.10.0" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            Druckerwacht_0.10.0_aarch64.dmg
+          </a>
+        </div>
+
+        <div class="card spot reveal">
+          <div class="card-head">
+            <span class="os"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="4" width="18" height="13" rx="2"/><path d="M8 21h8M12 17v4"/><path d="m7 9 2 2-2 2M11 13h4"/></svg></span>
+            <div>
+              <h3>Linux</h3>
+              <div class="meta" data-en="Linux Mint 21 / 22, Ubuntu · x86_64 · .deb or AppImage">Linux Mint 21 / 22, Ubuntu · x86_64 · .deb oder AppImage</div>
+            </div>
+          </div>
+          <ol class="steps">
+            <li data-en="Download and install the &lt;b&gt;.deb&lt;/b&gt; – an update replaces the old version:"><b>.deb</b> laden und installieren, ein Update ersetzt die alte Version:</li>
+          </ol>
+          <div class="cmd">
+            <pre id="cmd-linux">sudo apt install ./Druckerwacht_0.10.0_amd64.deb</pre>
+            <button class="copy" type="button" data-copy="cmd-linux" data-en="Copy">Kopieren</button>
+          </div>
+          <ol class="steps" start="2">
+            <li data-en="Start it from the menu; right-click → &lt;b&gt;Add to panel&lt;/b&gt;.">Starten über das Menü, Rechtsklick → <b>Zur Kontrollleiste hinzufügen</b>.</li>
+          </ol>
+          <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/tag/v0.10.0" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            Druckerwacht_0.10.0_amd64.deb
+          </a>
+        </div>
+      </div>
+
+      <p class="note reveal" data-en="&lt;b&gt;For the slicer&lt;/b&gt; you also need the free &lt;a href=&quot;https://github.com/SoftFever/OrcaSlicer/releases&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;OrcaSlicer&lt;/a&gt;. Druckerwacht finds it automatically in Applications or ~/Applications. All versions and changes are on &lt;a href=&quot;https://github.com/pk1310oo/druckerwacht/releases&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;&gt;GitHub Releases&lt;/a&gt;."><b>Für den Slicer</b> wird zusätzlich der kostenlose <a href="https://github.com/SoftFever/OrcaSlicer/releases" target="_blank" rel="noopener">OrcaSlicer</a> gebraucht. Druckerwacht findet ihn automatisch im Ordner Programme bzw. unter ~/Applications. Alle Versionen und Änderungen findest du unter <a href="https://github.com/pk1310oo/druckerwacht/releases" target="_blank" rel="noopener">GitHub Releases</a>.</p>
+    </div>
+  </section>
+</main>
+
+<section class="credits">
+  <div class="wrap">
+    <div class="credit-card reveal">
+      <span class="avatar" aria-hidden="true">PK</span>
+      <div class="credit-text">
+        <span class="kicker" data-en="Made by">Entwickelt von</span>
+        <span class="credit-name">pk1310oo</span>
+        <span class="credit-sub" data-en="Idea, design and testing on my own Ender 3 V3 KE">Idee, Gestaltung und Tests am eigenen Ender 3 V3 KE</span>
+      </div>
+      <a class="btn" href="https://github.com/pk1310oo" target="_blank" rel="noopener">
+        <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.28-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.69 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.27 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
+        github.com/pk1310oo
+      </a>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="wrap">
+    <span data-en="Druckerwacht <span class=&quot;num&quot;>0.10.0</span> · by <a href=&quot;https://github.com/pk1310oo&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>pk1310oo</a> · built for the Ender 3 V3 KE">Druckerwacht <span class="num">0.10.0</span> · von <a href="https://github.com/pk1310oo" target="_blank" rel="noopener">pk1310oo</a> · gebaut für den Ender 3 V3 KE</span>
+    <span data-en="Open source under AGPL-3.0 · <a href=&quot;https://github.com/pk1310oo/druckerwacht&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>Source code</a> · Not an official Creality product. Slicing engine: OrcaSlicer (AGPL-3.0).">Open Source unter AGPL-3.0 · <a href="https://github.com/pk1310oo/druckerwacht" target="_blank" rel="noopener">Quellcode</a> · Kein offizielles Creality-Produkt. Slicer-Motor: OrcaSlicer (AGPL-3.0).</span>
+  </div>
+</footer>
+
+<script>
+  // Sprache: gespeicherte Wahl, sonst Browsersprache (Deutsch nur bei de-*)
+  var L = "de";
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem("dw-lang"); } catch (e) {}
+    var q = new URLSearchParams(location.search).get("lang");
+    L = q === "de" || q === "en" ? q : saved === "de" || saved === "en" ? saved : (/^de\b/i.test(navigator.language || "") ? "de" : "en");
+    function apply(lang) {
+      L = lang;
+      document.documentElement.lang = lang;
+      document.title = lang === "en" ? "Druckerwacht – printer monitoring for the Ender 3 V3 KE" : DE_TITLE;
+      document.querySelectorAll("[data-en]").forEach(function (el) {
+        if (!el.hasAttribute("data-de")) el.setAttribute("data-de", el.innerHTML);
+        el.innerHTML = lang === "en" ? el.getAttribute("data-en") : el.getAttribute("data-de");
+      });
+      document.querySelectorAll("[data-en-aria]").forEach(function (el) {
+        if (!el.hasAttribute("data-de-aria")) el.setAttribute("data-de-aria", el.getAttribute("aria-label"));
+        el.setAttribute("aria-label", lang === "en" ? el.getAttribute("data-en-aria") : el.getAttribute("data-de-aria"));
+      });
+      document.querySelectorAll("img[data-shot]").forEach(function (img) {
+        if (!img.hasAttribute("data-de-alt")) img.setAttribute("data-de-alt", img.alt);
+        img.src = (lang === "en" ? "img/en/" : "img/") + img.getAttribute("data-shot") + ".jpg";
+        if (img.hasAttribute("data-en-alt")) img.alt = lang === "en" ? img.getAttribute("data-en-alt") : img.getAttribute("data-de-alt");
+      });
+      document.querySelectorAll(".lang button").forEach(function (b) {
+        b.setAttribute("aria-pressed", String(b.getAttribute("data-lang") === lang));
+      });
+      if (window.__setVideoLang) window.__setVideoLang(lang);
+    }
+    var DE_TITLE = document.title;
+    apply(L);
+    document.querySelectorAll(".lang button").forEach(function (b) {
+      b.addEventListener("click", function () {
+        var lang = b.getAttribute("data-lang");
+        try { localStorage.setItem("dw-lang", lang); } catch (e) {}
+        apply(lang);
+      });
+    });
+  })();
+
+  // ---------------------------------------------------------------- Effekte
+  (function () {
+    var reduce = window.matchMedia && matchMedia("(prefers-reduced-motion: reduce)").matches;
+    var fmt = function (v, d) { return v.toFixed(d).replace(".", L === "en" ? "." : ","); };
+
+    // 3D-Fenster: kippt beim Scrollen gerade, folgt leicht der Maus
+    var stage = document.getElementById("stage");
+    if (stage && !reduce) {
+      var onScroll = function () {
+        var r = stage.getBoundingClientRect();
+        var p = Math.min(1, Math.max(0, 1 - (r.top - 80) / (window.innerHeight * 0.7)));
+        stage.style.setProperty("--p", p.toFixed(3));
+      };
+      window.addEventListener("scroll", onScroll, { passive: true }); onScroll();
+      stage.addEventListener("mousemove", function (e) {
+        var r = stage.getBoundingClientRect();
+        stage.style.setProperty("--tx", (((e.clientX - r.left) / r.width - 0.5) * 4).toFixed(2) + "deg");
+        stage.style.setProperty("--ty", (((e.clientY - r.top) / r.height - 0.5) * -3).toFixed(2) + "deg");
+      });
+      stage.addEventListener("mouseleave", function () { stage.style.setProperty("--tx", "0deg"); stage.style.setProperty("--ty", "0deg"); });
+    }
+
+    // Lichtschein folgt der Maus
+    document.querySelectorAll(".spot").forEach(function (el) {
+      el.addEventListener("mousemove", function (e) {
+        var r = el.getBoundingClientRect();
+        el.style.setProperty("--mx", (e.clientX - r.left) + "px");
+        el.style.setProperty("--my", (e.clientY - r.top) + "px");
+      });
+    });
+
+    // Zahlen zählen hoch, sobald sie sichtbar werden
+    var counted = false;
+    var counters = document.querySelectorAll(".js-count");
+    if ("IntersectionObserver" in window && counters.length) {
+      var io = new IntersectionObserver(function (es) {
+        if (counted || !es.some(function (x) { return x.isIntersecting; })) return;
+        counted = true;
+        var t0 = performance.now();
+        (function step(t) {
+          var k = Math.min(1, (t - t0) / 1600), e = 1 - Math.pow(1 - k, 3);
+          counters.forEach(function (c) { c.textContent = Math.round(Number(c.getAttribute("data-to")) * e); });
+          if (k < 1) requestAnimationFrame(step);
+        })(t0);
+      }, { threshold: 0.4 });
+      counters.forEach(function (c) { io.observe(c); });
+    } else counters.forEach(function (c) { c.textContent = c.getAttribute("data-to"); });
+
+    // Live-Demo: Werte ticken, Kurve läuft mit
+    var pts = [], N = 90, prog = 47.2, layer = 112, tick = 0;
+    for (var i = 0; i < N; i++) pts.push(160 + 40 * Math.sin(i / 6) + 15 * Math.sin(i / 1.7));
+    var $ = function (c) { return document.querySelectorAll(c); };
+    var setAll = function (c, v) { $(c).forEach(function (e) { e.textContent = v; }); };
+    var width = function (c, v) { $(c).forEach(function (e) { e.style.width = v + "%"; }); };
+    function draw() {
+      var d = "", max = 260;
+      pts.forEach(function (v, i) { var x = i / (N - 1) * 1000, y = 210 - v / max * 190; d += (i ? " L" : "M") + x.toFixed(1) + " " + y.toFixed(1); });
+      $(".js-line").forEach(function (e) { e.setAttribute("d", d); });
+      $(".js-area").forEach(function (e) { e.setAttribute("d", d + " L1000 220 L0 220 Z"); });
+    }
+    function live() {
+      tick++;
+      var noz = 215 + (Math.random() - 0.5) * 0.8, bed = 60 + (Math.random() - 0.5) * 0.3;
+      var spd = Math.round(165 + 40 * Math.sin(tick / 5) + 15 * Math.sin(tick / 1.6));
+      prog = Math.min(99, prog + 0.08); if (Math.random() < 0.3) layer = Math.min(240, layer + 1);
+      pts.shift(); pts.push(spd); draw();
+      setAll(".js-noz", fmt(noz, 1) + " °C"); setAll(".js-l-noz", fmt(noz, 1)); setAll(".js-l-bed", fmt(bed, 1));
+      setAll(".js-l-spd", spd); setAll(".js-l-pct", Math.floor(prog)); setAll(".js-pct", Math.floor(prog) + " %");
+      setAll(".js-layer", layer + " / 240"); setAll(".js-l-layer", layer + " / 240");
+      width(".js-m-noz", 100); width(".js-m-bed", 100); width(".js-m-spd", spd / 2.6); width(".js-m-pct", prog);
+      $(".js-ring").forEach(function (e) { e.setAttribute("stroke-dashoffset", (94.2 * (1 - prog / 100)).toFixed(1)); });
+    }
+    draw(); live();
+    if (!reduce) setInterval(live, 1000);
+
+    // Bildschau: wechselt automatisch alle 5 s, hält bei Mauskontakt an
+    var sc = document.getElementById("showcase");
+    if (sc) {
+      var tabsEl = sc.querySelectorAll(".sc-tab"), imgsEl = sc.querySelectorAll(".sc-img"), cur = 0, timer = null;
+      var show = function (i) {
+        cur = (i + tabsEl.length) % tabsEl.length;
+        tabsEl.forEach(function (t, k) { t.classList.toggle("on", k === cur); });
+        imgsEl.forEach(function (im, k) { im.classList.toggle("on", k === cur); });
+        var bar = tabsEl[cur].querySelector(".sc-bar"); bar.style.animation = "none"; void bar.offsetWidth; bar.style.animation = "";
+      };
+      var loop = function () { clearInterval(timer); if (!reduce) timer = setInterval(function () { if (!sc.classList.contains("paused")) show(cur + 1); }, 5000); };
+      tabsEl.forEach(function (t, k) { t.addEventListener("click", function () { show(k); loop(); }); });
+      sc.addEventListener("mouseenter", function () { sc.classList.add("paused"); });
+      sc.addEventListener("mouseleave", function () { sc.classList.remove("paused"); });
+      loop();
+    }
+
+    // Fortschrittsbalken oben beim Scrollen
+    var sb = document.createElement("div"); sb.className = "scrollbar"; document.body.appendChild(sb);
+    var onSb = function () { var h = document.documentElement.scrollHeight - innerHeight; sb.style.width = (h > 0 ? scrollY / h * 100 : 0) + "%"; };
+    addEventListener("scroll", onSb, { passive: true }); onSb();
+
+    // Druck-Animation: ein Druckkopf baut Schicht für Schicht eine gedrehte Vase
+    var cv = document.getElementById("printer");
+    if (cv && cv.getContext && !reduce) {
+      var ctx = cv.getContext("2d"), dpr = Math.min(2, devicePixelRatio || 1), W, H;
+      var size = function () { W = cv.clientWidth; H = cv.clientHeight; cv.width = W * dpr; cv.height = H * dpr; ctx.setTransform(dpr, 0, 0, dpr, 0, 0); };
+      size(); addEventListener("resize", size);
+      var LAYERS = 46, layer = 0, pos = 0, hold = 0;
+      var radius = function (k) { return 70 + 26 * Math.sin(Math.PI * k * 1.1) - 10 * k * k; };
+      var shape = function (k, a) { return radius(k) * (1 + 0.13 * Math.cos(6 * (a + k * 1.25))); };
+      var proj = function (k, a) { var r = shape(k, a); return [W / 2 + Math.cos(a) * r, H - 70 - k * (H - 170) + Math.sin(a) * r * 0.32]; };
+      function frame() {
+        ctx.clearRect(0, 0, W, H);
+        // Druckbett
+        ctx.save(); ctx.translate(W / 2, H - 70); ctx.scale(1, 0.32);
+        var g = ctx.createRadialGradient(0, 0, 10, 0, 0, 220); g.addColorStop(0, "rgba(217,119,87,.20)"); g.addColorStop(1, "rgba(217,119,87,0)");
+        ctx.fillStyle = g; ctx.beginPath(); ctx.arc(0, 0, 220, 0, Math.PI * 2); ctx.fill();
+        ctx.strokeStyle = "rgba(255,255,255,.08)"; ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(0, 0, 200, 0, Math.PI * 2); ctx.stroke(); ctx.restore();
+        // fertige Schichten (hinten dunkler, vorne heller)
+        for (var L = 0; L <= layer; L++) {
+          var k = L / LAYERS, end = L < layer ? Math.PI * 2 : pos;
+          for (var a = 0; a < end; a += 0.08) {
+            var p1 = proj(k, a), p2 = proj(k, Math.min(end, a + 0.085));
+            var front = Math.sin(a + 0.04) > 0;
+            var t = L / LAYERS;
+            ctx.strokeStyle = front ? "rgba(" + Math.round(217 + 30 * t) + "," + Math.round(119 + 40 * t) + "," + Math.round(87 + 30 * t) + ",.95)" : "rgba(120,62,44,.55)";
+            ctx.lineWidth = front ? 3.2 : 2.4; ctx.lineCap = "round";
+            ctx.beginPath(); ctx.moveTo(p1[0], p1[1]); ctx.lineTo(p2[0], p2[1]); ctx.stroke();
+          }
+        }
+        // Düse
+        var n = proj(layer / LAYERS, pos);
+        var glow = ctx.createRadialGradient(n[0], n[1], 0, n[0], n[1], 26); glow.addColorStop(0, "rgba(255,190,150,.9)"); glow.addColorStop(1, "rgba(255,190,150,0)");
+        ctx.fillStyle = glow; ctx.beginPath(); ctx.arc(n[0], n[1], 26, 0, Math.PI * 2); ctx.fill();
+        ctx.fillStyle = "#f5f4ef"; ctx.beginPath(); ctx.moveTo(n[0] - 12, n[1] - 34); ctx.lineTo(n[0] + 12, n[1] - 34); ctx.lineTo(n[0] + 4, n[1] - 6); ctx.lineTo(n[0] - 4, n[1] - 6); ctx.closePath(); ctx.fill();
+        ctx.fillStyle = "#2a2928"; ctx.fillRect(n[0] - 26, n[1] - 58, 52, 24);
+        // weiter
+        if (hold > 0) { hold--; if (!hold) { layer = 0; pos = 0; } }
+        else { pos += 0.22; if (pos >= Math.PI * 2) { pos = 0; layer++; if (layer > LAYERS) { layer = LAYERS; pos = Math.PI * 2; hold = 150; } } }
+        requestAnimationFrame(frame);
+      }
+      requestAnimationFrame(frame);
+    }
+  })();
+
+  // Navigation bekommt beim Scrollen einen ruhigen, unscharfen Hintergrund
+  (function () {
+    var nav = document.getElementById("nav");
+    var onScroll = function () { nav.classList.toggle("scrolled", window.scrollY > 8); };
+    window.addEventListener("scroll", onScroll, { passive: true });
+    onScroll();
+  })();
+
+  // Befehle kopieren (mit Rückfall auf Markieren, falls die Zwischenablage gesperrt ist)
+  document.querySelectorAll(".copy").forEach(function (btn) {
+    btn.addEventListener("click", function () {
+      var pre = document.getElementById(btn.getAttribute("data-copy"));
+      var text = pre.textContent;
+      var done = function () {
+        btn.textContent = L === "en" ? "Copied" : "Kopiert";
+        btn.classList.add("done");
+        setTimeout(function () { btn.textContent = L === "en" ? "Copy" : "Kopieren"; btn.classList.remove("done"); }, 1800);
+      };
+      var select = function () {
+        var r = document.createRange();
+        r.selectNodeContents(pre);
+        var s = window.getSelection();
+        s.removeAllRanges();
+        s.addRange(r);
+        btn.textContent = L === "en" ? "Selected" : "Markiert";
+      };
+      try {
+        navigator.clipboard.writeText(text).then(done, select);
+      } catch (e) {
+        select();
+      }
+    });
+  });
+</script>
+</body>
+</html>

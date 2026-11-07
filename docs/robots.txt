@@ -1,0 +1,3 @@
+User-agent: *
+Allow: /
+Sitemap: https://pk1310oo.github.io/druckerwacht/sitemap.xml
