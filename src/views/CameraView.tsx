@@ -1,25 +1,25 @@
 import { VideoOff } from "lucide-react";
-import { useStore } from "../lib/store";
 import { Card, EmptyState } from "../components/ui";
-import { CameraFrame } from "../components/Camera";
+import { CameraBox } from "../components/Camera";
+import { useCameraSource } from "../lib/webcam";
 import type { ViewId } from "../components/Shell";
 import { t } from "../lib/i18n";
 
 export function CameraView({ go }: { go: (v: ViewId) => void }) {
-  const url = useStore((s) => s.settings.cameraUrl.trim());
+  const camera = useCameraSource();
   return (
     <div className="view camera-view">
       <Card className="camera">
         <div className="chart-head">
           <span className="label">{t("Kamera")}</span>
-          {url && (
+          {camera && (
             <span className="live">
               <i /> Live
             </span>
           )}
         </div>
-        {url ? (
-          <CameraFrame url={url} />
+        {camera ? (
+          <CameraBox source={camera} />
         ) : (
           <EmptyState
             icon={VideoOff}

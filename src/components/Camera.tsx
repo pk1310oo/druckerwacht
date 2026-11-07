@@ -1,7 +1,8 @@
 import { t } from "../lib/i18n";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { RefreshCw, VideoOff } from "lucide-react";
 import { EmptyState } from "./ui";
+import { useWebcamStream, type CameraSource } from "../lib/webcam";
 
 /**
  * Zeigt einen MJPEG-Stream oder ein Einzelbild (z. B. Nebula-Kamera
@@ -42,11 +43,52 @@ export function CameraFrame({ url }: { url: string }) {
           text={t("Prüfe die Stream-Adresse in den Einstellungen.")}
           actions={
             <button className="btn sm" onClick={() => setNonce((n) => n + 1)}>
-              <RefreshCw size={14} /> Erneut versuchen
+              <RefreshCw size={14} /> {t("Erneut versuchen")}
             </button>
           }
         />
       )}
+    </div>
+  );
+}
+
+/** Kamerabild aus der eingestellten Quelle: Webcam am Computer oder Stream-Adresse. */
+export function CameraBox({ source }: { source: NonNullable<CameraSource> }) {
+  return source.kind === "local" ? <WebcamFrame deviceId={source.deviceId} /> : <CameraFrame url={source.url} />;
+}
+
+/** Live-Bild der Webcam am Computer. */
+export function WebcamFrame({ deviceId }: { deviceId: string }) {
+  const { stream, error, retry } = useWebcamStream(deviceId);
+  const video = useRef<HTMLVideoElement>(null);
+  useEffect(() => {
+    if (video.current) video.current.srcObject = stream;
+  }, [stream]);
+  if (error) {
+    const denied = error === "NotAllowedError" || error === "SecurityError";
+    return (
+      <div className="camera-frame">
+        <EmptyState
+          icon={VideoOff}
+          title={denied ? t("Kamerazugriff nicht erlaubt") : t("Webcam nicht gefunden")}
+          text={
+            denied
+              ? t("Erlaube Druckerwacht den Zugriff auf die Kamera (Mac: Systemeinstellungen → Datenschutz & Sicherheit → Kamera).")
+              : t("Ist die Webcam eingesteckt? Sonst in den Einstellungen eine andere Webcam wählen.")
+          }
+          actions={
+            <button className="btn sm" onClick={retry}>
+              <RefreshCw size={14} /> {t("Erneut versuchen")}
+            </button>
+          }
+        />
+      </div>
+    );
+  }
+  return (
+    <div className="camera-frame">
+      <video ref={video} autoPlay muted playsInline style={{ opacity: stream ? 1 : 0 }} />
+      {!stream && <div className="skeleton" style={{ position: "absolute", inset: 0, borderRadius: 0 }} />}
     </div>
   );
 }

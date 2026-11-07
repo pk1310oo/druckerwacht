@@ -902,3 +902,5 @@
 /* ---------------------------------------------------------------- Einstellungen: Eingabe mit Knopf */
 .row-input { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-top: 8px; }
 .row-input .input { flex: 1; min-width: 200px; }
+
+.webcam-preview { max-width: 360px; margin-top: 10px; }

@@ -67,6 +67,8 @@ export interface Settings {
   ntfyTopic: string;
   /** Zeitraffer aufnehmen, wenn eine Kamera eingerichtet ist */
   timelapse: boolean;
+  /** Webcam am Computer (Geräte-ID, leer = keine) */
+  localCamera: string;
 }
 
 export interface JobRecord {
@@ -114,4 +116,5 @@ export const DEFAULT_SETTINGS: Settings = {
   accent: "orange",
   ntfyTopic: "",
   timelapse: true,
+  localCamera: "",
 };

@@ -411,6 +411,32 @@ fn setup_tray(app: &tauri::App) {
 #[cfg(not(target_os = "macos"))]
 fn setup_tray(_app: &tauri::App) {}
 
+/// Linux: WebKitGTK lehnt Kamerazugriff ohne eigenen Handler still ab – für die Webcam am
+/// Computer erlauben (nur Kamera/Mikrofon-Anfragen der eigenen Oberfläche).
+#[cfg(target_os = "linux")]
+fn allow_webcam(app: &tauri::App) {
+    use webkit2gtk::glib::prelude::ObjectExt;
+    use webkit2gtk::{PermissionRequestExt, SettingsExt, UserMediaPermissionRequest, WebViewExt};
+    let Some(w) = app.get_webview_window("main") else { return };
+    let _ = w.with_webview(|wv| {
+        let view = wv.inner();
+        if let Some(settings) = WebViewExt::settings(&view) {
+            settings.set_enable_media_stream(true);
+        }
+        view.connect_permission_request(|_, req| {
+            if req.is::<UserMediaPermissionRequest>() {
+                req.allow();
+                true
+            } else {
+                false
+            }
+        });
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn allow_webcam(_app: &tauri::App) {}
+
 /// Nach dem Verbinden einmal nach einer Kamera am Drucker suchen, wenn noch keine eingetragen ist.
 fn probe_camera_once(app: &AppHandle) {
     let state = app.state::<Arc<AppState>>();
@@ -875,6 +901,29 @@ async fn queue_start(app: AppHandle, id: String) -> Result<String, String> {
     Ok(name)
 }
 
+/// Zeitraffer-Bild der Webcam am Computer für die aktuelle Schicht (JPEG, base64).
+#[tauri::command]
+fn timelapse_add_frame(app: AppHandle, layer: i64, data: String) -> Result<(), String> {
+    use base64::Engine;
+    let state = app.state::<Arc<AppState>>();
+    let dir = {
+        let mut inner = state.lock();
+        let printing = inner.status.as_ref().map(|s| s.state == PrintState::Printing).unwrap_or(false);
+        let Some(j) = inner.active_job.as_mut().filter(|_| printing) else { return Ok(()) };
+        if j.last_frame_layer == Some(layer) {
+            return Ok(());
+        }
+        j.last_frame_layer = Some(layer);
+        state.paths.timelapse_dir.join(extras::timelapse_key(j.started_ms, &j.file))
+    };
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data.as_bytes()).map_err(|e| e.to_string())?;
+    if bytes.len() < 4 || bytes[0] != 0xFF || bytes[1] != 0xD8 {
+        return Err("kein JPEG".into());
+    }
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(format!("{layer:06}.jpg")), bytes).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn timelapse_list(app: AppHandle) -> Vec<extras::Timelapse> {
     extras::list_timelapses(&app.state::<Arc<AppState>>().paths.timelapse_dir)
@@ -946,6 +995,7 @@ pub fn run() {
             }));
 
             setup_tray(app);
+            allow_webcam(app);
             restart_connection(app.handle());
             spawn_sampler(app.handle().clone());
             Ok(())
@@ -983,6 +1033,7 @@ pub fn run() {
             queue_shift,
             queue_start,
             timelapse_list,
+            timelapse_add_frame,
             timelapse_export,
             timelapse_delete
         ])

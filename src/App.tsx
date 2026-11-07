@@ -7,6 +7,7 @@ import { SettingsView } from "./views/SettingsView";
 import { SlicerView } from "./views/SlicerView";
 import { FilamentView } from "./views/FilamentView";
 import { consume } from "./lib/spools";
+import { useWebcamTimelapse } from "./lib/webcam";
 import { useStore } from "./lib/store";
 import { resolveLang, setLang } from "./lib/i18n";
 import { setBackendLanguage } from "./lib/api";
@@ -16,7 +17,7 @@ import { Intro } from "./components/Fx";
 export default function App() {
   const [view, setView] = useState<ViewId>("dashboard");
   const ready = useStore((s) => s.ready);
-  const hasCamera = useStore((s) => s.settings.cameraUrl.trim() !== "");
+  const hasCamera = useStore((s) => s.settings.cameraUrl.trim() !== "" || s.settings.localCamera.trim() !== "");
   const langSetting = useStore((s) => s.settings.language);
   const lang = resolveLang(langSetting);
   // vor dem Rendern der Kinder setzen, damit t() und die Farben sofort stimmen
@@ -28,6 +29,7 @@ export default function App() {
   }, [lang]);
 
   useFilamentTracking();
+  useWebcamTimelapse();
 
   // Kamera-Ansicht verlassen, wenn die Kamera entfernt wurde
   useEffect(() => {

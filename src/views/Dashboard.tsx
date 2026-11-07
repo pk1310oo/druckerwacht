@@ -6,7 +6,8 @@ import { DASH, fmtDuration, fmtEta, fmtNum, STATE_LABEL, STATE_TONE } from "../l
 import type { PrinterStatus } from "../lib/types";
 import { Badge, Card, EmptyState, Rolling, Segmented, StatCard } from "../components/ui";
 import { Chart, type SeriesDef } from "../components/Chart";
-import { CameraFrame } from "../components/Camera";
+import { CameraBox } from "../components/Camera";
+import { useCameraSource } from "../lib/webcam";
 import { Confetti } from "../components/Fx";
 
 import type { ViewId } from "../components/Shell";
@@ -47,7 +48,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
   const connection = useStore((s) => s.connection);
   const status = useStore((s) => s.status);
   const samples = useStore((s) => s.samples);
-  const cameraUrl = useStore((s) => s.settings.cameraUrl.trim());
+  const camera = useCameraSource();
   const [windowMin, setWindowMin] = useState(loadWindow);
   const tempSeries = useMemo(TEMP_SERIES, []);
   // Kurzes grünes Leuchten, wenn ein Druck fertig wird
@@ -104,9 +105,9 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
         <Stats status={status} />
       </div>
 
-      {cameraUrl && (
+      {camera && (
       <div className="row-progress">
-        {cameraUrl && (
+        {camera && (
           <Card className="camera">
             <div className="chart-head">
               <span className="label">{t("Kamera")}</span>
@@ -114,7 +115,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
                 <i /> Live
               </span>
             </div>
-            <CameraFrame url={cameraUrl} />
+            <CameraBox source={camera} />
           </Card>
         )}
       </div>

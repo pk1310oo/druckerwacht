@@ -10,6 +10,8 @@ import { THEMES, THEME_IDS } from "../lib/theme";
 import { slicerInfo, type SlicerInfo } from "../slicer/api";
 import { APP_VERSION, REPO_URL, checkForUpdate, openProjectLink, type UpdateInfo } from "../lib/update";
 import { cameraProbe, ntfyTest, randomTopic } from "../lib/extras";
+import { listWebcams, type Webcam } from "../lib/webcam";
+import { WebcamFrame } from "../components/Camera";
 
 const THEME_NAMES: Record<(typeof THEME_IDS)[number], string> = { orange: "Orange", blue: "Blau", green: "Grün", purple: "Lila", pink: "Pink" };
 
@@ -176,6 +178,11 @@ export function SettingsView() {
       <Card className="form-section">
         <span className="label">{t("Kamera")}</span>
         <div className="field">
+          <label htmlFor="webcam">{t("Webcam am Computer")}</label>
+          <WebcamPicker value={draft.localCamera} onChange={(v) => set("localCamera", v)} />
+          <span className="hint">{t("Für eine Webcam, die per USB an diesem Computer steckt. Hat Vorrang vor der Stream-Adresse.")}</span>
+        </div>
+        <div className="field">
           <label htmlFor="cam">{t("Stream-Adresse (optional)")}</label>
           <input
             id="cam"
@@ -189,7 +196,7 @@ export function SettingsView() {
             <span className="hint error">{errors.cameraUrl}</span>
           ) : (
             <span className="hint">
-              {t("Eine USB-Kamera am Drucker (z. B. Nebula-Kamera oder USB-Webcam) wird nach dem Verbinden automatisch gefunden. Leer lassen, um die Kamera auszublenden.")}
+              {t("Eine Creality-Nebula-Kamera am Drucker wird nach dem Verbinden automatisch gefunden (normale Webcams erkennt der KE nicht – die bitte oben am Computer einstecken).")}
             </span>
           )}
           <CameraSearch onFound={(url) => set("cameraUrl", url)} />
@@ -425,6 +432,47 @@ function NtfyTest({ topic }: { topic: string }) {
       </button>
       {state === "ok" && <span className="hint">{t("Gesendet – kam es an?")}</span>}
       {state !== "idle" && state !== "busy" && state !== "ok" && <span className="hint error">{state}</span>}
+    </>
+  );
+}
+
+function WebcamPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  const [cams, setCams] = useState<Webcam[]>([]);
+  const [state, setState] = useState<"idle" | "busy" | "denied" | "none">("idle");
+  const search = (ask: boolean) => {
+    setState("busy");
+    listWebcams(ask)
+      .then((c) => {
+        setCams(c);
+        setState(c.length ? "idle" : "none");
+      })
+      .catch((e: Error) => setState(e?.name === "NotAllowedError" ? "denied" : "none"));
+  };
+  useEffect(() => search(false), []);
+  const known = cams.some((c) => c.deviceId === value);
+  return (
+    <>
+      <div className="row-input" style={{ marginTop: 0 }}>
+        <select id="webcam" className="input" value={value} onChange={(e) => onChange(e.target.value)}>
+          <option value="">{t("Keine – Stream-Adresse nutzen")}</option>
+          {cams.map((c) => (
+            <option key={c.deviceId} value={c.deviceId}>
+              {c.label}
+            </option>
+          ))}
+          {value && !known && <option value={value}>{t("Gespeicherte Webcam")}</option>}
+        </select>
+        <button type="button" className="btn" disabled={state === "busy"} onClick={() => search(true)}>
+          {state === "busy" ? <Loader2 size={14} className="spin" /> : <Search size={14} />} {t("Webcams suchen")}
+        </button>
+      </div>
+      {state === "denied" && <span className="hint error">{t("Kamerazugriff wurde abgelehnt. Mac: Systemeinstellungen → Datenschutz & Sicherheit → Kamera → Druckerwacht erlauben.")}</span>}
+      {state === "none" && <span className="hint error">{t("Keine Webcam gefunden. Ist sie eingesteckt?")}</span>}
+      {value && (
+        <div className="webcam-preview">
+          <WebcamFrame deviceId={value} />
+        </div>
+      )}
     </>
   );
 }

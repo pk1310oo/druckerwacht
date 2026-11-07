@@ -18,7 +18,7 @@ const NAV: { id: ViewId; label: string; icon: LucideIcon }[] = [
 ];
 
 export function Sidebar({ view, onChange }: { view: ViewId; onChange: (v: ViewId) => void }) {
-  const hasCamera = useStore((s) => s.settings.cameraUrl.trim() !== "");
+  const hasCamera = useStore((s) => s.settings.cameraUrl.trim() !== "" || s.settings.localCamera.trim() !== "");
   // Gleitende Markierung neben dem aktiven Menüpunkt
   const nav = useRef<HTMLElement>(null);
   const [mark, setMark] = useState<number | null>(null);

@@ -821,7 +821,8 @@ input {
   overflow: hidden;
 }
 
-.camera-frame img {
+.camera-frame img,
+.camera-frame video {
   position: absolute;
   inset: 0;
   width: 100%;
