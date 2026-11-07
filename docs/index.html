@@ -3,16 +3,16 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Druckerwacht – kostenlose App für den Ender 3 V3 KE (Mac &amp; Linux)</title>
-<meta name="description" content="Druckerwacht – kostenlose Open-Source-App für den Creality Ender 3 V3 KE: Live-Überwachung, Slicer mit OrcaSlicer-Motor, Tempo live von Flüster bis Turbo, Farbwechsel, Warteschlange und Filament-Lager. Für Mac und Linux.">
+<title>Druckerwacht – kostenlose App für den Ender 3 V3 KE (Windows, Mac &amp; Linux)</title>
+<meta name="description" content="Druckerwacht – kostenlose Open-Source-App für den Creality Ender 3 V3 KE: Live-Überwachung, Slicer mit OrcaSlicer-Motor, Tempo live von Flüster bis Turbo, Farbwechsel, Warteschlange und Filament-Lager mit Kosten pro Druck. Für Windows, Mac und Linux.">
 <link rel="canonical" href="https://pk1310oo.github.io/druckerwacht/">
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='100 100 824 824'%3E%3Crect x='100' y='100' width='824' height='824' rx='190' fill='%231A1A1A'/%3E%3Cpath d='M432 250h160v70l-40 60h-80l-40-60z' fill='%23F5F4EF'/%3E%3Crect x='300' y='520' width='424' height='56' rx='28' fill='%23D97757'/%3E%3Crect x='300' y='604' width='424' height='56' rx='28' fill='%23D97757' opacity='.75'/%3E%3Crect x='300' y='688' width='424' height='56' rx='28' fill='%23D97757' opacity='.5'/%3E%3C/svg%3E">
 <meta name="theme-color" content="#0c0c0c">
 <meta property="og:type" content="website">
 <meta property="og:title" content="Druckerwacht – dein Ender 3 V3 KE, in Ruhe im Blick">
-<meta property="og:description" content="Druckerwacht – kostenlose Open-Source-App für den Creality Ender 3 V3 KE: Live-Überwachung, Slicer mit OrcaSlicer-Motor, Tempo live von Flüster bis Turbo, Farbwechsel, Warteschlange und Filament-Lager. Für Mac und Linux.">
+<meta property="og:description" content="Druckerwacht – kostenlose Open-Source-App für den Creality Ender 3 V3 KE: Live-Überwachung, Slicer mit OrcaSlicer-Motor, Tempo live von Flüster bis Turbo, Farbwechsel, Warteschlange und Filament-Lager mit Kosten pro Druck. Für Windows, Mac und Linux.">
 <meta property="og:url" content="https://pk1310oo.github.io/druckerwacht/">
-<meta property="og:image" content="https://pk1310oo.github.io/druckerwacht/img/neon.jpg">
+<meta property="og:image" content="https://pk1310oo.github.io/druckerwacht/img/dashboard.jpg">
 <meta name="twitter:card" content="summary_large_image">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -334,7 +334,7 @@
   /* Zwei Bilder nebeneinander */
   .pair {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
     gap: 24px;
     margin-top: 56px;
   }
@@ -482,7 +482,7 @@
   /* ------------------------------------------------------------ Download */
   .dl {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 24px;
     margin-top: 56px;
   }
@@ -596,6 +596,7 @@
   footer .wrap > * { min-width: 0; }
 
   /* ------------------------------------------------------------ Responsive */
+  @media (max-width: 1100px) { .dl { grid-template-columns: minmax(0, 1fr); } }
   @media (max-width: 900px) {
     .split { grid-template-columns: minmax(0, 1fr); gap: 40px; }
     .grid3 { grid-template-columns: minmax(0, 1fr); }
@@ -628,6 +629,7 @@
       <a href="#video" data-en="Tour">Rundgang</a>
       <a href="#ueberwachung" data-en="Monitoring">Überwachung</a>
       <a href="#slicer">Slicer</a>
+      <a href="#filament">Filament</a>
       <a href="#verlauf" data-en="Under the hood">Verlauf</a>
       <a href="#opensource">Open Source</a>
       <a href="#download">Download</a>
@@ -642,13 +644,13 @@
   <section class="hero">
     <canvas id="printer" aria-hidden="true"></canvas>
     <div class="wrap">
-      <div class="eyebrow rise"><span class="dot"></span><span data-en="Version 0.10.0 Beta · free &amp; open source · for the Ender 3 V3 KE">Version 0.10.0 Beta · kostenlos &amp; Open Source · für den Ender 3 V3 KE</span></div>
+      <div class="eyebrow rise"><span class="dot"></span><span data-en="Version 0.10.1 Beta · free &amp; open source · for the Ender 3 V3 KE">Version 0.10.1 Beta · kostenlos &amp; Open Source · für den Ender 3 V3 KE</span></div>
       <h1 class="rise d1" data-en="Your printer.&lt;br&gt;&lt;em&gt;Calmly&lt;/em&gt; in view.">Dein Drucker.<br><em>In Ruhe</em> im Blick.</h1>
       <p class="lead rise d2" data-en="Druckerwacht monitors your Ender 3 V3 KE live over Wi-Fi, slices your models with the OrcaSlicer engine and sends them straight to the printer. One clean app for everything – in English or German.">Druckerwacht überwacht deinen Ender 3 V3 KE live über das WLAN, slict deine Modelle mit dem OrcaSlicer-Motor und schickt sie direkt an den Drucker. Eine App für alles, klar und auf Deutsch oder Englisch.</p>
       <div class="hero-actions rise d3">
         <a class="btn primary" href="#download">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-          <span data-en="Download for Mac &amp; Linux">Für Mac &amp; Linux laden</span>
+          <span data-en="Download for Windows, Mac &amp; Linux">Für Windows, Mac &amp; Linux laden</span>
         </a>
         <a class="btn" href="https://github.com/pk1310oo/druckerwacht" target="_blank" rel="noopener">
           <svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12 .5a11.5 11.5 0 0 0-3.64 22.41c.58.1.79-.25.79-.56v-2c-3.2.7-3.88-1.37-3.88-1.37-.52-1.33-1.280-1.69-1.28-1.69-1.05-.71.08-.7.08-.7 1.16.08 1.77 1.19 1.77 1.19 1.03 1.77 2.7 1.26 3.36.96.1-.75.4-1.26.73-1.55-2.56-.29-5.25-1.28-5.25-5.690 0-1.26.45-2.29 1.19-3.1-.12-.29-.52-1.46.11-3.05 0 0 .97-.31 3.17 1.18a11 11 0 0 1 5.77 0c2.2-1.49 3.17-1.18 3.17-1.18.63 1.59.23 2.76.11 3.05.74.81 1.19 1.84 1.19 3.1 0 4.42-2.7 5.4-5.27 5.68.41.36.78 1.06.78 2.14v3.17c0 .31.21.67.8.56A11.5 11.5 0 0 0 12 .5Z"/></svg>
@@ -674,7 +676,7 @@
     </div>
   </section>
 
-  <div class="marquee" aria-hidden="true"><div class="track"><span data-en="Live monitoring">Live-Überwachung</span><span data-en="Slicer with OrcaSlicer engine">Slicer mit OrcaSlicer-Motor</span><span data-en="Pause &amp;amp; resume">Pause &amp; Fortsetzen</span><span data-en="Notifications">Benachrichtigungen</span><span data-en="29 infill patterns">29 Füllmuster</span><span data-en="Paint supports">Stützen malen</span><span data-en="Colour changes">Farbwechsel</span><span data-en="Speed live: whisper to turbo">Tempo live: Flüster bis Turbo</span><span data-en="Print queue">Warteschlange</span><span data-en="Filament stock">Filament-Lager</span><span data-en="Push to your phone">Push aufs Handy</span><span data-en="Print history">Druckverlauf</span><span data-en="Free &amp;amp; open source">Kostenlos &amp; Open Source</span><span data-en="English &amp;amp; German">Deutsch &amp; English</span><span data-en="Live monitoring">Live-Überwachung</span><span data-en="Slicer with OrcaSlicer engine">Slicer mit OrcaSlicer-Motor</span><span data-en="Pause &amp;amp; resume">Pause &amp; Fortsetzen</span><span data-en="Notifications">Benachrichtigungen</span><span data-en="29 infill patterns">29 Füllmuster</span><span data-en="Paint supports">Stützen malen</span><span data-en="Colour changes">Farbwechsel</span><span data-en="Speed live: whisper to turbo">Tempo live: Flüster bis Turbo</span><span data-en="Print queue">Warteschlange</span><span data-en="Filament stock">Filament-Lager</span><span data-en="Push to your phone">Push aufs Handy</span><span data-en="Print history">Druckverlauf</span><span data-en="Free &amp;amp; open source">Kostenlos &amp; Open Source</span><span data-en="English &amp;amp; German">Deutsch &amp; English</span></div></div>
+  <div class="marquee" aria-hidden="true"><div class="track"><span data-en="Live monitoring">Live-Überwachung</span><span data-en="Slicer with OrcaSlicer engine">Slicer mit OrcaSlicer-Motor</span><span data-en="Pause &amp;amp; resume">Pause &amp; Fortsetzen</span><span data-en="Notifications">Benachrichtigungen</span><span data-en="29 infill patterns">29 Füllmuster</span><span data-en="Paint supports">Stützen malen</span><span data-en="Colour changes">Farbwechsel</span><span data-en="Speed live: whisper to turbo">Tempo live: Flüster bis Turbo</span><span data-en="Print queue">Warteschlange</span><span data-en="Filament stock">Filament-Lager</span><span data-en="Windows, Mac &amp;amp; Linux">Windows, Mac &amp; Linux</span><span data-en="Push to your phone">Push aufs Handy</span><span data-en="Print history">Druckverlauf</span><span data-en="Free &amp;amp; open source">Kostenlos &amp; Open Source</span><span data-en="English &amp;amp; German">Deutsch &amp; English</span><span data-en="Live monitoring">Live-Überwachung</span><span data-en="Slicer with OrcaSlicer engine">Slicer mit OrcaSlicer-Motor</span><span data-en="Pause &amp;amp; resume">Pause &amp; Fortsetzen</span><span data-en="Notifications">Benachrichtigungen</span><span data-en="29 infill patterns">29 Füllmuster</span><span data-en="Paint supports">Stützen malen</span><span data-en="Colour changes">Farbwechsel</span><span data-en="Speed live: whisper to turbo">Tempo live: Flüster bis Turbo</span><span data-en="Print queue">Warteschlange</span><span data-en="Filament stock">Filament-Lager</span><span data-en="Windows, Mac &amp;amp; Linux">Windows, Mac &amp; Linux</span><span data-en="Push to your phone">Push aufs Handy</span><span data-en="Print history">Druckverlauf</span><span data-en="Free &amp;amp; open source">Kostenlos &amp; Open Source</span><span data-en="English &amp;amp; German">Deutsch &amp; English</span></div></div>
 
   <!-- ======================================================= Video -->
   <section class="block" id="video" style="padding-top:110px">
@@ -839,6 +841,40 @@
     </div>
   </section>
 
+
+  <!-- ======================================================= Filament-Lager -->
+  <section class="block" id="filament">
+    <div class="wrap">
+      <div class="kicker reveal" data-en="Filament stock">Filament-Lager</div>
+      <h2 class="reveal" data-en="Know what your print costs. Before it starts.">Wissen, was dein Druck kostet. Bevor er startet.</h2>
+      <p class="sub reveal" data-en="Add your spools once – colour, material, price per kilo. From then on Druckerwacht keeps track of every gram, every euro and every spool that is about to run out.">Trag deine Spulen einmal ein – Farbe, Material, Kilopreis. Ab dann behält Druckerwacht jedes Gramm, jeden Euro und jede Spule im Blick, die bald leer ist.</p>
+
+      <div class="window wide reveal">
+        <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
+        <img src="img/filament.jpg" data-shot="filament" width="2880" height="1800" loading="lazy" alt="Filament-Lager mit fünf Spulen, Restmenge in Gramm und Metern, Kilopreis, Lagerwert und Gesamtkosten" data-en-alt="Filament stock with five spools, grams and metres left, price per kilo, stock value and total cost">
+      </div>
+
+      <ul class="facts reveal" style="margin-top:40px">
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="3"/></svg></span>
+            <div data-en="&lt;b&gt;Every gram counted&lt;/b&gt;&lt;span&gt;After each print Druckerwacht subtracts what was used from the active spool – automatically.&lt;/span&gt;"><b>Jedes Gramm gezählt</b><span>Nach jedem Druck zieht Druckerwacht den Verbrauch automatisch von der aktiven Spule ab.</span></div>
+          </li>
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2v20"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg></span>
+            <div data-en="&lt;b&gt;Cost before you print&lt;/b&gt;&lt;span&gt;The print dialog shows what the print will cost in euros – from your spool’s price per kilo.&lt;/span&gt;"><b>Kosten, bevor du druckst</b><span>Der Druckdialog zeigt, was der Druck in Euro kostet – nach dem Kilopreis deiner Spule.</span></div>
+          </li>
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M10.3 3.9 1.8 18a2 2 0 0 0 1.7 3h17a2 2 0 0 0 1.7-3L13.7 3.9a2 2 0 0 0-3.4 0z"/><path d="M12 9v4M12 17h.01"/></svg></span>
+            <div data-en="&lt;b&gt;Warned before it runs out&lt;/b&gt;&lt;span&gt;Not enough left for this print? You’ll know before you start – not at 80 % in the middle of the night.&lt;/span&gt;"><b>Gewarnt, bevor sie leer ist</b><span>Reicht der Rest nicht für den Druck? Du erfährst es vor dem Start – nicht bei 80 % mitten in der Nacht.</span></div>
+          </li>
+          <li>
+            <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="m7 15 4-4 3 3 5-6"/></svg></span>
+            <div data-en="&lt;b&gt;Your stock at a glance&lt;/b&gt;&lt;span&gt;Kilos and metres left per spool, the value of your stock and what all your prints have cost so far.&lt;/span&gt;"><b>Dein Lager im Blick</b><span>Kilo und Meter pro Spule, der Wert deines Lagers und was alle Drucke bisher gekostet haben.</span></div>
+          </li>
+      </ul>
+    </div>
+  </section>
+
   <!-- ======================================================= Neu in 0.10 -->
   <section class="block" id="neu">
     <div class="wrap">
@@ -846,12 +882,7 @@
       <h2 class="reveal" data-en="Your workshop, fully in view.">Deine Werkstatt, voll im Griff.</h2>
       <p class="sub reveal" data-en="Queue, filament stock, push messages and a look that glows – Druckerwacht now runs the whole workshop.">Warteschlange, Filament-Lager, Push aufs Handy und eine Optik, die leuchtet – Druckerwacht organisiert jetzt die ganze Werkstatt.</p>
 
-      <div class="window wide reveal">
-        <div class="bar" aria-hidden="true"><i></i><i></i><i></i></div>
-        <img src="img/neon.jpg" width="2880" height="1800" loading="lazy" alt="Dashboard mit Neon-Hintergrund, Leuchtring, Tempo-Regler und glühenden Temperaturkarten" data-en-alt="Dashboard with neon background, glowing ring, speed control and hot temperature cards">
-      </div>
-
-      <div class="grid3 reveal">
+      <div class="grid3 reveal" style="margin-top:40px">
         <div class="cell spot">
           <span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18M3 12h18M3 18h12"/><path d="m17 16 3 2-3 2"/></svg></span>
           <h3 data-en="Print queue">Warteschlange</h3>
@@ -942,6 +973,24 @@
       <div class="dl">
         <div class="card spot reveal">
           <div class="card-head">
+            <span class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M3 5.5 10.5 4.4v7.1H3zM11.5 4.3 21 3v8.5h-9.5zM3 12.5h7.5v7.1L3 18.5zM11.5 12.5H21V21l-9.5-1.3z"/></svg></span>
+            <div>
+              <h3>Windows</h3>
+              <div class="meta" data-en="Windows 10 / 11 · 64-bit · installer">Windows 10 / 11 · 64 Bit · Installer</div>
+            </div>
+          </div>
+          <ol class="steps">
+            <li data-en="Download the &lt;b&gt;setup.exe&lt;/b&gt; and run it.">Die <b>setup.exe</b> laden und starten.</li>
+            <li data-en="If SmartScreen warns, click &lt;b&gt;More info → Run anyway&lt;/b&gt; – the app isn’t code-signed yet.">Warnt SmartScreen, auf <b>Weitere Informationen → Trotzdem ausführen</b> klicken – die App ist noch nicht signiert.</li>
+          </ol>
+          <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/latest" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
+            Druckerwacht_0.10.1_x64-setup.exe
+          </a>
+        </div>
+
+        <div class="card spot reveal">
+          <div class="card-head">
             <span class="os"><svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16.37 12.58c-.02-2.2 1.8-3.26 1.88-3.31-1.03-1.5-2.62-1.7-3.18-1.73-1.35-.14-2.64.8-3.33.8-.69 0-1.74-.78-2.86-.76-1.47.02-2.83.86-3.59 2.17-1.53 2.66-.39 6.6 1.1 8.76.73 1.06 1.6 2.24 2.73 2.2 1.1-.04 1.51-.71 2.84-.71 1.32 0 1.7.71 2.85.69 1.18-.02 1.93-1.07 2.65-2.13.84-1.22 1.18-2.41 1.2-2.47-.03-.01-2.3-.88-2.33-3.51zM14.2 6.12c.6-.73 1.01-1.75.9-2.76-.87.04-1.92.58-2.54 1.31-.56.64-1.05 1.67-.92 2.66.97.08 1.96-.49 2.56-1.21z"/></svg></span>
             <div>
               <h3>Mac</h3>
@@ -956,9 +1005,9 @@
             <pre id="cmd-mac">xattr -dr com.apple.quarantine /Applications/Druckerwacht.app</pre>
             <button class="copy" type="button" data-copy="cmd-mac" data-en="Copy">Kopieren</button>
           </div>
-          <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/tag/v0.10.0" target="_blank" rel="noopener">
+          <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/latest" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-            Druckerwacht_0.10.0_aarch64.dmg
+            Druckerwacht_0.10.1_aarch64.dmg
           </a>
         </div>
 
@@ -974,15 +1023,15 @@
             <li data-en="Download and install the &lt;b&gt;.deb&lt;/b&gt; – an update replaces the old version:"><b>.deb</b> laden und installieren, ein Update ersetzt die alte Version:</li>
           </ol>
           <div class="cmd">
-            <pre id="cmd-linux">sudo apt install ./Druckerwacht_0.10.0_amd64.deb</pre>
+            <pre id="cmd-linux">sudo apt install ./Druckerwacht_0.10.1_amd64.deb</pre>
             <button class="copy" type="button" data-copy="cmd-linux" data-en="Copy">Kopieren</button>
           </div>
           <ol class="steps" start="2">
             <li data-en="Start it from the menu; right-click → &lt;b&gt;Add to panel&lt;/b&gt;.">Starten über das Menü, Rechtsklick → <b>Zur Kontrollleiste hinzufügen</b>.</li>
           </ol>
-          <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/tag/v0.10.0" target="_blank" rel="noopener">
+          <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/latest" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-            Druckerwacht_0.10.0_amd64.deb
+            Druckerwacht_0.10.1_amd64.deb
           </a>
         </div>
       </div>
@@ -1011,7 +1060,7 @@
 
 <footer>
   <div class="wrap">
-    <span data-en="Druckerwacht <span class=&quot;num&quot;>0.10.0</span> · by <a href=&quot;https://github.com/pk1310oo&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>pk1310oo</a> · built for the Ender 3 V3 KE">Druckerwacht <span class="num">0.10.0</span> · von <a href="https://github.com/pk1310oo" target="_blank" rel="noopener">pk1310oo</a> · gebaut für den Ender 3 V3 KE</span>
+    <span data-en="Druckerwacht <span class=&quot;num&quot;>0.10.1</span> · by <a href=&quot;https://github.com/pk1310oo&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>pk1310oo</a> · built for the Ender 3 V3 KE">Druckerwacht <span class="num">0.10.1</span> · von <a href="https://github.com/pk1310oo" target="_blank" rel="noopener">pk1310oo</a> · gebaut für den Ender 3 V3 KE</span>
     <span data-en="Open source under AGPL-3.0 · <a href=&quot;https://github.com/pk1310oo/druckerwacht&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>Source code</a> · Not an official Creality product. Slicing engine: OrcaSlicer (AGPL-3.0).">Open Source unter AGPL-3.0 · <a href="https://github.com/pk1310oo/druckerwacht" target="_blank" rel="noopener">Quellcode</a> · Kein offizielles Creality-Produkt. Slicer-Motor: OrcaSlicer (AGPL-3.0).</span>
   </div>
 </footer>

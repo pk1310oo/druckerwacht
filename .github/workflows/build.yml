@@ -3,7 +3,7 @@ name: Build
 on:
   push:
     branches: [main]
-    paths-ignore: [".github/workflows/retag.yml"]
+    paths-ignore: [".github/workflows/retag.yml", "docs/**", "**.md"]
   workflow_dispatch:
 
 permissions:
