@@ -66,13 +66,16 @@ export function WebcamFrame({ deviceId }: { deviceId: string }) {
   }, [stream]);
   if (error) {
     const denied = error === "NotAllowedError" || error === "SecurityError";
+    const unsupported = error === "Unsupported";
     return (
       <div className="camera-frame">
         <EmptyState
           icon={VideoOff}
-          title={denied ? t("Kamerazugriff nicht erlaubt") : t("Webcam nicht gefunden")}
+          title={unsupported ? t("Webcam-Zugriff nicht verfügbar") : denied ? t("Kamerazugriff nicht erlaubt") : t("Webcam nicht gefunden")}
           text={
-            denied
+            unsupported
+              ? t("Diese Version kann hier nicht auf Webcams zugreifen. Bitte Druckerwacht einmal neu starten.")
+              : denied
               ? t("Erlaube Druckerwacht den Zugriff auf die Kamera (Mac: Systemeinstellungen → Datenschutz & Sicherheit → Kamera).")
               : t("Ist die Webcam eingesteckt? Sonst in den Einstellungen eine andere Webcam wählen.")
           }

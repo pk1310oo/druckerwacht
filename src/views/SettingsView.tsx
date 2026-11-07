@@ -438,7 +438,7 @@ function NtfyTest({ topic }: { topic: string }) {
 
 function WebcamPicker({ value, onChange }: { value: string; onChange: (v: string) => void }) {
   const [cams, setCams] = useState<Webcam[]>([]);
-  const [state, setState] = useState<"idle" | "busy" | "denied" | "none">("idle");
+  const [state, setState] = useState<"idle" | "busy" | "denied" | "none" | "unsupported">("idle");
   const search = (ask: boolean) => {
     setState("busy");
     listWebcams(ask)
@@ -446,9 +446,12 @@ function WebcamPicker({ value, onChange }: { value: string; onChange: (v: string
         setCams(c);
         setState(c.length ? "idle" : "none");
       })
-      .catch((e: Error) => setState(e?.name === "NotAllowedError" ? "denied" : "none"));
+      .catch((e: Error) => setState(e?.name === "NotAllowedError" ? "denied" : e?.name === "Unsupported" ? "unsupported" : "none"));
   };
-  useEffect(() => search(false), []);
+  // Beim Öffnen still nachsehen (ohne Fehlermeldung, ohne Kamerafreigabe)
+  useEffect(() => {
+    listWebcams(false).then(setCams).catch(() => {});
+  }, []);
   const known = cams.some((c) => c.deviceId === value);
   return (
     <>
@@ -468,6 +471,7 @@ function WebcamPicker({ value, onChange }: { value: string; onChange: (v: string
       </div>
       {state === "denied" && <span className="hint error">{t("Kamerazugriff wurde abgelehnt. Mac: Systemeinstellungen → Datenschutz & Sicherheit → Kamera → Druckerwacht erlauben.")}</span>}
       {state === "none" && <span className="hint error">{t("Keine Webcam gefunden. Ist sie eingesteckt?")}</span>}
+      {state === "unsupported" && <span className="hint error">{t("Diese Version kann hier nicht auf Webcams zugreifen. Bitte Druckerwacht einmal neu starten.")}</span>}
       {value && (
         <div className="webcam-preview">
           <WebcamFrame deviceId={value} />

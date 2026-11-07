@@ -889,7 +889,7 @@ dependencies = [
 
 [[package]]
 name = "druckerwacht"
-version = "0.9.1"
+version = "0.9.2"
 dependencies = [
  "base64 0.23.1",
  "chrono",

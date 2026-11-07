@@ -544,4 +544,6 @@ export const EN: Record<string, string> = {
   "Webcam am Computer": "Webcam on this computer",
   "Webcam nicht gefunden": "Webcam not found",
   "Webcams suchen": "Find webcams",
+  "Webcam-Zugriff nicht verfügbar": "Webcam access not available",
+  "Diese Version kann hier nicht auf Webcams zugreifen. Bitte Druckerwacht einmal neu starten.": "This version can’t access webcams here. Please restart Druckerwacht once.",
 };

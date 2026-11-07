@@ -420,8 +420,14 @@ fn allow_webcam(app: &tauri::App) {
     let Some(w) = app.get_webview_window("main") else { return };
     let _ = w.with_webview(|wv| {
         let view = wv.inner();
+        // Ist die Schnittstelle beim Laden der Seite aus, fehlt navigator.mediaDevices bis zum
+        // nächsten Laden – daher nach dem Einschalten einmal neu laden.
+        let mut reload = false;
         if let Some(settings) = WebViewExt::settings(&view) {
-            settings.set_enable_media_stream(true);
+            if !settings.enables_media_stream() {
+                settings.set_enable_media_stream(true);
+                reload = true;
+            }
         }
         view.connect_permission_request(|_, req| {
             if req.is::<UserMediaPermissionRequest>() {
@@ -431,6 +437,9 @@ fn allow_webcam(app: &tauri::App) {
                 false
             }
         });
+        if reload {
+            view.reload();
+        }
     });
 }
 

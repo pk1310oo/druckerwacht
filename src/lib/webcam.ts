@@ -14,6 +14,7 @@ let users = 0;
 
 async function open(deviceId: string): Promise<MediaStream> {
   if (stream && streamDevice === deviceId && stream.active) return stream;
+  if (!navigator.mediaDevices?.getUserMedia) throw Object.assign(new Error("no mediaDevices"), { name: "Unsupported" });
   if (opening) return opening;
   stop();
   opening = navigator.mediaDevices
@@ -64,7 +65,7 @@ export interface Webcam {
 
 /** Alle Webcams. Die Namen gibt der Browser erst nach einer Kamerafreigabe heraus. */
 export async function listWebcams(askPermission: boolean): Promise<Webcam[]> {
-  if (!navigator.mediaDevices?.enumerateDevices) return [];
+  if (!navigator.mediaDevices?.enumerateDevices) throw Object.assign(new Error("no mediaDevices"), { name: "Unsupported" });
   if (askPermission) {
     const s = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
     s.getTracks().forEach((t) => t.stop());
