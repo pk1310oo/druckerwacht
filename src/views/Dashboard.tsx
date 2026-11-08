@@ -16,6 +16,9 @@ import { plannedPauses, rememberSentPrint } from "../lib/sentPrint";
 import { onQueueChange, queueList, queueRemove, queueShift, queueStart, type QueueItem } from "../lib/extras";
 import { FleetStrip, ToolsCard } from "./Tools";
 import { useCaps } from "../lib/printers";
+import { errorSearchUrl, explainError } from "../lib/errors";
+import { openProjectLink } from "../lib/update";
+import { endsAtNight, NIGHT_FROM, NIGHT_PCT, NIGHT_TO, setNightMode, useNightMode } from "../lib/night";
 
 const TEMP_SERIES = (): SeriesDef[] => [
   { key: "nozzle", label: t("Düse"), color: accentHex(), unit: "°C" },
@@ -99,6 +102,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
   return (
     <div className="view">
       <FleetStrip />
+      {connected && status && ((status.errorCode ?? 0) > 0 || (status.errorKey ?? 0) > 0) && <ErrorBanner s={status} />}
       <div className={`top-row${camera ? " with-cam" : ""}`}>
         <HeroCard s={status} celebrate={celebrate} />
         <Stats status={status} />
@@ -528,10 +532,20 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
 
   const shown = queued ?? pending ?? current ?? 100;
   const active = modes.find((m) => m.pct === shown);
+  const night = useNightMode();
   return (
     <div className="speed-ctl">
       <div className="speed-head">
         <span className="label">{t("Tempo")}</span>
+        <button
+          className={`night-toggle small${night ? " on" : ""}`}
+          aria-pressed={night}
+          title={t("Zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Die App muss dafür geöffnet bleiben.", { a: NIGHT_FROM, b: NIGHT_TO, p: NIGHT_PCT })}
+          onClick={() => setNightMode(!night)}
+        >
+          <Moon size={12} /> {night ? t("Nachtmodus an") : t("Nachtmodus")}
+        </button>
+        <span className="header-spacer" />
         <span className="small muted num">
           {queued != null ? (
             <>
@@ -573,6 +587,11 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
         ))}
       </div>
       <div className={`speed-hint small${shown >= 125 ? " warn" : ""}`}>
+        {!error && !night && endsAtNight(s.remainingS) && (
+          <div className="night-hint">
+            <Moon size={12} /> {t("Der Druck läuft bis in die Nacht – der Nachtmodus macht ihn ab {a} Uhr leise.", { a: NIGHT_FROM })}
+          </div>
+        )}
         {error ? (
           <span style={{ color: "var(--warning)" }}>
             <AlertTriangle size={12} /> {error}
@@ -816,5 +835,28 @@ function QueueCard({ status: s, connected }: { status: PrinterStatus | null; con
         </span>
       )}
     </Card>
+  );
+}
+
+/** Druckerfehler in Klartext (soweit von Creality belegt), sonst Such-Link */
+function ErrorBanner({ s }: { s: PrinterStatus }) {
+  // Je nach Firmware steckt die vierstellige Nummer in „errcode“ oder „key“
+  const cands = [s.errorKey ?? 0, s.errorCode ?? 0].filter((c) => c > 0);
+  const code = cands.find((c) => explainError(c)) ?? cands.find((c) => c >= 1000) ?? cands[0];
+  const info = explainError(code);
+  return (
+    <div className="error-banner card" role="alert">
+      <AlertTriangle size={20} />
+      <div>
+        <strong>
+          {t("Druckerfehler {c}", { c: code })}
+          {info && `: ${info.title}`}
+        </strong>
+        <span className="small">{info ? info.fix : t("Der Drucker meldet einen Fehler. Details stehen am Druckerdisplay.")}</span>
+      </div>
+      <button className="btn sm" onClick={() => void openProjectLink(errorSearchUrl(code)).catch(() => {})}>
+        {t("Code nachschlagen")}
+      </button>
+    </div>
   );
 }

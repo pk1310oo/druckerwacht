@@ -114,6 +114,40 @@ pub fn insert_pauses(text: &str, layers: &[u32]) -> String {
     out
 }
 
+/// Temperaturwechsel für Kalibrier-Türme: setzt `M104` direkt nach dem ersten Schichtwechsel,
+/// dessen Höhe (`;Z:`) die Stufe erreicht. Stufen: (Höhe in mm, Düse in °C).
+pub fn insert_temps(text: &str, steps: &[(f64, u32)]) -> String {
+    let mut want: Vec<(f64, u32)> = steps.iter().copied().filter(|(z, t)| z.is_finite() && *z >= 0.0 && *t <= 300).collect();
+    want.sort_by(|a, b| a.0.total_cmp(&b.0));
+    if want.is_empty() {
+        return text.to_string();
+    }
+    let mut out = String::with_capacity(text.len() + want.len() * 48);
+    let mut next = 0usize;
+    let mut after_change = false;
+    for line in text.split_inclusive('\n') {
+        out.push_str(line);
+        if line.starts_with(";LAYER_CHANGE") {
+            after_change = true;
+            continue;
+        }
+        if after_change {
+            if let Some(z) = line.strip_prefix(";Z:").and_then(|v| v.trim().parse::<f64>().ok()) {
+                after_change = false;
+                let mut temp = None;
+                while next < want.len() && z + 1e-6 >= want[next].0 {
+                    temp = Some(want[next].1);
+                    next += 1;
+                }
+                if let Some(t) = temp {
+                    out.push_str(&format!("M104 S{t} ; DRUCKERWACHT_TEMP_TOWER\n"));
+                }
+            }
+        }
+    }
+    out
+}
+
 /// Lädt `data` als `file_name` hoch. `progress` erhält 0…1.
 pub async fn upload(host: &str, port: Option<u16>, file_name: &str, data: &[u8], progress: impl Fn(f64)) -> Result<(), String> {
     let port = port.unwrap_or(HTTP_PORT);
@@ -298,6 +332,17 @@ mod tests {
         // ohne Pausen unverändert
         assert_eq!(insert_pauses(g, &[]), g);
         assert_eq!(out.replace(";DRUCKERWACHT_FILAMENT_CHANGE layer 3\n;PAUSE_PRINT\nPAUSE\n", ""), g);
+    }
+
+    #[test]
+    fn temperature_tower_steps() {
+        let g = "G28\n;LAYER_CHANGE\n;Z:0.2\nG1 E1\n;LAYER_CHANGE\n;Z:5.0\nG1 E1\n;LAYER_CHANGE\n;Z:10.2\nG1 E1\n;LAYER_CHANGE\n;Z:20.0\nG1 E1\n";
+        let out = insert_temps(g, &[(10.0, 220), (0.6, 230), (20.0, 215), (30.0, 999)]);
+        assert!(out.contains(";Z:5.0\nM104 S230 ; DRUCKERWACHT_TEMP_TOWER\n"));
+        assert!(out.contains(";Z:10.2\nM104 S220"));
+        assert!(out.contains(";Z:20.0\nM104 S215"));
+        assert_eq!(out.matches("M104").count(), 3);
+        assert_eq!(insert_temps(g, &[]), g);
     }
 
     #[test]

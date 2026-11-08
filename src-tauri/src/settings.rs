@@ -80,6 +80,10 @@ pub struct Settings {
     pub timelapse: bool,
     /// Webcam am Computer (Geräte-ID des Browsers; leer = keine)
     pub local_camera: String,
+    /// Handy-Seite im WLAN anbieten (Port 8787)
+    pub remote_enabled: bool,
+    /// Geheimer Schlüssel für die Handy-Seite (steht im QR-Code)
+    pub remote_token: String,
 }
 
 impl Default for Settings {
@@ -100,6 +104,8 @@ impl Default for Settings {
             ntfy_topic: String::new(),
             timelapse: true,
             local_camera: String::new(),
+            remote_enabled: false,
+            remote_token: String::new(),
         }
     }
 }
@@ -195,6 +201,9 @@ impl Settings {
         self.orca_path = self.orca_path.trim().to_string();
         self.ntfy_topic = self.ntfy_topic.trim().to_string();
         self.local_camera = self.local_camera.trim().chars().take(256).collect();
+        if !self.remote_token.chars().all(|c| c.is_ascii_hexdigit()) || (self.remote_token.len() != 32 && !self.remote_token.is_empty()) {
+            self.remote_token.clear();
+        }
         if !self.ntfy_topic.is_empty() && !crate::extras::valid_topic(&self.ntfy_topic) {
             self.ntfy_topic.clear();
         }

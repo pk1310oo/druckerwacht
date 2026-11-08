@@ -9,6 +9,7 @@ import { FilamentView } from "./views/FilamentView";
 import { consume } from "./lib/spools";
 import { useFxLevel } from "./lib/fx";
 import { useWebcamTimelapse } from "./lib/webcam";
+import { useNightAutomation } from "./lib/night";
 import { useStore } from "./lib/store";
 import { resolveLang, setLang } from "./lib/i18n";
 import { setBackendLanguage } from "./lib/api";
@@ -42,6 +43,7 @@ export default function App() {
   const printing = beamTone === "live";
   const fx = useFxLevel();
   useWebcamTimelapse();
+  useNightAutomation();
 
   // Kamera-Ansicht verlassen, wenn die Kamera entfernt wurde
   useEffect(() => {

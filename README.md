@@ -2,7 +2,7 @@
 
 🇬🇧 **English** · 🇩🇪 [Deutsch](README.de.md)
 
-**The free all-in-one app for the Creality Ender 3 V3 KE: watch, slice and control your printer over Wi-Fi.**
+**The free all-in-one app for your 3D printers: watch, slice and control over Wi-Fi – made for the Creality Ender 3 V3 KE, and it also runs your K1, Klipper, OctoPrint and Prusa printers.**
 Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 
 [**⬇ Download**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Website](https://pk1310oo.github.io/druckerwacht/) · [Report a bug / request a feature](https://github.com/pk1310oo/druckerwacht/issues) · [Contributing](CONTRIBUTING.md)
@@ -16,9 +16,18 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 - Live charts over 5, 15 or 60 minutes, print history from the printer itself
 - Notifications on your computer – and optionally **on your phone** via the free ntfy app (done, error, paused, next print waiting)
 - **macOS menu bar:** progress and finish time right next to the clock
+- **Phone on Wi-Fi:** scan a QR code and see every printer live in your phone's browser – pause, resume, cancel, speed and light included, no app needed
+- **Plain-language printer errors** and a **maintenance planner** that reminds you to clean the plate, lubricate rails or check belts by print hours
+
+**Many printers**
+- Creality (Ender 3 V3 KE, K1, K1C, K1 Max), every **Klipper** printer with Moonraker (Voron, Sovol, Elegoo Neptune 4, Qidi …), **OctoPrint** (practically any Marlin printer) and **Prusa** via PrusaLink (MK4, MK3.9, Core One, Mini, XL)
+- The network search finds all of them; every printer is watched at the same time, switch with one click
 
 **Control**
 - Pause, resume, cancel
+- **Tools card:** home, **bed leveling with save**, **PID tuning**, preheat (PLA/PETG/ABS/TPU), load/unload filament, Z offset babystepping during the first layer, fan, light, motors off
+- Send any finished G-code file and print it
+- **Night mode:** quiet 50 % between 22:00 and 07:00, back to your speed in the morning
 - **Live speed** from 25 % *Whisper* to 150 % *Turbo* – the first layer always stays at max. 50 mm/s so it sticks
 - **Print queue:** line up sliced prints and start the next one with a click once the plate is clear
 
@@ -26,6 +35,8 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 - OrcaSlicer engine with the official KE profiles, every setting, layer preview
 - Paint supports and seams, cut, measure, box-select several parts
 - **Colour changes:** mark any layer – the printer pauses there for the next filament
+- **Temperature tower** with one click: the app builds the model and writes the temperature change into each block
+- The print dialog shows when the print will be **done** – with a 🌙 if that's in the middle of the night
 
 **Filament stock**
 - Your spools with what's left, metres and price per kg
@@ -34,7 +45,7 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 
 ![Filament stock](docs/images/filament.jpg)
 
-**Looks:** neon grid background, glowing progress ring with sparks, 3D cards, seven colour themes – or switch effects to *Subtle* on slower computers.
+**Looks:** calm neon grid background, glowing progress ring, 3D cards, seven colour themes – or switch effects to *Subtle* on slower computers.
 
 > **Beta.** The printer's interface is not officially documented; feedback from real printers is very welcome.
 > Druckerwacht is not an official Creality product.

@@ -1,7 +1,7 @@
 [package]
 name = "druckerwacht"
-version = "0.12.0"
-description = "Live-Überwachung für Creality Ender 3 V3 KE"
+version = "0.13.0"
+description = "Überwachen, Slicen und Steuern für Creality-, Klipper-, OctoPrint- und Prusa-Drucker"
 edition = "2021"
 license = "AGPL-3.0-or-later"
 repository = "https://github.com/pk1310oo/druckerwacht"

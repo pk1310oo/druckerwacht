@@ -1232,3 +1232,44 @@
 .tools-fb.quiet { min-height: 0; margin-top: -12px; }
 .modal-backdrop .modal { max-height: calc(100vh - 48px); overflow-y: auto; }
 .switch-btn svg { color: var(--text-2); }
+
+/* ---------------------------------------------------------------- Wartung */
+.maint-card { display: flex; flex-direction: column; gap: 12px; }
+.maint-card .chart-head .label { display: inline-flex; align-items: center; gap: 6px; }
+.warn-text { color: var(--warning); font-weight: 600; }
+.maint-list { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 8px; }
+.maint-item { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 4px 12px; padding: 10px 12px; border-radius: 12px; background: rgba(0, 0, 0, 0.22); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04); }
+.mi-main { display: flex; flex-direction: column; gap: 4px; min-width: 0; padding: 0; border: 0; background: none; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.mi-title { font-weight: 500; }
+.mi-bar { display: block; height: 3px; border-radius: 2px; background: rgba(255, 255, 255, 0.06); overflow: hidden; }
+.mi-bar i { display: block; height: 100%; border-radius: 2px; background: var(--success); transition: width 400ms var(--ease); }
+.maint-item.soon .mi-bar i { background: var(--warning); }
+.maint-item.due { box-shadow: inset 0 0 0 1px rgba(224, 164, 58, 0.45); }
+.maint-item.due .mi-bar i { background: var(--warning); }
+.mi-how { grid-column: 1 / -1; margin: 4px 0 0; }
+.maint-hint { display: flex; align-items: center; gap: 6px; color: var(--warning); }
+.night-toggle { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-2); font: inherit; cursor: pointer; transition: all var(--t) var(--ease); }
+.night-toggle:hover { color: var(--text); border-color: #3a3a3a; }
+.night-toggle.on { color: #b9ccff; border-color: rgba(91, 141, 239, 0.5); background: rgba(91, 141, 239, 0.14); }
+.night-hint { display: flex; align-items: center; gap: 6px; color: #b9ccff; margin-bottom: 4px; }
+
+/* ---------------------------------------------------------------- Kalibrier-Drucke */
+.calib-menu { left: auto; right: 0; transform: none; min-width: 240px; padding: 8px; gap: 4px; }
+.calib-menu > .small { padding: 2px 6px 4px; white-space: normal; }
+.calib-menu .btn { gap: 8px; }
+.calib-menu .btn .muted { margin-left: auto; }
+.tower-legend { display: flex; flex-direction: column; gap: 6px; padding: 12px; border: 1px solid rgb(var(--accent-rgb) / 0.35); border-radius: 12px; background: var(--accent-soft); }
+.tower-legend strong { display: inline-flex; align-items: center; gap: 6px; }
+.tl-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 2px 8px; }
+.tl-grid b { color: var(--accent); margin-right: 4px; }
+.error-banner { display: flex; align-items: center; gap: 14px; padding: 14px 18px; border-color: rgba(224, 90, 79, 0.5); background: linear-gradient(90deg, rgba(224, 90, 79, 0.16), rgba(224, 90, 79, 0.04)); }
+.error-banner > svg { color: var(--danger); flex: none; }
+.error-banner > div { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+
+/* ---------------------------------------------------------------- Handy im WLAN */
+.remote-box { display: flex; gap: 20px; align-items: flex-start; padding-top: 14px; border-top: 1px solid var(--line-soft); }
+.remote-box .qr { flex: none; border-radius: 12px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 12px 32px rgba(0, 0, 0, 0.45); }
+.remote-text { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.remote-text strong { display: inline-flex; align-items: center; gap: 6px; }
+.remote-text code.path { word-break: break-all; }
+@media (max-width: 640px) { .remote-box { flex-direction: column; } }

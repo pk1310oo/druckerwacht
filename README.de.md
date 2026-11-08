@@ -2,7 +2,7 @@
 
 🇬🇧 [English](README.md) · 🇩🇪 **Deutsch**
 
-**Die kostenlose Komplett-App für den Creality Ender 3 V3 KE: überwachen, slicen und steuern per WLAN.**
+**Die kostenlose Komplett-App für deine 3D-Drucker: überwachen, slicen und steuern per WLAN – gemacht für den Creality Ender 3 V3 KE, und sie steuert auch K1, Klipper-, OctoPrint- und Prusa-Drucker.**
 Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 
 [**⬇ Download**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Website](https://pk1310oo.github.io/druckerwacht/) · [Fehler melden / Wünsche](https://github.com/pk1310oo/druckerwacht/issues) · [Mitmachen](CONTRIBUTING.md)
@@ -16,9 +16,18 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 - Live-Diagramme über 5, 15 oder 60 Minuten, Druckverlauf direkt vom Drucker
 - Benachrichtigungen am Computer – und auf Wunsch **aufs Handy** über die kostenlose App ntfy (fertig, Fehler, pausiert, nächster Druck wartet)
 - **Mac-Menüleiste:** Fortschritt und Fertig-Uhrzeit direkt neben der Uhr
+- **Handy im WLAN:** QR-Code scannen und alle Drucker live im Handy-Browser sehen – mit Pause, Fortsetzen, Abbrechen, Tempo und Licht, ganz ohne App
+- **Druckerfehler in Klartext** und ein **Wartungsplaner**, der nach Druckstunden an Platte reinigen, Schienen schmieren oder Riemen prüfen erinnert
+
+**Viele Drucker**
+- Creality (Ender 3 V3 KE, K1, K1C, K1 Max), jeder **Klipper**-Drucker mit Moonraker (Voron, Sovol, Elegoo Neptune 4, Qidi …), **OctoPrint** (praktisch jeder Marlin-Drucker) und **Prusa** über PrusaLink (MK4, MK3.9, Core One, Mini, XL)
+- Die Netzwerksuche findet alle; jeder Drucker wird gleichzeitig überwacht, Umschalten mit einem Klick
 
 **Steuern**
 - Pausieren, Fortsetzen, Abbrechen
+- **Werkzeug-Karte:** Referenzfahrt, **Bett-Leveling mit Speichern**, **PID-Kalibrierung**, Vorheizen (PLA/PETG/ABS/TPU), Filament laden/entladen, Z-Offset während der ersten Schicht, Lüfter, Licht, Motoren aus
+- Beliebige fertige G-Code-Dateien senden und drucken
+- **Nachtmodus:** zwischen 22 und 7 Uhr leise mit 50 %, morgens zurück aufs eigene Tempo
 - **Tempo live** von 25 % *Flüster* bis 150 % *Turbo* – die erste Schicht bleibt immer bei höchstens 50 mm/s, damit sie haftet
 - **Warteschlange:** geslicete Drucke vormerken und den nächsten mit einem Klick starten, sobald die Platte frei ist
 
@@ -26,6 +35,8 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 - OrcaSlicer-Motor mit den offiziellen KE-Profilen, alle Einstellungen, Schichtvorschau
 - Stützen und Naht malen, schneiden, messen, mehrere Teile per Rechteck auswählen
 - **Farbwechsel:** beliebige Schichten markieren – dort pausiert der Drucker für das nächste Filament
+- **Temperaturturm** mit einem Klick: die App baut das Modell und schreibt den Temperaturwechsel in jeden Block
+- Der Drucken-Dialog zeigt, **wann der Druck fertig** ist – mit 🌙, wenn das mitten in der Nacht wäre
 
 **Filament-Lager**
 - Deine Spulen mit Rest, Metern und Preis pro kg
@@ -34,7 +45,7 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 
 ![Filament-Lager](docs/bilder/filament.jpg)
 
-**Optik:** Neon-Gitter im Hintergrund, leuchtender Fortschrittsring mit Funken, 3D-Karten, sieben Farbthemen – oder Effekte auf *Dezent* für langsamere Rechner.
+**Optik:** ruhiges Neon-Gitter im Hintergrund, leuchtender Fortschrittsring, 3D-Karten, sieben Farbthemen – oder Effekte auf *Dezent* für langsamere Rechner.
 
 **Installation:** Windows-Installer (`…_x64-setup.exe`, bei SmartScreen „Weitere Informationen → Trotzdem ausführen“), Mac-`.dmg` (danach einmal `xattr -dr com.apple.quarantine /Applications/Druckerwacht.app` im Terminal) oder Linux-`.deb`/AppImage – alles unter [Releases](https://github.com/pk1310oo/druckerwacht/releases/latest). Für den Slicer zusätzlich das kostenlose [OrcaSlicer](https://github.com/SoftFever/OrcaSlicer/releases) installieren; Druckerwacht findet es von selbst.
 

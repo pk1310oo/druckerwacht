@@ -98,6 +98,10 @@ export interface Settings {
   timelapse: boolean;
   /** Webcam am Computer (Geräte-ID, leer = keine) */
   localCamera: string;
+  /** Handy-Seite im WLAN anbieten */
+  remoteEnabled: boolean;
+  /** Geheimer Schlüssel der Handy-Seite (im QR-Code) */
+  remoteToken: string;
 }
 
 export interface JobRecord {
@@ -150,4 +154,6 @@ export const DEFAULT_SETTINGS: Settings = {
   ntfyTopic: "",
   timelapse: true,
   localCamera: "",
+  remoteEnabled: false,
+  remoteToken: "",
 };

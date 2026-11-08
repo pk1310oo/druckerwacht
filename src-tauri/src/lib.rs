@@ -5,6 +5,7 @@ mod discovery;
 mod extras;
 mod model;
 mod printjob;
+mod remote;
 mod settings;
 mod slicer;
 mod threemf;
@@ -85,6 +86,10 @@ struct Inner {
     last_snapshot: Option<(i64, Vec<u8>)>,
     /// Alle übrigen gespeicherten Drucker (laufen im Hintergrund mit)
     others: Vec<OtherPrinter>,
+    /// Laufende Handy-Seite: Stopp-Signal und verwendeter Schlüssel
+    remote: Option<(watch::Sender<bool>, String)>,
+    /// Letzter Fehler der Handy-Seite (z. B. Port belegt)
+    remote_error: Option<String>,
 }
 
 /// Kurzstatus eines weiteren Druckers für die Übersicht
@@ -673,6 +678,7 @@ fn save_settings(app: AppHandle, state: State<'_, Arc<AppState>>, settings: Sett
     if reconnect {
         restart_connection(&app);
     }
+    apply_remote(&app);
     Ok(settings)
 }
 
@@ -789,6 +795,20 @@ fn read_gcode(app: AppHandle, path: String) -> Result<String, String> {
 }
 
 /// Speichert den erzeugten G-Code an einen vom Nutzer gewählten Ort.
+/// Kalibrier-Turm: Temperaturstufen in den gesliceten G-Code schreiben (Datei wird ersetzt).
+#[tauri::command]
+fn gcode_temp_steps(path: String, steps: Vec<(f64, u32)>) -> Result<(), String> {
+    let p = std::path::PathBuf::from(&path);
+    if p.extension().map(|e| e != "gcode").unwrap_or(true) {
+        return Err(crate::i18n::tr("Nur G-Code-Dateien.", "G-code files only.").into());
+    }
+    let text = std::fs::read_to_string(&p).map_err(|e| e.to_string())?;
+    if text.contains("DRUCKERWACHT_TEMP_TOWER") {
+        return Ok(());
+    }
+    std::fs::write(&p, printjob::insert_temps(&text, &steps)).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn export_gcode(app: AppHandle, from: String, to: String, pauses: Option<Vec<u32>>) -> Result<(), String> {
     let base = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("slice");
@@ -818,7 +838,9 @@ fn set_ui_language(lang: String) {
 #[tauri::command]
 fn open_project_link(url: String) -> Result<(), String> {
     const BASE: &str = "https://github.com/pk1310oo/druckerwacht";
-    let ok = (url == BASE || url.starts_with(&format!("{BASE}/")))
+    // Außerdem: Suche nach einem Creality-Fehlercode (nur Ziffern)
+    let error_search = url.strip_prefix("https://duckduckgo.com/?q=creality+error+").map(|c| !c.is_empty() && c.len() <= 6 && c.chars().all(|x| x.is_ascii_digit())).unwrap_or(false);
+    let ok = (url == BASE || url.starts_with(&format!("{BASE}/")) || error_search)
         && url.chars().all(|c| c.is_ascii_alphanumeric() || "/:.-_?=&#%+".contains(c));
     if !ok {
         return Err(crate::i18n::tr("Diese Adresse darf nicht geöffnet werden.", "This address may not be opened.").into());
@@ -839,8 +861,13 @@ fn open_project_link(url: String) -> Result<(), String> {
 /// Pause, Fortsetzen oder Abbrechen – nur wenn der Zustand dazu passt.
 #[tauri::command]
 async fn printer_control(app: AppHandle, action: String) -> Result<(), String> {
-    let a = active_printer(&app)?;
-    let cmd = control::parse(&action).ok_or(crate::i18n::tr("Unbekannter Befehl.", "Unknown command."))?;
+    control_active(&app, &action).await
+}
+
+/// Befehl an den aktiven Drucker – gemeinsam für App und Handy-Seite
+async fn control_active(app: &AppHandle, action: &str) -> Result<(), String> {
+    let a = active_printer(app)?;
+    let cmd = control::parse(action).ok_or(crate::i18n::tr("Unbekannter Befehl.", "Unknown command."))?;
     let running = matches!(a.state, Some(PrintState::Printing | PrintState::Paused));
     let refuse: Option<&str> = match &cmd {
         control::Cmd::Pause if a.preparing => Some(crate::i18n::tr("Während Heizen und Leveling nimmt der Drucker keine Pause an.", "The printer does not accept a pause while heating and leveling.")),
@@ -976,6 +1003,120 @@ async fn upload_and_start(app: &AppHandle, a: &Active, file_name: &str, data: Ve
     .await?;
     let _ = app.emit("printer://upload", 100);
     Ok(name)
+}
+
+// ----------------------------------------------------------------------------- Handy im WLAN
+
+/// Zustand aller Drucker für die Handy-Seite
+fn remote_state(app: &AppHandle) -> String {
+    let state = app.state::<Arc<AppState>>();
+    let inner = state.lock();
+    let caps = |kind: &str| (matches!(kind, "creality" | "moonraker" | "octoprint"), kind == "creality");
+    let mut list = Vec::new();
+    if let Some(p) = inner.settings.active() {
+        let (speed, light) = caps(&p.kind);
+        list.push(serde_json::json!({ "id": p.id, "name": p.name, "kind": p.kind, "active": true, "connection": inner.connection, "status": inner.status, "speed": speed, "light": light }));
+    }
+    for o in &inner.others {
+        list.push(serde_json::json!({ "id": o.id, "name": o.name, "kind": o.kind, "active": false, "connection": o.connection, "status": o.status, "speed": false, "light": false }));
+    }
+    let now = chrono::Utc::now().timestamp_millis();
+    let photo = inner.last_snapshot.as_ref().filter(|(t, _)| now - t < 15 * 60_000).map(|(t, _)| *t);
+    serde_json::json!({ "printers": list, "photoMs": photo }).to_string()
+}
+
+/// Startet oder stoppt die Handy-Seite passend zu den Einstellungen.
+fn apply_remote(app: &AppHandle) {
+    let state = app.state::<Arc<AppState>>();
+    let (enabled, token, running) = {
+        let inner = state.lock();
+        (inner.settings.remote_enabled, inner.settings.remote_token.clone(), inner.remote.as_ref().map(|(_, t)| t.clone()))
+    };
+    if running.is_some() && (!enabled || running.as_deref() != Some(token.as_str())) {
+        if let Some((stop, _)) = state.lock().remote.take() {
+            let _ = stop.send(true);
+        }
+    }
+    if !enabled || token.is_empty() || (running.as_deref() == Some(token.as_str())) {
+        if !enabled {
+            state.lock().remote_error = None;
+        }
+        return;
+    }
+    let (tx, rx) = watch::channel(false);
+    state.lock().remote = Some((tx, token.clone()));
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let st = app.state::<Arc<AppState>>().inner().clone();
+        match tokio::net::TcpListener::bind(("0.0.0.0", remote::PORT)).await {
+            Ok(listener) => {
+                st.lock().remote_error = None;
+                let _ = app.emit("remote://changed", ());
+                let handler_app = app.clone();
+                remote::serve(listener, token, rx, move |what: &'static str, action: Option<String>| {
+                    let app = handler_app.clone();
+                    async move {
+                        match what {
+                            "state" => remote::Reply::Json(remote_state(&app)),
+                            "photo" => {
+                                let shot = app.state::<Arc<AppState>>().lock().last_snapshot.as_ref().map(|(_, b)| b.clone());
+                                match shot {
+                                    Some(b) => remote::Reply::Jpeg(b),
+                                    None => remote::Reply::Status(404, "Not Found"),
+                                }
+                            }
+                            _ => match control_active(&app, action.as_deref().unwrap_or("")).await {
+                                Ok(()) => remote::Reply::Json("{}".into()),
+                                Err(e) => remote::Reply::Text(409, e),
+                            },
+                        }
+                    }
+                })
+                .await;
+            }
+            Err(e) => {
+                let mut inner = st.lock();
+                inner.remote = None;
+                inner.remote_error = Some(if e.kind() == std::io::ErrorKind::AddrInUse {
+                    crate::i18n::tr("Port 8787 ist schon belegt (läuft Druckerwacht zweimal?).", "Port 8787 is already in use (is Druckerwacht running twice?).").to_string()
+                } else {
+                    e.to_string()
+                });
+                drop(inner);
+                let _ = app.emit("remote://changed", ());
+            }
+        }
+    });
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RemoteInfo {
+    enabled: bool,
+    running: bool,
+    url: Option<String>,
+    error: Option<String>,
+}
+
+#[tauri::command]
+fn remote_info(state: State<'_, Arc<AppState>>) -> RemoteInfo {
+    let inner = state.lock();
+    let url = remote::lan_ip().map(|ip| format!("http://{ip}:{}/?k={}", remote::PORT, inner.settings.remote_token));
+    RemoteInfo { enabled: inner.settings.remote_enabled, running: inner.remote.is_some() && inner.remote_error.is_none(), url, error: inner.remote_error.clone() }
+}
+
+/// Neuer Schlüssel: alte QR-Codes und gespeicherte Links funktionieren danach nicht mehr.
+#[tauri::command]
+fn remote_new_token(app: AppHandle, state: State<'_, Arc<AppState>>) -> Result<Settings, String> {
+    let settings = {
+        let mut inner = state.lock();
+        inner.settings.remote_token = remote::new_token();
+        inner.settings.clone()
+    };
+    settings.save(&state.paths.settings)?;
+    let _ = app.emit("settings://changed", &settings);
+    apply_remote(&app);
+    Ok(settings)
 }
 
 // ----------------------------------------------------------------------------- Extras
@@ -1136,7 +1277,12 @@ pub fn run() {
                 queue_dir: data_dir.join("queue"),
                 timelapse_dir: data_dir.join("timelapse"),
             };
-            let settings = Settings::load(&paths.settings);
+            let mut settings = Settings::load(&paths.settings);
+            // Schlüssel für die Handy-Seite einmalig erzeugen und sofort sichern
+            if settings.remote_token.is_empty() {
+                settings.remote_token = remote::new_token();
+                let _ = settings.save(&paths.settings);
+            }
             let printer_history: Option<PrinterHistory> = std::fs::read_to_string(&paths.printer_history)
                 .ok()
                 .and_then(|s| serde_json::from_str(&s).ok());
@@ -1158,6 +1304,8 @@ pub fn run() {
                     printer_history,
                     last_snapshot: None,
                     others: Vec::new(),
+                    remote: None,
+                    remote_error: None,
                 }),
                 generation: AtomicU64::new(0),
                 disconnect_seq: AtomicU64::new(0),
@@ -1167,6 +1315,7 @@ pub fn run() {
             setup_tray(app);
             allow_webcam(app);
             restart_connection(app.handle());
+            apply_remote(app.handle());
             spawn_sampler(app.handle().clone());
             Ok(())
         })
@@ -1177,6 +1326,9 @@ pub fn run() {
             get_snapshot,
             get_jobs,
             get_printer_history,
+            gcode_temp_steps,
+            remote_info,
+            remote_new_token,
             clear_jobs,
             discover_printers,
             raw_log_dir,

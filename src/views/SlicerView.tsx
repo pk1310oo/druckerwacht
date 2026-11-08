@@ -18,6 +18,7 @@ import {
   Wand2,
   Download,
   Eye,
+  FlaskConical,
   FolderOpen,
   Grid3x3,
   Layers,
@@ -64,7 +65,7 @@ import {
 } from "../slicer/api";
 import { buildConfig, CATALOG, effective, groupOf, type Group, type Overrides, type Preset } from "../slicer/settings";
 import { isTauri } from "../lib/api";
-import { fmtDuration, fmtNum } from "../lib/format";
+import { fmtDuration, fmtEta, fmtNum } from "../lib/format";
 import { EmptyState } from "../components/ui";
 import { useStore } from "../lib/store";
 import type { ViewId } from "../components/Shell";
@@ -72,6 +73,9 @@ import { fmtDec, t } from "../lib/i18n";
 import { rememberSentPrint } from "../lib/sentPrint";
 import { queueAdd } from "../lib/extras";
 import { useCaps } from "../lib/printers";
+import { endsAtNight } from "../lib/night";
+import { TOWER_PRESETS, towerName, towerSteps, towerStl, towerTemps, type Tower } from "../slicer/calib";
+import { invoke } from "@tauri-apps/api/core";
 import { activeSpool, costOf, useSpools } from "../lib/spools";
 
 // Die Druckplatte lebt über Ansichtswechsel hinweg weiter (WebGL-Kontext, geladene Modelle).
@@ -349,6 +353,9 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
         thumbnails: thumbs,
         fileName,
       });
+      // Temperaturturm: Temperaturwechsel je Block in den G-Code schreiben
+      const tw = tower && models.find((m) => m.name === tower.name);
+      if (tw && isTauri) await invoke("gcode_temp_steps", { path: result.gcodePath, steps: towerSteps(tower!.temps, tw.scale[2]) });
       setPhase({ kind: "done", result, stale: false });
       await openPreview(result.gcodePath);
     } catch (e) {
@@ -451,6 +458,16 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   const busy = status?.state === "printing" || status?.state === "paused";
   const [printOpen, setPrintOpen] = useState(false);
   const [mirrorOpen, setMirrorOpen] = useState(false);
+  const [calibOpen, setCalibOpen] = useState(false);
+  const [tower, setTower] = useState<Tower | null>(null);
+  const towerModel = tower ? models.find((m) => m.name === tower.name) : undefined;
+  const addTower = async (from: number, to: number) => {
+    const temps = towerTemps(from, to);
+    const name = towerName(temps);
+    setCalibOpen(false);
+    await plate.addFile(`${name}.stl`, towerStl(temps.length));
+    setTower({ name, temps });
+  };
   const measure = plate.getMeasure();
   const bedType = overrides.curr_bed_type ?? "Cool Plate";
 
@@ -524,6 +541,19 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           }
         />
         <div className="top-actions">
+          <span className="tool-wrap">
+            <ToolBtn icon={FlaskConical} label="Kalibrier-Druck" on={calibOpen} onClick={() => setCalibOpen((o) => !o)} disabled={!!preview} />
+            {calibOpen && (
+              <span className="tool-menu card calib-menu">
+                <span className="small muted">{t("Temperaturturm – je Block 5 °C kühler:")}</span>
+                {TOWER_PRESETS.map((p) => (
+                  <button key={p.material} className="btn sm ghost" onClick={() => void addTower(p.from, p.to)}>
+                    <Thermometer size={14} /> {p.material} <span className="muted num">{p.from}–{p.to} °C</span>
+                  </button>
+                ))}
+              </span>
+            )}
+          </span>
           <ToolBtn icon={FolderOpen} label="Projekt öffnen" onClick={() => void openProject()} />
           <ToolBtn icon={Save} label="Projekt speichern (Strg/Cmd+S)" onClick={() => void saveProject()} disabled={!models.length} />
         </div>
@@ -781,6 +811,22 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
                   </button>
                 </>
               )}
+            </div>
+          )}
+
+          {towerModel && tower && (
+            <div className="tower-legend small">
+              <strong>
+                <FlaskConical size={13} /> {t("Temperaturturm")}
+              </strong>
+              <span className="muted">{t("Block 1 ist unten. Nach dem Druck den saubersten Block suchen (Fäden, Überhang-Nase, Oberfläche) – dessen Temperatur ins Filamentprofil übernehmen.")}</span>
+              <div className="tl-grid num">
+                {tower.temps.map((v, i) => (
+                  <span key={i}>
+                    <b>{i + 1}</b> {v} °C
+                  </span>
+                ))}
+              </div>
             </div>
           )}
 
@@ -1174,7 +1220,16 @@ function PrintDialog(props: {
           </div>
           <div>
             <span className="label">{t("Druckzeit")}</span>
-            <span className="num">{fmtDuration(props.result.timeS)}</span>
+            <span className="num">
+              {fmtDuration(props.result.timeS)}
+              {props.result.timeS != null && (
+                <span className="muted">
+                  {" · "}
+                  {t("fertig {eta}", { eta: fmtEta(props.result.timeS + 240) })}
+                  {endsAtNight(props.result.timeS + 240) && " 🌙"}
+                </span>
+              )}
+            </span>
           </div>
           <div>
             <span className="label">{t("Filament")}</span>

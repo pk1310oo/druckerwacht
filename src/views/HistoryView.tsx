@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { Box, CheckCircle2, CircleSlash, Clock, Download, Film, History, Layers, Printer, Ruler, Trash2, XCircle } from "lucide-react";
+import { Box, Check, CheckCircle2, CircleSlash, Clock, Download, Film, History, Layers, Printer, Ruler, Trash2, Wrench, XCircle } from "lucide-react";
+import { useMaintenance } from "../lib/maintenance";
 import { onTimelapse, timelapseDelete, timelapseExport, timelapseList, type Timelapse } from "../lib/extras";
 import { useStore } from "../lib/store";
 import { clearJobs, historyThumbCandidates } from "../lib/api";
@@ -20,6 +21,7 @@ export function HistoryView() {
   const [source, setSource] = useState<Source>("printer");
   return (
     <div className="view">
+      <MaintenanceCard />
       <Timelapses />
       <div className="section-head" style={{ marginTop: 0 }}>
         <span className="label">{t("Druckverlauf")}</span>
@@ -257,5 +259,48 @@ function Timelapses() {
       </div>
       <p className="hint">{t("Die Videos sind QuickTime-Dateien (.mov) und laufen in QuickTime, iMovie und VLC. Für TikTok in iMovie oder CapCut öffnen und von dort teilen.")}</p>
     </>
+  );
+}
+
+/** Wartungsplaner: Pflege nach Druckstunden */
+function MaintenanceCard() {
+  const { hours, items, markDone, due } = useMaintenance();
+  const [open, setOpen] = useState<string | null>(null);
+  if (hours == null) return null;
+  return (
+    <Card className="maint-card">
+      <div className="chart-head">
+        <span className="label">
+          <Wrench size={14} /> {t("Wartung")}
+        </span>
+        <span className="small muted num">
+          {t("{h} Druckstunden", { h: fmtNum(hours, 0) })}
+          {due.length > 0 && <> · <b className="warn-text">{t("{n} fällig", { n: due.length })}</b></>}
+        </span>
+      </div>
+      <div className="maint-list">
+        {items.map(({ task, since, ratio }) => {
+          const left = Math.max(0, task.every - since);
+          const tone = ratio >= 1 ? "due" : ratio >= 0.8 ? "soon" : "";
+          return (
+            <div key={task.id} className={`maint-item ${tone}`}>
+              <button className="mi-main" onClick={() => setOpen(open === task.id ? null : task.id)} aria-expanded={open === task.id}>
+                <span className="mi-title">{task.title()}</span>
+                <span className="small muted num">
+                  {ratio >= 1 ? t("fällig seit {h} h", { h: fmtNum(since - task.every, 0) }) : t("in {h} h", { h: fmtNum(left, 0) })} · {t("alle {h} h", { h: task.every })}
+                </span>
+                <span className="mi-bar" aria-hidden>
+                  <i style={{ width: `${Math.min(100, ratio * 100)}%` }} />
+                </span>
+              </button>
+              <button className={`btn sm${ratio >= 1 ? " primary" : " ghost"}`} onClick={() => markDone(task.id)} title={t("Als erledigt markieren")}>
+                <Check size={14} /> {t("Erledigt")}
+              </button>
+              {open === task.id && <p className="small muted mi-how">{task.how()}</p>}
+            </div>
+          );
+        })}
+      </div>
+    </Card>
   );
 }

@@ -1,0 +1,171 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f0f0f">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Druckerwacht</title>
+<style>
+:root{--bg:#0f0f0f;--card:#1a1a1a;--line:#2a2a2a;--text:#f5f4ef;--t2:#a3a3a3;--t3:#6b6b6b;--accent:#d97757;--deep:#b85e40;--ok:#4caf7a;--warn:#e0a43a;--bad:#e05a4f;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.45 -apple-system,BlinkMacSystemFont,"Inter","Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+body{padding:max(16px,env(safe-area-inset-top)) 16px max(24px,env(safe-area-inset-bottom));background:radial-gradient(120% 60% at 50% -10%,rgba(217,119,87,.16),transparent 60%),var(--bg);min-height:100vh}
+header{display:flex;align-items:center;gap:10px;margin:4px 2px 16px}
+header h1{font-size:18px;margin:0;font-weight:650;letter-spacing:-.01em}
+header .live{margin-left:auto;font-size:12px;color:var(--t2);display:flex;align-items:center;gap:6px}
+.pulse{width:8px;height:8px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 3px rgba(76,175,122,.18);animation:p 2s ease-in-out infinite}
+.pulse.off{background:var(--bad);animation:none;box-shadow:0 0 0 3px rgba(224,90,79,.18)}
+@keyframes p{50%{opacity:.4}}
+.card{background:linear-gradient(180deg,rgba(255,255,255,.035),rgba(255,255,255,.01)),var(--card);border:1px solid var(--line);border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:0 10px 30px rgba(0,0,0,.35)}
+.head{display:flex;align-items:center;gap:8px;min-width:0}
+.name{font-weight:650;font-size:16px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;flex:1}
+.chip{font-size:12px;font-weight:550;padding:3px 10px;border-radius:99px;background:#252525;color:var(--t2);white-space:nowrap}
+.chip.live{background:rgba(217,119,87,.16);color:var(--accent)}.chip.ok{background:rgba(76,175,122,.14);color:var(--ok)}.chip.warn{background:rgba(224,164,58,.14);color:var(--warn)}.chip.bad{background:rgba(224,90,79,.14);color:var(--bad)}
+.main{display:flex;align-items:center;gap:16px;margin-top:14px}
+.ring{position:relative;width:118px;height:118px;flex:none}
+.ring svg{width:100%;height:100%;transform:rotate(-90deg)}
+.ring .trk{fill:none;stroke:#262626;stroke-width:9}
+.ring .val{fill:none;stroke:url(#g);stroke-width:9;stroke-linecap:round;transition:stroke-dasharray .8s cubic-bezier(.2,.8,.2,1);filter:drop-shadow(0 0 6px rgba(217,119,87,.55))}
+.ring .pct{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;font-size:28px;font-weight:700;letter-spacing:-.03em}
+.ring .pct small{font-size:13px;color:var(--accent);margin-left:1px}
+.info{min-width:0;flex:1;display:flex;flex-direction:column;gap:6px}
+.file{font-weight:550;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.kv{display:grid;grid-template-columns:auto 1fr;gap:2px 10px;font-size:13px;color:var(--t2)}
+.kv b{color:var(--text);font-weight:550;font-variant-numeric:tabular-nums}
+.temps{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+.t{background:rgba(0,0,0,.25);border-radius:12px;padding:10px 12px}
+.t span{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--t2)}
+.t b{font-size:20px;font-weight:650;font-variant-numeric:tabular-nums}
+.t i{font-style:normal;font-size:12px;color:var(--t3);margin-left:4px}
+.bar{height:6px;border-radius:4px;background:#262626;overflow:hidden;margin-top:10px}
+.bar i{display:block;height:100%;background:linear-gradient(90deg,var(--deep),var(--accent));border-radius:4px;transition:width .8s}
+.ctl{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap}
+button{font:inherit;color:var(--text);background:#242424;border:1px solid #333;border-radius:12px;padding:11px 14px;flex:1;min-width:0;font-weight:550;-webkit-tap-highlight-color:transparent}
+button:active{transform:scale(.97)}
+button.primary{background:linear-gradient(180deg,var(--accent),var(--deep));border-color:transparent}
+button.danger{color:#ffb3ab;border-color:rgba(224,90,79,.4)}
+button:disabled{opacity:.5}
+.speed{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:8px}
+.speed button{padding:9px 4px;font-size:13px}
+.speed button.on{background:var(--accent);border-color:transparent}
+.photo{width:100%;border-radius:14px;margin-top:12px;display:block;background:#111}
+.small{font-size:12px;color:var(--t2)}
+.msg{margin-top:10px;font-size:13px;color:var(--warn)}
+.mini{display:flex;justify-content:space-between;font-size:13px;color:var(--t2);margin-top:8px}
+.empty{text-align:center;color:var(--t2);padding:40px 16px}
+footer{text-align:center;color:var(--t3);font-size:12px;margin-top:18px}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute"><defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#ffb08f"/><stop offset="1" stop-color="#d97757"/></linearGradient></defs></svg>
+<header>
+  <svg width="26" height="26" viewBox="0 0 32 32" aria-hidden="true"><rect x="3" y="3" width="26" height="26" rx="8" fill="#1f1f1f" stroke="#333"/><path d="M10 21h12M11 17h10M12 13h8" stroke="#d97757" stroke-width="2.4" stroke-linecap="round"/><circle cx="16" cy="8.5" r="1.8" fill="#f5f4ef"/></svg>
+  <h1>Druckerwacht</h1>
+  <span class="live"><i class="pulse" id="dot"></i><span id="live">…</span></span>
+</header>
+<main id="app"><div class="empty" id="first">…</div></main>
+<footer id="foot"></footer>
+<script>
+(function () {
+  "use strict";
+  var q = new URLSearchParams(location.search);
+  var key = q.get("k") || "";
+  try { if (key) localStorage.setItem("dw.k", key); else key = localStorage.getItem("dw.k") || ""; } catch (e) {}
+  var en = !/^de\b/i.test(navigator.language || "de");
+  var T = function (de, e) { return en ? e : de; };
+  document.documentElement.lang = en ? "en" : "de";
+  var STATE = {
+    idle: [T("Bereit", "Ready"), ""], printing: [T("Druckt", "Printing"), "live"], paused: [T("Pausiert", "Paused"), "warn"],
+    finished: [T("Fertig", "Finished"), "ok"], failed: [T("Fehler", "Error"), "bad"], aborted: [T("Abgebrochen", "Cancelled"), "bad"], unknown: [T("Unbekannt", "Unknown"), ""]
+  };
+  var esc = function (s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]; }); };
+  var num = function (v, d) { return v == null ? "–" : Number(v).toLocaleString(en ? "en-US" : "de-DE", { maximumFractionDigits: d || 0 }); };
+  var dur = function (s) { if (s == null) return "–"; s = Math.round(s); var h = Math.floor(s / 3600), m = Math.floor(s % 3600 / 60); return h ? h + " h " + m + " min" : m + " min"; };
+  var eta = function (s) { if (s == null) return "–"; var d = new Date(Date.now() + s * 1000); return d.toLocaleTimeString(en ? "en-US" : "de-DE", { hour: "2-digit", minute: "2-digit" }) + (d.toDateString() !== new Date().toDateString() ? " (" + d.toLocaleDateString(en ? "en-US" : "de-DE", { weekday: "short" }) + ")" : ""); };
+  var msg = "";
+  var busy = false;
+  var last = null;
+
+  function card(p) {
+    var s = p.status, c = p.connection || {};
+    var online = c.kind === "connected";
+    var st = s ? (s.preparing ? [T("Vorbereitung", "Preparing"), "warn"] : STATE[s.state] || STATE.unknown) : [online ? "…" : T("Nicht erreichbar", "Unreachable"), online ? "" : "bad"];
+    var job = s && (s.state === "printing" || s.state === "paused");
+    var pct = job ? Math.max(0, Math.min(100, s.progress || 0)) : s && s.state === "finished" ? 100 : 0;
+    var C = 2 * Math.PI * 50;
+    var h = '<section class="card"><div class="head"><span class="name">' + esc(p.name) + '</span><span class="chip ' + st[1] + '">' + esc(st[0]) + "</span></div>";
+    if (s && (job || s.state === "finished")) {
+      h += '<div class="main"><div class="ring"><svg viewBox="0 0 118 118"><circle class="trk" cx="59" cy="59" r="50"/><circle class="val" cx="59" cy="59" r="50" stroke-dasharray="' + (C * pct / 100).toFixed(1) + " " + C.toFixed(1) + '"/></svg><div class="pct">' + Math.round(pct) + "<small>%</small></div></div>";
+      h += '<div class="info"><div class="file">' + esc(s.fileName || T("Unbenannter Druck", "Untitled print")) + '</div><div class="kv">';
+      if (s.layer != null && s.totalLayers) h += "<span>" + T("Schicht", "Layer") + "</span><b>" + num(s.layer) + " / " + num(s.totalLayers) + "</b>";
+      h += "<span>" + T("Restzeit", "Remaining") + "</span><b>" + (job ? dur(s.remainingS) : "–") + "</b>";
+      h += "<span>" + T("Fertig um", "Done at") + "</span><b>" + (s.state === "printing" ? eta(s.remainingS) : s.state === "paused" ? T("pausiert", "paused") : "✓") + "</b>";
+      if (s.speedPct != null) h += "<span>" + T("Tempo", "Speed") + "</span><b>" + num(s.speedPct) + " %" + (s.speedMmS ? " · " + num(s.speedMmS) + " mm/s" : "") + "</b>";
+      h += "</div></div></div>";
+    } else if (s) {
+      h += '<div class="mini"><span>' + T("Bereit für den nächsten Druck", "Ready for the next print") + "</span></div>";
+    }
+    if (s && s.nozzleTemp != null) {
+      h += '<div class="temps"><div class="t"><span>' + T("Düse", "Nozzle") + "</span><b>" + num(s.nozzleTemp) + "°</b><i>" + (s.nozzleTarget ? "→ " + num(s.nozzleTarget) + "°" : T("aus", "off")) + '</i></div><div class="t"><span>' + T("Bett", "Bed") + "</span><b>" + num(s.bedTemp) + "°</b><i>" + (s.bedTarget ? "→ " + num(s.bedTarget) + "°" : T("aus", "off")) + "</i></div></div>";
+    }
+    if (p.active && online && s) {
+      if (job) {
+        h += '<div class="ctl">' + (s.state === "paused" ? '<button class="primary" data-a="resume">▶ ' + T("Fortsetzen", "Resume") + "</button>" : '<button data-a="pause"' + (s.preparing ? " disabled" : "") + ">❚❚ " + T("Pause", "Pause") + "</button>") + '<button class="danger" data-a="stop" data-confirm="1">■ ' + T("Abbrechen", "Cancel") + "</button></div>";
+        if (p.speed && s.state === "printing" && !s.preparing) {
+          var cur = Math.round(s.speedPct || 100);
+          h += '<div class="speed">' + [50, 75, 100, 150].map(function (v) { return '<button data-a="speed:' + v + '"' + (cur === v ? ' class="on"' : "") + ">" + v + "%</button>"; }).join("") + "</div>";
+        }
+      }
+      if (p.light) h += '<div class="ctl"><button data-a="light:1">💡 ' + T("Licht an", "Light on") + '</button><button data-a="light:0">' + T("Licht aus", "Light off") + "</button></div>";
+    }
+    return h + "</section>";
+  }
+
+  function render(d) {
+    var app = document.getElementById("app");
+    if (!d.printers || !d.printers.length) { app.innerHTML = '<div class="empty">' + T("In der App ist noch kein Drucker eingerichtet.", "No printer is set up in the app yet.") + "</div>"; return; }
+    var h = d.printers.map(card).join("");
+    if (d.photoMs) h += '<section class="card"><div class="head"><span class="name">' + T("Letztes Kamerabild", "Latest camera picture") + '</span><span class="small">' + new Date(d.photoMs).toLocaleTimeString(en ? "en-US" : "de-DE", { hour: "2-digit", minute: "2-digit" }) + '</span></div><img class="photo" alt="" src="api/photo?k=' + encodeURIComponent(key) + "&t=" + d.photoMs + '"></section>';
+    if (msg) h += '<div class="msg">' + esc(msg) + "</div>";
+    app.innerHTML = h;
+  }
+
+  function setLive(ok) {
+    document.getElementById("dot").className = "pulse" + (ok ? "" : " off");
+    document.getElementById("live").textContent = ok ? "Live" : T("Keine Verbindung zur App", "No connection to the app");
+  }
+
+  function poll() {
+    if (!key) { document.getElementById("app").innerHTML = '<div class="empty">' + T("Bitte den QR-Code in der App (Einstellungen → Handy im WLAN) scannen.", "Please scan the QR code in the app (Settings → Phone on Wi-Fi).") + "</div>"; return; }
+    fetch("api/state?k=" + encodeURIComponent(key), { cache: "no-store" })
+      .then(function (r) { if (r.status === 403) throw new Error("key"); return r.json(); })
+      .then(function (d) { last = d; setLive(true); if (!busy) render(d); })
+      .catch(function (e) {
+        setLive(false);
+        if (e && e.message === "key") document.getElementById("app").innerHTML = '<div class="empty">' + T("Der Schlüssel ist ungültig – bitte den QR-Code in der App neu scannen.", "The key is invalid – please scan the QR code in the app again.") + "</div>";
+      });
+  }
+
+  document.addEventListener("click", function (ev) {
+    var b = ev.target.closest && ev.target.closest("button[data-a]");
+    if (!b) return;
+    if (b.getAttribute("data-confirm") && !confirm(T("Druck wirklich abbrechen?", "Really cancel the print?"))) return;
+    busy = true; b.disabled = true;
+    fetch("api/control?k=" + encodeURIComponent(key) + "&a=" + encodeURIComponent(b.getAttribute("data-a")), { method: "POST" })
+      .then(function (r) { return r.ok ? "" : r.text(); })
+      .then(function (t) { msg = t ? T("Nicht ausgeführt: ", "Not done: ") + t : ""; })
+      .catch(function () { msg = T("Befehl nicht angekommen.", "Command did not arrive."); })
+      .then(function () { busy = false; setTimeout(poll, 600); });
+  });
+
+  document.getElementById("foot").textContent = T("Nur in deinem WLAN erreichbar · Druckerwacht", "Only reachable on your Wi-Fi · Druckerwacht");
+  document.getElementById("first").textContent = T("Verbinde …", "Connecting …");
+  poll();
+  setInterval(function () { if (!document.hidden) poll(); }, 2000);
+  document.addEventListener("visibilitychange", function () { if (!document.hidden) poll(); });
+})();
+</script>
+</body>
+</html>

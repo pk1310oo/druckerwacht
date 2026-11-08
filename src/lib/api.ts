@@ -151,3 +151,29 @@ export function historyThumbCandidates(job: { thumbnail: string | null; file: st
 export async function setBackendLanguage(lang: "de" | "en") {
   if (isTauri) await invoke("set_ui_language", { lang }).catch(() => {});
 }
+
+export interface RemoteInfo {
+  enabled: boolean;
+  running: boolean;
+  url: string | null;
+  error: string | null;
+}
+
+/** Handy-Seite im WLAN: Adresse für den QR-Code und Zustand des kleinen Webservers */
+export async function remoteInfo(): Promise<RemoteInfo> {
+  if (!isTauri) {
+    const s = getState().settings;
+    return { enabled: s.remoteEnabled, running: s.remoteEnabled, url: "http://192.168.178.20:8787/?k=0123456789abcdef0123456789abcdef", error: null };
+  }
+  return invoke<RemoteInfo>("remote_info");
+}
+
+export async function remoteNewToken() {
+  if (!isTauri) return;
+  setState({ settings: await invoke<Settings>("remote_new_token") });
+}
+
+export async function onRemoteChange(fn: () => void) {
+  if (!isTauri) return () => {};
+  return listen("remote://changed", fn);
+}

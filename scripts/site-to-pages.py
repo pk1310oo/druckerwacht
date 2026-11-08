@@ -18,9 +18,9 @@ import re
 head = re.sub(r"<title>.*?</title>\s*", "", head, flags=re.S)
 head = re.sub(r'<meta name="claude:[^>]*>\s*', "", head)
 url = "https://pk1310oo.github.io/druckerwacht/"
-desc = ("Druckerwacht – kostenlose Open-Source-App für den Creality Ender 3 V3 KE: Live-Überwachung, Slicer mit "
-        "OrcaSlicer-Motor, Tempo live von Flüster bis Turbo, Farbwechsel, Warteschlange und Filament-Lager mit "
-        "Kosten pro Druck. Für Windows, Mac und Linux.")
+desc = ("Druckerwacht – kostenlose Open-Source-App für 3D-Drucker: Ender 3 V3 KE, K1, Klipper, OctoPrint und Prusa. "
+        "Live-Überwachung, Slicer mit OrcaSlicer-Motor, Bett-Leveling und Kalibrieren, Handy im WLAN, Nachtmodus, "
+        "Warteschlange und Filament-Lager. Für Windows, Mac und Linux.")
 logo = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='100 100 824 824'%3E%3Crect x='100' "
         "y='100' width='824' height='824' rx='190' fill='%231A1A1A'/%3E%3Cpath d='M432 250h160v70l-40 60h-80l-40-60z' "
         "fill='%23F5F4EF'/%3E%3Crect x='300' y='520' width='424' height='56' rx='28' fill='%23D97757'/%3E%3Crect "

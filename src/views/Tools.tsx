@@ -12,6 +12,7 @@ import { useStore } from "../lib/store";
 import { isTauri, printerControl, sendGcodeFile, switchPrinter, type ControlAction } from "../lib/api";
 import { DASH, fmtDuration, fmtNum, STATE_LABEL, STATE_TONE } from "../lib/format";
 import { capsOf, useCaps } from "../lib/printers";
+import { useMaintenance } from "../lib/maintenance";
 import type { PrinterStatus } from "../lib/types";
 import { Badge, Card } from "../components/ui";
 import { t } from "../lib/i18n";
@@ -55,6 +56,7 @@ export function ToolsCard({ s, connected }: { s: PrinterStatus | null; connected
   const file = s?.fileName ?? "";
   const [zSum, setZSum] = useState(0);
   useEffect(() => setZSum(0), [file]);
+  const { due } = useMaintenance();
 
   if (!connected || !s) return null;
   const running = s.state === "printing" || s.state === "paused";
@@ -180,6 +182,11 @@ export function ToolsCard({ s, connected }: { s: PrinterStatus | null; connected
         </div>
       )}
 
+      {!running && due.length > 0 && (
+        <div className="maint-hint small">
+          <Wrench size={12} /> {t("Wartung fällig: {list} – abhaken unter Verlauf.", { list: due.map((d) => d.task.title()).join(", ") })}
+        </div>
+      )}
       <div className={`tools-fb small ${fb?.kind ?? "quiet"}`} aria-live="polite">
         {fb?.kind === "busy" && <Loader2 size={12} className="spin" />}
         {fb?.kind === "ok" && <Check size={12} />}

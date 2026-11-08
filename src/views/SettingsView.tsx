@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bug, Check, Download, ExternalLink, FolderGit2, Loader2, Pencil, PlugZap, Plus, Radar, RefreshCw, Search, Send, Trash2, Wifi } from "lucide-react";
+import { Bug, Check, Copy, Download, ExternalLink, FolderGit2, KeyRound, Loader2, Pencil, PlugZap, Plus, Radar, RefreshCw, Search, Send, Smartphone, Trash2, Wifi } from "lucide-react";
 import { useStore } from "../lib/store";
-import { discoverPrinters, isTauri, rawLogDir, reconnect, saveSettings } from "../lib/api";
+import { discoverPrinters, isTauri, onRemoteChange, rawLogDir, reconnect, remoteInfo, remoteNewToken, saveSettings, type RemoteInfo } from "../lib/api";
+import { Qr } from "../components/Qr";
 import { connectionLabel } from "../lib/format";
 import type { FoundPrinter, PrinterKind, PrinterProfile, Settings } from "../lib/types";
 import { KINDS, defaultPort, hostLabel, kindInfo, newPrinterId } from "../lib/printers";
@@ -162,6 +163,8 @@ export function SettingsView() {
           />
         </div>
       </Card>
+
+      <RemoteCard />
 
       <Card className="form-section">
         <span className="label">{t("Aufs Handy")}</span>
@@ -641,6 +644,85 @@ function PrintersCard({ draft, errors, onChange }: { draft: Settings; errors: Re
         </div>
       )}
       <span className="hint">{t("Alle Drucker werden gleichzeitig überwacht – Benachrichtigungen kommen von jedem. Im Dashboard steht der aktive Drucker, die anderen laufen in der Leiste darüber mit.")}</span>
+    </Card>
+  );
+}
+
+/** Handy im WLAN: Live-Status aller Drucker im Handy-Browser, per QR-Code verbunden. */
+function RemoteCard() {
+  const saved = useStore((s) => s.settings);
+  const [info, setInfo] = useState<RemoteInfo | null>(null);
+  const [copied, setCopied] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const refresh = () => void remoteInfo().then(setInfo);
+  useEffect(() => {
+    refresh();
+    let off: (() => void) | undefined;
+    void onRemoteChange(refresh).then((f) => (off = f));
+    return () => off?.();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [saved.remoteEnabled, saved.remoteToken]);
+  const toggle = async (on: boolean) => {
+    setBusy(true);
+    try {
+      await saveSettings({ ...saved, remoteEnabled: on });
+    } finally {
+      setBusy(false);
+      setTimeout(refresh, 400);
+    }
+  };
+  const copy = () => {
+    if (!info?.url) return;
+    void navigator.clipboard?.writeText(info.url).then(() => {
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1800);
+    });
+  };
+  return (
+    <Card className="form-section">
+      <span className="label">{t("Handy im WLAN")}</span>
+      <div>
+        <div className="toggle-row" style={{ borderTop: 0, paddingTop: 0 }}>
+          <div>
+            <div>{t("Live-Status aufs Handy")}</div>
+            <div className="hint">{t("Zeigt alle Drucker im Handy-Browser – mit Pause, Fortsetzen, Abbrechen, Tempo und Licht. Keine App nötig, nur im eigenen WLAN erreichbar.")}</div>
+          </div>
+          <Switch on={saved.remoteEnabled} onChange={(v) => !busy && void toggle(v)} label={t("Live-Status aufs Handy")} />
+        </div>
+        {saved.remoteEnabled && (
+          <div className="remote-box">
+            {info?.error ? (
+              <span className="hint error">{info.error}</span>
+            ) : info?.url ? (
+              <>
+                <Qr text={info.url} />
+                <div className="remote-text">
+                  <strong>
+                    <Smartphone size={15} /> {t("Mit der Handykamera scannen")}
+                  </strong>
+                  <span className="hint">{t("Handy und Computer müssen im selben WLAN sein. Tipp: Auf dem Handy „Zum Home-Bildschirm“ wählen – dann wirkt es wie eine App.")}</span>
+                  <code className="path">{info.url}</code>
+                  <span className="row-input" style={{ marginTop: 0 }}>
+                    <button className="btn sm" onClick={copy}>
+                      {copied ? <Check size={14} /> : <Copy size={14} />} {copied ? t("Kopiert") : t("Link kopieren")}
+                    </button>
+                    <button
+                      className="btn sm ghost"
+                      title={t("Alte QR-Codes und Links funktionieren danach nicht mehr.")}
+                      onClick={() => void remoteNewToken().then(() => setTimeout(refresh, 300))}
+                    >
+                      <KeyRound size={14} /> {t("Neuer Schlüssel")}
+                    </button>
+                  </span>
+                  <span className="hint">{t("Windows fragt beim ersten Mal, ob Druckerwacht im privaten Netzwerk erreichbar sein darf – bitte erlauben.")}</span>
+                </div>
+              </>
+            ) : (
+              <span className="hint">{isTauri ? t("Kein Heimnetz gefunden – ist der Computer im WLAN?") : "…"}</span>
+            )}
+          </div>
+        )}
+      </div>
     </Card>
   );
 }
