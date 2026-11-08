@@ -13,7 +13,7 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 
 **Überwachen**
 - Live-Dashboard: Düse und Bett mit leuchtenden Anzeigen, Geschwindigkeit, Flow, Lüfter, Schicht, Restzeit und echte **Fertig-Uhrzeit**
-- Live-Diagramme über 5, 15 oder 60 Minuten, Druckverlauf direkt vom Drucker
+- Live-Diagramme über 5, 15 oder 60 Minuten, Druckverlauf direkt vom Drucker, **Statistik** (Erfolgsquote, Druckstunden pro Woche)
 - Benachrichtigungen am Computer – und auf Wunsch **aufs Handy** über die kostenlose App ntfy (fertig, Fehler, pausiert, nächster Druck wartet)
 - **Mac-Menüleiste:** Fortschritt und Fertig-Uhrzeit direkt neben der Uhr
 - **Handy im WLAN:** QR-Code scannen und alle Drucker live im Handy-Browser sehen – mit Pause, Fortsetzen, Abbrechen, Tempo und Licht, ganz ohne App
@@ -27,6 +27,7 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 - Pausieren, Fortsetzen, Abbrechen
 - **Werkzeug-Karte:** Referenzfahrt, **Bett-Leveling mit Speichern**, **PID-Kalibrierung**, Vorheizen (PLA/PETG/ABS/TPU), Filament laden/entladen, Z-Offset während der ersten Schicht, Lüfter, Licht, Motoren aus
 - Beliebige fertige G-Code-Dateien senden und drucken
+- **Nochmal drucken** aus dem Verlauf mit einem Klick – die App behält eine Kopie deiner letzten 15 Drucke
 - **Nachtmodus:** zwischen 22 und 7 Uhr leise mit 50 %, morgens zurück aufs eigene Tempo
 - **Tempo live** von 25 % *Flüster* bis 150 % *Turbo* – die erste Schicht bleibt immer bei höchstens 50 mm/s, damit sie haftet
 - **Warteschlange:** geslicete Drucke vormerken und den nächsten mit einem Klick starten, sobald die Platte frei ist
@@ -44,6 +45,8 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 - Warnt dich, **bevor** eine Spule mitten im Druck leer wird
 
 ![Filament-Lager](docs/bilder/filament.jpg)
+
+**Komfort:** Beim ersten Start sucht die App das Netzwerk ab und richtet den Drucker mit einem Klick ein · **Sichern & Wiederherstellen** aller Drucker, Einstellungen, Spulen und Wartungsstände.
 
 **Optik:** ruhiges Neon-Gitter im Hintergrund, leuchtender Fortschrittsring, 3D-Karten, sieben Farbthemen – oder Effekte auf *Dezent* für langsamere Rechner.
 

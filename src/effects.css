@@ -1273,3 +1273,33 @@
 .remote-text strong { display: inline-flex; align-items: center; gap: 6px; }
 .remote-text code.path { word-break: break-all; }
 @media (max-width: 640px) { .remote-box { flex-direction: column; } }
+
+/* ---------------------------------------------------------------- Erster Start */
+.onboarding { display: flex; flex-direction: column; gap: 18px; max-width: 760px; margin: 24px auto 0; width: 100%; }
+.ob-head { display: flex; gap: 16px; align-items: flex-start; }
+.ob-head h2 { margin: 0 0 4px; font-size: 22px; letter-spacing: -0.01em; }
+.ob-head p { margin: 0; }
+.ob-list { display: flex; flex-direction: column; gap: 8px; }
+.ob-searching { display: flex; align-items: center; gap: 10px; color: var(--text-2); padding: 14px; border-radius: 12px; background: rgba(0, 0, 0, 0.22); }
+.ob-item { display: flex; align-items: center; gap: 14px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 12px; background: rgba(0, 0, 0, 0.2); color: var(--text); font: inherit; text-align: left; cursor: pointer; transition: border-color var(--t) var(--ease), transform 120ms var(--ease); }
+.ob-item:hover { border-color: rgb(var(--accent-rgb) / 0.5); transform: translateY(-1px); }
+.ob-item > svg { color: var(--accent); flex: none; }
+.ob-name { display: flex; flex-direction: column; flex: 1; min-width: 0; }
+.onboarding .actions { display: flex; gap: 8px; }
+
+/* ---------------------------------------------------------------- Statistik */
+.stats-card { display: flex; flex-direction: column; gap: 12px; }
+.st-body { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 24px; align-items: stretch; }
+.st-kpis { display: flex; flex-direction: column; gap: 14px; }
+.st-kpis > div { display: flex; flex-direction: column; gap: 2px; }
+.st-kpis b { font-size: 26px; font-weight: 650; letter-spacing: -0.02em; }
+.st-chart { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 10px; height: 150px; align-items: end; }
+.st-col { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: flex-end; height: 100%; gap: 4px; }
+.st-col i { display: block; width: 100%; max-width: 44px; border-radius: 6px 6px 2px 2px; background: linear-gradient(180deg, rgb(var(--accent-rgb) / 0.55), rgb(var(--accent-deep-rgb) / 0.35)); transition: height 500ms var(--ease); }
+.st-col.now i { background: linear-gradient(180deg, var(--accent), rgb(var(--accent-deep-rgb))); box-shadow: 0 0 18px rgb(var(--accent-rgb) / 0.35); }
+.st-val { font-size: 11px; color: var(--text-2); min-height: 14px; }
+.st-lbl { font-size: 11px; color: var(--text-3); }
+@media (max-width: 800px) { .st-body { grid-template-columns: 1fr; } }
+.reprint { display: inline-flex; align-items: center; gap: 6px; }
+.job-sub { display: flex; align-items: center; gap: 10px; min-height: 18px; }
+.job-sub .btn.sm { height: 24px; padding: 0 8px; }

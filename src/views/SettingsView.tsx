@@ -3,6 +3,7 @@ import { Bug, Check, Copy, Download, ExternalLink, FolderGit2, KeyRound, Loader2
 import { useStore } from "../lib/store";
 import { discoverPrinters, isTauri, onRemoteChange, rawLogDir, reconnect, remoteInfo, remoteNewToken, saveSettings, type RemoteInfo } from "../lib/api";
 import { Qr } from "../components/Qr";
+import { exportBackup, importBackup } from "../lib/backup";
 import { connectionLabel } from "../lib/format";
 import type { FoundPrinter, PrinterKind, PrinterProfile, Settings } from "../lib/types";
 import { KINDS, defaultPort, hostLabel, kindInfo, newPrinterId } from "../lib/printers";
@@ -223,7 +224,7 @@ export function SettingsView() {
       </Card>
 
       <Card className="form-section">
-        <span className="label">{t("Diagnose")}</span>
+        <span className="label">{t("Daten & Diagnose")}</span>
         <div>
           <ToggleRow
             label={t("Rohdaten mitschneiden")}
@@ -236,6 +237,7 @@ export function SettingsView() {
               <code className="path">{logDir}</code>
             </div>
           )}
+          <BackupRow />
           <div className="toggle-row">
             <div>
               <div>{t("Verbindung")}</div>
@@ -724,5 +726,34 @@ function RemoteCard() {
         )}
       </div>
     </Card>
+  );
+}
+
+/** Sicherung aller Einstellungen, Spulen und Wartungsstände */
+function BackupRow() {
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  const run = (f: () => Promise<boolean>, ok: string) => {
+    setMsg(null);
+    f()
+      .then((done) => done && setMsg({ ok: true, text: ok }))
+      .catch((e) => setMsg({ ok: false, text: typeof e === "string" ? e : t("Das hat nicht geklappt.") }));
+  };
+  return (
+    <div className="toggle-row">
+      <div>
+        <div>{t("Sicherung")}</div>
+        <div className={`hint${msg && !msg.ok ? " error" : ""}`}>
+          {msg?.text ?? t("Alle Drucker, Einstellungen, Filament-Lager und Wartungsstände in einer Datei – zum Umzug auf einen neuen Computer.")}
+        </div>
+      </div>
+      <span style={{ display: "flex", gap: 8 }}>
+        <button className="btn sm" onClick={() => run(exportBackup, t("Sicherung gespeichert."))}>
+          <Download size={14} /> {t("Sichern")}
+        </button>
+        <button className="btn sm ghost" disabled={!isTauri} onClick={() => run(importBackup, "")}>
+          {t("Wiederherstellen")}
+        </button>
+      </span>
+    </div>
   );
 }

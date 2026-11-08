@@ -50,7 +50,7 @@ export function Sidebar({ view, onChange }: { view: ViewId; onChange: (v: ViewId
 }
 
 export function Header() {
-  const name = useStore((s) => s.settings.printerName);
+  const name = useStore((s) => (s.settings.printers.length ? s.settings.printerName : "Druckerwacht"));
   const connection = useStore((s) => s.connection);
   const state = useStore((s) => s.status?.state ?? null);
   const preparing = useStore((s) => s.status?.preparing ?? false);

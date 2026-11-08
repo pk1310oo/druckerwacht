@@ -1,6 +1,6 @@
 [package]
 name = "druckerwacht"
-version = "0.13.0"
+version = "0.14.0"
 description = "Überwachen, Slicen und Steuern für Creality-, Klipper-, OctoPrint- und Prusa-Drucker"
 edition = "2021"
 license = "AGPL-3.0-or-later"

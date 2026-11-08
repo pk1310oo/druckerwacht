@@ -1,9 +1,9 @@
 import { useEffect, useState } from "react";
-import { Box, Check, CheckCircle2, CircleSlash, Clock, Download, Film, History, Layers, Printer, Ruler, Trash2, Wrench, XCircle } from "lucide-react";
+import { Box, Check, CheckCircle2, Loader2, RotateCcw, CircleSlash, Clock, Download, Film, History, Layers, Printer, Ruler, Trash2, Wrench, XCircle } from "lucide-react";
 import { useMaintenance } from "../lib/maintenance";
 import { onTimelapse, timelapseDelete, timelapseExport, timelapseList, type Timelapse } from "../lib/extras";
 import { useStore } from "../lib/store";
-import { clearJobs, historyThumbCandidates } from "../lib/api";
+import { clearJobs, findCopy, historyThumbCandidates, reprint, reprintNames } from "../lib/api";
 import { fmtDateTime, fmtDuration, fmtNum } from "../lib/format";
 import { Card, EmptyState, Segmented } from "../components/ui";
 import type { JobRecord, PrinterJob } from "../lib/types";
@@ -21,6 +21,7 @@ export function HistoryView() {
   const [source, setSource] = useState<Source>("printer");
   return (
     <div className="view">
+      <StatsCard />
       <MaintenanceCard />
       <Timelapses />
       <div className="section-head" style={{ marginTop: 0 }}>
@@ -125,6 +126,10 @@ function HistoryThumb({ job }: { job: PrinterJob }) {
 function AppHistory() {
   const jobs = useStore((s) => s.jobs);
   const [confirm, setConfirm] = useState(false);
+  const [copies, setCopies] = useState<string[]>([]);
+  useEffect(() => {
+    void reprintNames().then(setCopies).catch(() => {});
+  }, [jobs.length]);
   return (
     <>
       <Card className="jobs">
@@ -155,7 +160,10 @@ function AppHistory() {
                     <div className="file-name" title={j.file}>
                       {j.file}
                     </div>
-                    {j.layers != null && <div className="small muted num">{t("{n} Schichten", { n: fmtNum(j.layers) })}</div>}
+                    <div className="small muted num job-sub">
+                      {j.layers != null && t("{n} Schichten", { n: fmtNum(j.layers) })}
+                      {findCopy(j.file, copies) && <ReprintButton name={findCopy(j.file, copies)!} />}
+                    </div>
                   </span>
                   <span className="col-date muted num">{fmtDateTime(j.endedMs)}</span>
                   <span className="right num">{fmtDuration(j.durationS)}</span>
@@ -302,5 +310,92 @@ function MaintenanceCard() {
         })}
       </div>
     </Card>
+  );
+}
+
+/** Statistik: Erfolgsquote, Druckstunden je Woche (letzte 8 Wochen) */
+function StatsCard() {
+  const hist = useStore((s) => s.printerHistory);
+  const app = useStore((s) => s.jobs);
+  // Verlauf vom Drucker hat mehr Angaben (Filament); sonst der App-Verlauf
+  const jobs = hist?.jobs.length
+    ? hist.jobs.map((j) => ({ startMs: j.startedS * 1000, durationS: j.durationS, ok: j.finished, mm: j.materialMm }))
+    : app.map((j) => ({ startMs: j.startedMs, durationS: j.durationS, ok: j.result === "finished", mm: null as number | null }));
+  if (jobs.length < 2) return null;
+  const ok = jobs.filter((j) => j.ok).length;
+  const avg = jobs.reduce((a, j) => a + j.durationS, 0) / jobs.length;
+  const longest = Math.max(...jobs.map((j) => j.durationS));
+  const WEEK = 7 * 864e5;
+  const start = new Date();
+  start.setHours(0, 0, 0, 0);
+  start.setDate(start.getDate() - ((start.getDay() + 6) % 7)); // Montag dieser Woche
+  const weeks = Array.from({ length: 8 }, (_, i) => {
+    const from = start.getTime() - (7 - i) * WEEK;
+    const inWeek = jobs.filter((j) => j.startMs >= from && j.startMs < from + WEEK);
+    return { from, hours: inWeek.reduce((a, j) => a + j.durationS, 0) / 3600, n: inWeek.length };
+  });
+  const max = Math.max(1, ...weeks.map((w) => w.hours));
+  return (
+    <Card className="stats-card">
+      <div className="chart-head">
+        <span className="label">{t("Statistik")}</span>
+        <span className="small muted">{t("letzte {n} Drucke", { n: jobs.length })}</span>
+      </div>
+      <div className="st-body">
+        <div className="st-kpis">
+          <div>
+            <span className="label">{t("Erfolgsquote")}</span>
+            <b className="num">{Math.round((ok / jobs.length) * 100)} %</b>
+            <span className="small muted">{t("{ok} von {n} fertig", { ok, n: jobs.length })}</span>
+          </div>
+          <div>
+            <span className="label">{t("Ø Druckdauer")}</span>
+            <b className="num">{fmtDuration(avg)}</b>
+            <span className="small muted">{t("längster: {d}", { d: fmtDuration(longest) })}</span>
+          </div>
+        </div>
+        <div className="st-chart" role="img" aria-label={t("Druckstunden je Woche")}>
+          {weeks.map((w, i) => (
+            <div key={w.from} className={`st-col${i === weeks.length - 1 ? " now" : ""}`} title={`${fmtNum(w.hours, 1)} h · ${w.n}`}>
+              <span className="st-val num">{w.hours >= 0.05 ? fmtNum(w.hours, w.hours < 10 ? 1 : 0) : ""}</span>
+              <i style={{ height: `${Math.max(2, (w.hours / max) * 100)}%` }} />
+              <span className="st-lbl num">{new Date(w.from).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit" })}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+      <span className="small muted">{t("Druckstunden je Woche")}</span>
+    </Card>
+  );
+}
+
+/** „Nochmal drucken“: gespeicherte Kopie erneut hochladen und starten (nach Bestätigung) */
+function ReprintButton({ name }: { name: string }) {
+  const busy = useStore((s) => s.status?.state === "printing" || s.status?.state === "paused");
+  const connected = useStore((s) => s.connection.kind === "connected");
+  const [step, setStep] = useState<"idle" | "ask" | "busy" | "ok" | string>("idle");
+  if (step === "ok") return <span className="reprint ok-text small">{t("Gestartet")}</span>;
+  if (step === "busy") return <Loader2 size={14} className="spin reprint" />;
+  if (step === "ask")
+    return (
+      <span className="reprint">
+        <button className="btn sm primary" onClick={() => {
+          setStep("busy");
+          reprint(name).then(() => setStep("ok")).catch((e) => setStep(typeof e === "string" ? e : t("Start fehlgeschlagen.")));
+        }}>
+          {t("Platte frei – drucken")}
+        </button>
+        <button className="btn sm ghost" onClick={() => setStep("idle")}>
+          {t("Nein")}
+        </button>
+      </span>
+    );
+  return (
+    <span className="reprint">
+      <button className="btn sm ghost" disabled={busy || !connected} title={busy ? t("Der Drucker druckt gerade.") : t("Denselben Druck noch einmal starten")} onClick={() => setStep("ask")}>
+        <RotateCcw size={13} /> {t("Nochmal drucken")}
+      </button>
+      {step !== "idle" && <span className="small" style={{ color: "var(--warning)" }}>{step}</span>}
+    </span>
   );
 }

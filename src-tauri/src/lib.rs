@@ -189,6 +189,8 @@ struct Paths {
     raw_log_dir: PathBuf,
     queue_dir: PathBuf,
     timelapse_dir: PathBuf,
+    /// Kopien der zuletzt gesendeten Drucke (für „Nochmal drucken“)
+    sent_dir: PathBuf,
 }
 
 fn now_ms() -> i64 {
@@ -957,6 +959,29 @@ fn save_project(path: String, contents: String) -> Result<(), String> {
     std::fs::rename(&tmp, &p).map_err(|_| crate::i18n::tr("Projekt konnte nicht gespeichert werden.", "The project could not be saved.").to_string())
 }
 
+/// Datensicherung (Einstellungen, Spulen, Wartung …) als JSON-Datei schreiben bzw. lesen.
+fn backup_path(path: &str) -> Result<std::path::PathBuf, String> {
+    let p = std::path::PathBuf::from(path);
+    match p.extension().and_then(|e| e.to_str()) {
+        Some("json") => Ok(p),
+        _ => Err(crate::i18n::tr("Bitte eine .json-Datei wählen.", "Please choose a .json file.").into()),
+    }
+}
+
+#[tauri::command]
+fn backup_write(path: String, contents: String) -> Result<(), String> {
+    std::fs::write(backup_path(&path)?, contents).map_err(|_| crate::i18n::tr("Sicherung konnte nicht gespeichert werden.", "The backup could not be saved.").to_string())
+}
+
+#[tauri::command]
+fn backup_read(path: String) -> Result<String, String> {
+    let p = backup_path(&path)?;
+    if std::fs::metadata(&p).map(|m| m.len()).unwrap_or(0) > 20 * 1024 * 1024 {
+        return Err(crate::i18n::tr("Die Datei ist zu groß für eine Sicherung.", "The file is too large for a backup.").into());
+    }
+    std::fs::read_to_string(&p).map_err(|_| crate::i18n::tr("Sicherung konnte nicht gelesen werden.", "The backup could not be read.").to_string())
+}
+
 /// Liest ein Projekt.
 #[tauri::command]
 fn read_project(path: String) -> Result<String, String> {
@@ -994,6 +1019,7 @@ async fn upload_and_start(app: &AppHandle, a: &Active, file_name: &str, data: Ve
     let app2 = app.clone();
     let last = std::sync::atomic::AtomicI32::new(-1);
     let _ = app.emit("printer://upload", 0);
+    let copy = data.clone();
     let name = control::upload(&a.profile, file_name, data, start, move |f| {
         let pct = (f * 100.0) as i32;
         if last.swap(pct, std::sync::atomic::Ordering::Relaxed) != pct {
@@ -1002,7 +1028,49 @@ async fn upload_and_start(app: &AppHandle, a: &Active, file_name: &str, data: Ve
     })
     .await?;
     let _ = app.emit("printer://upload", 100);
+    remember_sent(app, &name, &copy);
     Ok(name)
+}
+
+const SENT_KEEP: usize = 15;
+
+/// Kopie eines gesendeten Drucks behalten (die neuesten 15)
+fn remember_sent(app: &AppHandle, name: &str, data: &[u8]) {
+    let dir = app.state::<Arc<AppState>>().paths.sent_dir.clone();
+    if std::fs::create_dir_all(&dir).is_err() || std::fs::write(dir.join(name), data).is_err() {
+        return;
+    }
+    let mut files: Vec<(std::time::SystemTime, PathBuf)> = std::fs::read_dir(&dir)
+        .map(|rd| rd.flatten().filter_map(|e| Some((e.metadata().ok()?.modified().ok()?, e.path()))).collect())
+        .unwrap_or_default();
+    files.sort_by(|a, b| b.0.cmp(&a.0));
+    for (_, p) in files.into_iter().skip(SENT_KEEP) {
+        let _ = std::fs::remove_file(p);
+    }
+}
+
+/// Dateinamen der gespeicherten Drucke
+#[tauri::command]
+fn reprint_names(state: State<'_, Arc<AppState>>) -> Vec<String> {
+    std::fs::read_dir(&state.paths.sent_dir)
+        .map(|rd| rd.flatten().map(|e| e.file_name().to_string_lossy().into_owned()).collect())
+        .unwrap_or_default()
+}
+
+/// Einen früheren Druck erneut hochladen und starten
+#[tauri::command]
+async fn reprint(app: AppHandle, name: String) -> Result<String, String> {
+    if name.is_empty() || name.contains(['/', '\\']) || name.starts_with('.') {
+        return Err(crate::i18n::tr("Ungültiger Dateiname.", "Invalid file name.").into());
+    }
+    let path = app.state::<Arc<AppState>>().paths.sent_dir.join(&name);
+    let data = std::fs::read(&path).map_err(|_| crate::i18n::tr("Die gespeicherte Kopie gibt es nicht mehr.", "The saved copy no longer exists.").to_string())?;
+    let a = active_printer(&app)?;
+    if a.state.map(|s| s.is_active()).unwrap_or(false) {
+        return Err(busy_error());
+    }
+    let check = !name.to_lowercase().ends_with(".bgcode");
+    upload_and_start(&app, &a, &name, data, true, check).await
 }
 
 // ----------------------------------------------------------------------------- Handy im WLAN
@@ -1276,6 +1344,7 @@ pub fn run() {
                 raw_log_dir: log_dir.join("raw"),
                 queue_dir: data_dir.join("queue"),
                 timelapse_dir: data_dir.join("timelapse"),
+                sent_dir: data_dir.join("sent"),
             };
             let mut settings = Settings::load(&paths.settings);
             // Schlüssel für die Handy-Seite einmalig erzeugen und sofort sichern
@@ -1328,6 +1397,10 @@ pub fn run() {
             get_printer_history,
             gcode_temp_steps,
             remote_info,
+            backup_write,
+            reprint_names,
+            reprint,
+            backup_read,
             remote_new_token,
             clear_jobs,
             discover_printers,

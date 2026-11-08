@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, ArrowDown, ArrowUp, Box, Flame, Gauge, Layers, ListOrdered, Loader2, Moon, Palette, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
 import { useStore } from "../lib/store";
-import { printerControl, reconnect, thumbnailUrl } from "../lib/api";
+import { discoverPrinters, isTauri, printerControl, reconnect, saveSettings, thumbnailUrl } from "../lib/api";
+import { getState } from "../lib/store";
+import { kindInfo, newPrinterId } from "../lib/printers";
+import type { FoundPrinter } from "../lib/types";
 import { DASH, fmtDuration, fmtEta, fmtNum, STATE_LABEL, STATE_TONE } from "../lib/format";
 import type { PrinterStatus } from "../lib/types";
 import { Badge, Card, EmptyState, Rolling, Segmented, StatCard } from "../components/ui";
@@ -80,19 +83,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
   if (connection.kind === "unconfigured") {
     return (
       <div className="view">
-        <Card>
-          <EmptyState
-            icon={Printer}
-            accent
-            title={t("Drucker einrichten")}
-            text={t("Druckerwacht kann Creality (KE, K1), Klipper-, OctoPrint- und Prusa-Drucker überwachen. Lass das Netzwerk durchsuchen oder trag die IP-Adresse von Hand ein.")}
-            actions={
-              <button className="btn primary" onClick={() => go("settings")}>
-                {t("Zu den Einstellungen")}
-              </button>
-            }
-          />
-        </Card>
+        <Onboarding go={go} />
       </div>
     );
   }
@@ -858,5 +849,74 @@ function ErrorBanner({ s }: { s: PrinterStatus }) {
         {t("Code nachschlagen")}
       </button>
     </div>
+  );
+}
+
+/** Erster Start: Netzwerk durchsuchen und den Drucker mit einem Klick einrichten */
+function Onboarding({ go }: { go: (v: ViewId) => void }) {
+  const [found, setFound] = useState<FoundPrinter[] | null>(null);
+  const [busy, setBusy] = useState(false);
+  const search = async () => {
+    setBusy(true);
+    try {
+      setFound(await discoverPrinters());
+    } catch {
+      setFound([]);
+    } finally {
+      setBusy(false);
+    }
+  };
+  useEffect(() => {
+    if (isTauri) void search();
+  }, []);
+  const add = async (f: FoundPrinter) => {
+    const s = getState().settings;
+    const id = newPrinterId();
+    const name = f.hostname || f.model || kindInfo(f.kind).label;
+    // OctoPrint und Prusa brauchen noch Schlüssel/Passwort → weiter in den Einstellungen
+    await saveSettings({ ...s, printers: [...s.printers, { id, name, kind: f.kind, host: f.ip, port: f.port, key: "" }], activePrinter: id });
+    if (f.kind === "octoprint" || f.kind === "prusalink") go("settings");
+  };
+  return (
+    <Card className="onboarding">
+      <div className="ob-head">
+        <div className="empty-icon accent">
+          <Printer size={22} strokeWidth={1.75} />
+        </div>
+        <div>
+          <h2>{t("Willkommen bei Druckerwacht")}</h2>
+          <p className="muted">{t("Druckerwacht kann Creality (KE, K1), Klipper-, OctoPrint- und Prusa-Drucker überwachen. Lass das Netzwerk durchsuchen oder trag die IP-Adresse von Hand ein.")}</p>
+        </div>
+      </div>
+      <div className="ob-list">
+        {busy && (
+          <div className="ob-searching">
+            <Loader2 size={16} className="spin" /> {t("Suche Drucker im WLAN … (dauert ein paar Sekunden)")}
+          </div>
+        )}
+        {!busy && found?.length === 0 && <p className="small muted">{t("Kein Drucker gefunden. Ist er eingeschaltet und im selben WLAN? Die IP kannst du auch von Hand eintragen.")}</p>}
+        {!busy &&
+          found?.map((f) => (
+            <button key={`${f.ip}-${f.kind}`} className="ob-item" onClick={() => void add(f)}>
+              <Printer size={18} />
+              <span className="ob-name">
+                <b>{f.hostname || f.model || kindInfo(f.kind).label}</b>
+                <span className="small muted num">
+                  {kindInfo(f.kind).label} · {f.port ? `${f.ip}:${f.port}` : f.ip}
+                </span>
+              </span>
+              <span className="btn sm primary">{t("Einrichten")}</span>
+            </button>
+          ))}
+      </div>
+      <div className="actions">
+        <button className="btn" disabled={busy || !isTauri} onClick={() => void search()}>
+          {t("Erneut suchen")}
+        </button>
+        <button className="btn ghost" onClick={() => go("settings")}>
+          {t("Von Hand eintragen")}
+        </button>
+      </div>
+    </Card>
   );
 }

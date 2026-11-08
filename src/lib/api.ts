@@ -177,3 +177,21 @@ export async function onRemoteChange(fn: () => void) {
   if (!isTauri) return () => {};
   return listen("remote://changed", fn);
 }
+
+/** Namen der gespeicherten Kopien früherer Drucke */
+export async function reprintNames(): Promise<string[]> {
+  if (!isTauri) return ["Halterung_Kabelkanal_v3_PLA_0.2mm.gcode"];
+  return invoke<string[]>("reprint_names");
+}
+
+export async function reprint(name: string): Promise<string> {
+  if (!isTauri) return name;
+  return invoke<string>("reprint", { name });
+}
+
+/** Passt ein Dateiname aus dem Verlauf zu einer gespeicherten Kopie? */
+export function findCopy(file: string, names: string[]): string | undefined {
+  const norm = (n: string) => n.split(/[\\/]/).pop()!.replace(/\.(b?gcode|gco|g)$/i, "").replace(/[^A-Za-z0-9]+/g, "_").toLowerCase();
+  const f = norm(file);
+  return names.find((n) => norm(n) === f);
+}

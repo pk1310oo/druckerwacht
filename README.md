@@ -13,7 +13,7 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 
 **Watch**
 - Live dashboard: nozzle and bed with glowing gauges, speed, flow, fan, layer, remaining time and the real **finish time**
-- Live charts over 5, 15 or 60 minutes, print history from the printer itself
+- Live charts over 5, 15 or 60 minutes, print history from the printer itself, **statistics** (success rate, print hours per week)
 - Notifications on your computer – and optionally **on your phone** via the free ntfy app (done, error, paused, next print waiting)
 - **macOS menu bar:** progress and finish time right next to the clock
 - **Phone on Wi-Fi:** scan a QR code and see every printer live in your phone's browser – pause, resume, cancel, speed and light included, no app needed
@@ -27,6 +27,7 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 - Pause, resume, cancel
 - **Tools card:** home, **bed leveling with save**, **PID tuning**, preheat (PLA/PETG/ABS/TPU), load/unload filament, Z offset babystepping during the first layer, fan, light, motors off
 - Send any finished G-code file and print it
+- **Print again** from the history with one click – the app keeps a copy of your last 15 prints
 - **Night mode:** quiet 50 % between 22:00 and 07:00, back to your speed in the morning
 - **Live speed** from 25 % *Whisper* to 150 % *Turbo* – the first layer always stays at max. 50 mm/s so it sticks
 - **Print queue:** line up sliced prints and start the next one with a click once the plate is clear
@@ -44,6 +45,8 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 - Warns you **before** a spool runs out mid-print
 
 ![Filament stock](docs/images/filament.jpg)
+
+**Comfort:** on first start the app searches your network and sets up the printer with one click · **backup & restore** of all printers, settings, spools and maintenance status.
 
 **Looks:** calm neon grid background, glowing progress ring, 3D cards, seven colour themes – or switch effects to *Subtle* on slower computers.
 
