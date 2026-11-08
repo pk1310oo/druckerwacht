@@ -9,10 +9,10 @@ mod settings;
 mod slicer;
 mod threemf;
 
-use adapter::{creality::CrealityWsAdapter, AdapterEvent, ConnectionState, PrinterAdapter};
+use adapter::{control, AdapterEvent, ConnectionState};
 use model::{PrintState, PrinterHistory, PrinterStatus};
 use serde::{Deserialize, Serialize};
-use settings::Settings;
+use settings::{PrinterProfile, Settings};
 use std::collections::VecDeque;
 use std::io::Write;
 use std::path::PathBuf;
@@ -83,6 +83,89 @@ struct Inner {
     printer_history: Option<PrinterHistory>,
     /// Neuestes Kamerabild (Zeit in ms, JPEG) – für Fotos in Handy-Nachrichten
     last_snapshot: Option<(i64, Vec<u8>)>,
+    /// Alle übrigen gespeicherten Drucker (laufen im Hintergrund mit)
+    others: Vec<OtherPrinter>,
+}
+
+/// Kurzstatus eines weiteren Druckers für die Übersicht
+#[derive(Serialize, Clone, Debug)]
+#[serde(rename_all = "camelCase")]
+struct OtherPrinter {
+    id: String,
+    name: String,
+    kind: String,
+    connection: ConnectionState,
+    status: Option<PrinterStatus>,
+    #[serde(skip)]
+    last_emit_ms: i64,
+}
+
+impl OtherPrinter {
+    fn new(p: &PrinterProfile) -> Self {
+        Self { id: p.id.clone(), name: p.name.clone(), kind: p.kind.clone(), connection: ConnectionState::Connecting { host: p.host.clone(), attempt: 1 }, status: None, last_emit_ms: 0 }
+    }
+}
+
+fn emit_others(app: &AppHandle, state: &Arc<AppState>) {
+    let list = state.lock().others.clone();
+    let _ = app.emit("printers://others", &list);
+}
+
+/// Hält die Verbindung zu einem weiteren Drucker und meldet Druckende und Fehler.
+fn spawn_other(app: &AppHandle, gen: u64, p: PrinterProfile, shutdown: watch::Receiver<bool>) {
+    let (tx, mut rx) = mpsc::unbounded_channel::<AdapterEvent>();
+    let adapter = adapter::for_kind(&p.kind);
+    tauri::async_runtime::spawn(adapter.run(p.clone(), tx, shutdown));
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        while let Some(ev) = rx.recv().await {
+            let state = app.state::<Arc<AppState>>();
+            if state.generation.load(Ordering::SeqCst) != gen {
+                break;
+            }
+            let mut note: Option<(String, String)> = None;
+            let emit = {
+                let mut inner = state.lock();
+                let notify_finished = inner.settings.notify_finished;
+                let notify_error = inner.settings.notify_error;
+                let Some(o) = inner.others.iter_mut().find(|o| o.id == p.id) else { break };
+                match ev {
+                    AdapterEvent::Connection(c) => {
+                        let changed = o.connection != c;
+                        o.connection = c;
+                        changed
+                    }
+                    AdapterEvent::Status(s) => {
+                        let prev = o.status.as_ref().map(|x| x.state).unwrap_or_default();
+                        if prev.is_active() && prev != s.state {
+                            let name = o.name.clone();
+                            let file = s.file_name.clone().unwrap_or_default();
+                            note = match s.state {
+                                PrintState::Finished if notify_finished => Some((trf!("{name}: Druck fertig", "{name}: print finished"), trf!("„{file}“ ist fertig gedruckt.", "“{file}” has finished printing."))),
+                                PrintState::Failed | PrintState::Aborted if notify_error => Some((trf!("{name}: Druck beendet", "{name}: print stopped"), trf!("„{file}“ wurde mit einem Fehler beendet oder abgebrochen.", "“{file}” ended with an error or was cancelled."))),
+                                PrintState::Paused if notify_finished => Some((trf!("{name}: Druck pausiert", "{name}: print paused"), trf!("„{file}“ ist pausiert.", "“{file}” is paused."))),
+                                _ => None,
+                            };
+                        }
+                        let state_changed = prev != s.state;
+                        o.status = Some(s);
+                        let due = now_ms() - o.last_emit_ms >= 1000;
+                        state_changed || due
+                    }
+                    _ => false,
+                }
+            };
+            if emit {
+                if let Some(o) = state.lock().others.iter_mut().find(|o| o.id == p.id) {
+                    o.last_emit_ms = now_ms();
+                }
+                emit_others(&app, &state);
+            }
+            if let Some((t, b)) = note {
+                notify(&app, &t, &b);
+            }
+        }
+    });
 }
 
 pub struct AppState {
@@ -155,30 +238,38 @@ fn restart_connection(app: &AppHandle) {
     let state = app.state::<Arc<AppState>>();
     let gen = state.generation.fetch_add(1, Ordering::SeqCst) + 1;
 
-    let (host, old) = {
+    let (active, others, old) = {
         let mut inner = state.lock();
         let old = inner.shutdown.take();
         inner.status = None;
         inner.samples.clear();
         inner.disconnect_notified = false;
-        (inner.settings.printer_ip.clone(), old)
+        let active = inner.settings.active().cloned().filter(|p| !p.host.is_empty());
+        let others: Vec<PrinterProfile> = inner.settings.printers.iter().filter(|p| Some(&p.id) != active.as_ref().map(|a| &a.id) && !p.host.is_empty()).cloned().collect();
+        inner.others = others.iter().map(OtherPrinter::new).collect();
+        (active, others, old)
     };
     if let Some(tx) = old {
         let _ = tx.send(true);
     }
+    let (shutdown_tx, shutdown_rx) = watch::channel(false);
+    state.lock().shutdown = Some(shutdown_tx);
+    emit_others(app, &state);
 
-    if host.is_empty() {
+    // Weitere Drucker laufen im Hintergrund mit (Übersicht, Meldungen)
+    for p in others {
+        spawn_other(app, gen, p, shutdown_rx.clone());
+    }
+
+    let Some(active) = active else {
         set_connection(app, &state, ConnectionState::Unconfigured);
         let _ = app.emit("printer://status", Option::<PrinterStatus>::None);
         return;
-    }
+    };
 
-    let (shutdown_tx, shutdown_rx) = watch::channel(false);
-    state.lock().shutdown = Some(shutdown_tx);
     let (tx, mut rx) = mpsc::unbounded_channel::<AdapterEvent>();
-
-    let adapter: Box<dyn PrinterAdapter> = Box::new(CrealityWsAdapter);
-    tauri::async_runtime::spawn(adapter.run(host, tx, shutdown_rx));
+    let adapter = adapter::for_kind(&active.kind);
+    tauri::async_runtime::spawn(adapter.run(active, tx, shutdown_rx));
 
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
@@ -475,11 +566,12 @@ fn allow_webcam(_app: &tauri::App) {}
 /// Nach dem Verbinden einmal nach einer Kamera am Drucker suchen, wenn noch keine eingetragen ist.
 fn probe_camera_once(app: &AppHandle) {
     let state = app.state::<Arc<AppState>>();
-    let (host, empty) = {
+    let (host, empty, creality) = {
         let inner = state.lock();
-        (inner.settings.printer_ip.clone(), inner.settings.camera_url.trim().is_empty())
+        let creality = inner.settings.active().map(|p| p.kind == "creality").unwrap_or(false);
+        (inner.settings.printer_ip.clone(), inner.settings.camera_url.trim().is_empty(), creality)
     };
-    if host.is_empty() || !empty {
+    if host.is_empty() || !empty || !creality {
         return;
     }
     let app = app.clone();
@@ -574,7 +666,7 @@ fn save_settings(app: AppHandle, state: State<'_, Arc<AppState>>, settings: Sett
         .map_err(|_| crate::i18n::tr("Einstellungen konnten nicht gespeichert werden.", "Settings could not be saved.").to_string())?;
     let reconnect = {
         let mut inner = state.lock();
-        let reconnect = inner.settings.printer_ip != settings.printer_ip;
+        let reconnect = inner.settings.printers != settings.printers || inner.settings.active_printer != settings.active_printer;
         inner.settings = settings.clone();
         reconnect
     };
@@ -597,6 +689,11 @@ fn get_snapshot(state: State<'_, Arc<AppState>>) -> Snapshot {
         status: inner.status.clone(),
         samples: inner.samples.iter().cloned().collect(),
     }
+}
+
+#[tauri::command]
+fn get_others(state: State<'_, Arc<AppState>>) -> Vec<OtherPrinter> {
+    state.lock().others.clone()
 }
 
 #[tauri::command]
@@ -742,32 +839,78 @@ fn open_project_link(url: String) -> Result<(), String> {
 /// Pause, Fortsetzen oder Abbrechen – nur wenn der Zustand dazu passt.
 #[tauri::command]
 async fn printer_control(app: AppHandle, action: String) -> Result<(), String> {
-    let (host, state, preparing) = {
-        let st = app.state::<Arc<AppState>>();
-        let inner = st.lock();
-        let s = inner.status.as_ref();
-        (inner.settings.printer_ip.clone(), s.map(|s| s.state), s.map(|s| s.preparing).unwrap_or(false))
+    let a = active_printer(&app)?;
+    let cmd = control::parse(&action).ok_or(crate::i18n::tr("Unbekannter Befehl.", "Unknown command."))?;
+    let running = matches!(a.state, Some(PrintState::Printing | PrintState::Paused));
+    let refuse: Option<&str> = match &cmd {
+        control::Cmd::Pause if a.preparing => Some(crate::i18n::tr("Während Heizen und Leveling nimmt der Drucker keine Pause an.", "The printer does not accept a pause while heating and leveling.")),
+        control::Cmd::Pause if a.state != Some(PrintState::Printing) => Some(crate::i18n::tr("Pausieren geht nur während eines Drucks.", "Pausing only works during a print.")),
+        control::Cmd::Resume if a.state != Some(PrintState::Paused) => Some(crate::i18n::tr("Der Drucker ist nicht pausiert.", "The printer is not paused.")),
+        control::Cmd::Speed(_) if !running => Some(crate::i18n::tr("Die Geschwindigkeit lässt sich nur während eines Drucks ändern.", "The speed can only be changed during a print.")),
+        c if c.needs_job() && !running => Some(crate::i18n::tr("Es läuft gerade kein Druck.", "No print is running.")),
+        c if c.needs_idle() && running => Some(crate::i18n::tr("Das geht nur, wenn gerade nicht gedruckt wird.", "This only works while the printer isn't printing.")),
+        control::Cmd::Nozzle(t) | control::Cmd::PidNozzle(t) if *t as f64 > a.max_nozzle => Some(crate::i18n::tr("So heiß kann die Düse dieses Druckers nicht werden.", "This printer's nozzle can't get that hot.")),
+        control::Cmd::Bed(t) | control::Cmd::PidBed(t) | control::Cmd::Level(t) if *t as f64 > a.max_bed => Some(crate::i18n::tr("So heiß kann das Bett dieses Druckers nicht werden.", "This printer's bed can't get that hot.")),
+        _ => None,
     };
-    if host.is_empty() {
-        return Err(crate::i18n::tr("Keine Drucker-IP eingetragen.", "No printer IP address set.").into());
+    if let Some(msg) = refuse {
+        return Err(msg.into());
     }
-    let ok = match (action.as_str(), state) {
-        ("pause", Some(PrintState::Printing)) => !preparing,
-        ("resume", Some(PrintState::Paused)) => true,
-        ("stop", Some(PrintState::Printing | PrintState::Paused)) => true,
-        (a, Some(PrintState::Printing | PrintState::Paused)) if a.starts_with("speed:") => true,
-        _ => false,
-    };
-    if !ok {
-        return Err(match action.as_str() {
-            "pause" if preparing => crate::i18n::tr("Während Heizen und Leveling nimmt der Drucker keine Pause an.", "The printer does not accept a pause while heating and leveling.").into(),
-            "pause" => crate::i18n::tr("Pausieren geht nur während eines Drucks.", "Pausing only works during a print.").into(),
-            "resume" => crate::i18n::tr("Der Drucker ist nicht pausiert.", "The printer is not paused.").into(),
-            a if a.starts_with("speed:") => crate::i18n::tr("Die Geschwindigkeit lässt sich nur während eines Drucks ändern.", "The speed can only be changed during a print.").into(),
-            _ => crate::i18n::tr("Es läuft gerade kein Druck.", "No print is running.").into(),
-        });
+    control::run(&a.profile, &cmd).await
+}
+
+/// Aktiver Drucker mit den Werten, die Befehle und Uploads prüfen
+struct Active {
+    profile: PrinterProfile,
+    state: Option<PrintState>,
+    preparing: bool,
+    max_nozzle: f64,
+    max_bed: f64,
+}
+
+fn active_printer(app: &AppHandle) -> Result<Active, String> {
+    let st = app.state::<Arc<AppState>>();
+    let inner = st.lock();
+    let profile = inner
+        .settings
+        .active()
+        .cloned()
+        .filter(|p| !p.host.is_empty())
+        .ok_or(crate::i18n::tr("Kein Drucker eingerichtet.", "No printer set up."))?;
+    let s = inner.status.as_ref();
+    let (lim_n, lim_b) = control::temp_limits(&profile.kind);
+    Ok(Active {
+        state: s.map(|s| s.state),
+        preparing: s.map(|s| s.preparing).unwrap_or(false),
+        // Grenzen meldet der Drucker teils selbst (KE: 300 / 100 °C); sonst Werte je Druckertyp
+        max_nozzle: s.and_then(|s| s.max_nozzle_temp).unwrap_or(lim_n),
+        max_bed: s.and_then(|s| s.max_bed_temp).unwrap_or(lim_b),
+        profile,
+    })
+}
+
+fn busy_error() -> String {
+    crate::i18n::tr("Der Drucker druckt gerade – bitte warten, bis der aktuelle Druck beendet ist.", "The printer is busy – please wait until the current print has finished.").into()
+}
+
+/// Eine vom Nutzer gewählte G-Code-Datei an den aktiven Drucker senden (für alle Druckertypen,
+/// z. B. aus OrcaSlicer, PrusaSlicer oder Cura).
+#[tauri::command]
+async fn printer_send_file(app: AppHandle, path: String, start: bool) -> Result<String, String> {
+    let p = std::path::PathBuf::from(&path);
+    let ext = p.extension().map(|e| e.to_string_lossy().to_lowercase()).unwrap_or_default();
+    if !["gcode", "gco", "g", "bgcode"].contains(&ext.as_str()) {
+        return Err(crate::i18n::tr("Nur G-Code-Dateien (.gcode, .bgcode) können gesendet werden.", "Only G-code files (.gcode, .bgcode) can be sent.").into());
     }
-    printjob::control(&host, None, &action).await
+    let a = active_printer(&app)?;
+    if start && a.state.map(|s| s.is_active()).unwrap_or(false) {
+        return Err(busy_error());
+    }
+    let data = std::fs::read(&p).map_err(|_| crate::i18n::tr("Datei konnte nicht gelesen werden.", "The file could not be read.").to_string())?;
+    let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
+    // Binär-G-Code (Prusa) lässt sich nicht als Text prüfen
+    let check = ext != "bgcode";
+    upload_and_start(&app, &a, &name, data, start, check).await
 }
 
 fn project_path(path: &str) -> Result<std::path::PathBuf, String> {
@@ -806,45 +949,32 @@ async fn printer_send(app: AppHandle, path: String, start: bool, pauses: Option<
     if !p.starts_with(&base) {
         return Err(crate::i18n::tr("Zugriff verweigert.", "Access denied.").into());
     }
-    let (host, busy, max_nozzle, max_bed) = {
-        let state = app.state::<Arc<AppState>>();
-        let inner = state.lock();
-        let s = inner.status.as_ref();
-        let busy = s.map(|s| s.state.is_active()).unwrap_or(false);
-        // Grenzen meldet der Drucker selbst (KE: 300 / 100 °C); sonst die KE-Werte
-        let max_nozzle = s.and_then(|s| s.max_nozzle_temp).unwrap_or(300.0);
-        let max_bed = s.and_then(|s| s.max_bed_temp).unwrap_or(100.0);
-        (inner.settings.printer_ip.clone(), busy, max_nozzle, max_bed)
-    };
-    if host.is_empty() {
-        return Err(crate::i18n::tr("Keine Drucker-IP eingetragen.", "No printer IP address set.").into());
-    }
-    if start && busy {
-        return Err(crate::i18n::tr("Der Drucker druckt gerade – bitte warten, bis der aktuelle Druck beendet ist.", "The printer is busy – please wait until the current print has finished.").into());
+    let a = active_printer(&app)?;
+    if start && a.state.map(|s| s.is_active()).unwrap_or(false) {
+        return Err(busy_error());
     }
     let data = std::fs::read(&p).map_err(|_| crate::i18n::tr("G-Code konnte nicht gelesen werden.", "The G-code could not be read.").to_string())?;
     let data = with_pauses(data, pauses.as_deref());
     let name = p.file_name().map(|n| n.to_string_lossy().into_owned()).unwrap_or_default();
-    upload_and_start(&app, &host, &name, &data, start, max_nozzle, max_bed).await
+    upload_and_start(&app, &a, &name, data, start, true).await
 }
 
 /// Prüft, lädt hoch und startet auf Wunsch. Liefert den Dateinamen am Drucker.
-async fn upload_and_start(app: &AppHandle, host: &str, file_name: &str, data: &[u8], start: bool, max_nozzle: f64, max_bed: f64) -> Result<String, String> {
-    printjob::check_gcode(data, max_nozzle, max_bed)?;
-    let name = printjob::printer_file_name(file_name);
-    let host = host.to_string();
+async fn upload_and_start(app: &AppHandle, a: &Active, file_name: &str, data: Vec<u8>, start: bool, check: bool) -> Result<String, String> {
+    if check {
+        printjob::check_gcode(&data, a.max_nozzle, a.max_bed)?;
+    }
     let app2 = app.clone();
     let last = std::sync::atomic::AtomicI32::new(-1);
-    printjob::upload(&host, None, &name, data, move |f| {
+    let _ = app.emit("printer://upload", 0);
+    let name = control::upload(&a.profile, file_name, data, start, move |f| {
         let pct = (f * 100.0) as i32;
         if last.swap(pct, std::sync::atomic::Ordering::Relaxed) != pct {
             let _ = app2.emit("printer://upload", pct);
         }
     })
     .await?;
-    if start {
-        printjob::start(&host, None, &name).await?;
-    }
+    let _ = app.emit("printer://upload", 100);
     Ok(name)
 }
 
@@ -915,25 +1045,12 @@ fn queue_shift(app: AppHandle, id: String, delta: i32) -> Result<Vec<extras::Que
 async fn queue_start(app: AppHandle, id: String) -> Result<String, String> {
     let q = queue(&app);
     let item = q.list().into_iter().find(|i| i.id == id).ok_or(crate::i18n::tr("Eintrag nicht gefunden.", "Entry not found."))?;
-    let (host, busy, max_nozzle, max_bed) = {
-        let st = app.state::<Arc<AppState>>();
-        let inner = st.lock();
-        let s = inner.status.as_ref();
-        (
-            inner.settings.printer_ip.clone(),
-            s.map(|s| s.state.is_active()).unwrap_or(false),
-            s.and_then(|s| s.max_nozzle_temp).unwrap_or(300.0),
-            s.and_then(|s| s.max_bed_temp).unwrap_or(100.0),
-        )
-    };
-    if host.is_empty() {
-        return Err(crate::i18n::tr("Keine Drucker-IP eingetragen.", "No printer IP address set.").into());
-    }
-    if busy {
-        return Err(crate::i18n::tr("Der Drucker druckt gerade – bitte warten, bis der aktuelle Druck beendet ist.", "The printer is busy – please wait until the current print has finished.").into());
+    let a = active_printer(&app)?;
+    if a.state.map(|s| s.is_active()).unwrap_or(false) {
+        return Err(busy_error());
     }
     let data = std::fs::read(q.file(&id)).map_err(|_| crate::i18n::tr("G-Code konnte nicht gelesen werden.", "The G-code could not be read.").to_string())?;
-    let name = upload_and_start(&app, &host, &format!("{}.gcode", item.name), &data, true, max_nozzle, max_bed).await?;
+    let name = upload_and_start(&app, &a, &format!("{}.gcode", item.name), data, true, true).await?;
     q.remove(&id)?;
     Ok(name)
 }
@@ -1040,6 +1157,7 @@ pub fn run() {
                     disconnect_notified: false,
                     printer_history,
                     last_snapshot: None,
+                    others: Vec::new(),
                 }),
                 generation: AtomicU64::new(0),
                 disconnect_seq: AtomicU64::new(0),
@@ -1077,6 +1195,8 @@ pub fn run() {
             save_project,
             read_project,
             printer_control,
+            printer_send_file,
+            get_others,
             camera_probe,
             ntfy_test,
             queue_list,

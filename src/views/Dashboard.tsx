@@ -14,6 +14,8 @@ import { t } from "../lib/i18n";
 import { accentHex } from "../lib/theme";
 import { plannedPauses, rememberSentPrint } from "../lib/sentPrint";
 import { onQueueChange, queueList, queueRemove, queueShift, queueStart, type QueueItem } from "../lib/extras";
+import { FleetStrip, ToolsCard } from "./Tools";
+import { useCaps } from "../lib/printers";
 
 const TEMP_SERIES = (): SeriesDef[] => [
   { key: "nozzle", label: t("Düse"), color: accentHex(), unit: "°C" },
@@ -80,7 +82,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
             icon={Printer}
             accent
             title={t("Drucker einrichten")}
-            text={t("Trage die IP-Adresse deines Ender 3 V3 KE ein oder lass das Netzwerk automatisch durchsuchen.")}
+            text={t("Druckerwacht kann Creality (KE, K1), Klipper-, OctoPrint- und Prusa-Drucker überwachen. Lass das Netzwerk durchsuchen oder trag die IP-Adresse von Hand ein.")}
             actions={
               <button className="btn primary" onClick={() => go("settings")}>
                 {t("Zu den Einstellungen")}
@@ -96,10 +98,13 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
 
   return (
     <div className="view">
+      <FleetStrip />
       <div className={`top-row${camera ? " with-cam" : ""}`}>
         <HeroCard s={status} celebrate={celebrate} />
         <Stats status={status} />
       </div>
+
+      <ToolsCard s={status} connected={connected} />
 
       <QueueCard status={status} connected={connection.kind === "connected"} />
 
@@ -367,6 +372,7 @@ function HeroRing({ s, job }: { s: PrinterStatus; job: boolean }) {
 }
 
 function HeroInfo({ s, job }: { s: PrinterStatus; job: boolean }) {
+  const caps = useCaps();
   if (!job) {
     return (
       <div className="hero-info">
@@ -434,7 +440,7 @@ function HeroInfo({ s, job }: { s: PrinterStatus; job: boolean }) {
         </div>
       </div>
       <JobControls s={s} />
-      {(s.state === "printing" || s.state === "paused") && <SpeedControl s={s} />}
+      {(s.state === "printing" || s.state === "paused") && caps.speed && <SpeedControl s={s} />}
     </div>
   );
 }
@@ -727,6 +733,7 @@ function QueueCard({ status: s, connected }: { status: PrinterStatus | null; con
   const [plateFree, setPlateFree] = useState(false);
   const [busy, setBusy] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const fits = useCaps().slicer;
   useEffect(() => {
     void queueList().then(setItems);
     return onQueueChange(setItems);
@@ -737,7 +744,7 @@ function QueueCard({ status: s, connected }: { status: PrinterStatus | null; con
   }, [s?.state]);
   if (items.length === 0) return null;
 
-  const printerFree = connected && !!s && !(s.state === "printing" || s.state === "paused");
+  const printerFree = connected && !!s && !(s.state === "printing" || s.state === "paused") && fits;
   const start = async (it: QueueItem) => {
     setError(null);
     setBusy(it.id);
@@ -764,7 +771,7 @@ function QueueCard({ status: s, connected }: { status: PrinterStatus | null; con
             {t("Platte ist frei")}
           </label>
         ) : (
-          <span className="small muted">{connected ? t("Startet, sobald der aktuelle Druck fertig ist und die Platte frei ist.") : t("Drucker nicht verbunden")}</span>
+          <span className="small muted">{!fits ? t("Die vorgemerkten Drucke sind für den Ender 3 V3 KE gesliced – bitte zu diesem Drucker wechseln.") : connected ? t("Startet, sobald der aktuelle Druck fertig ist und die Platte frei ist.") : t("Drucker nicht verbunden")}</span>
         )}
       </div>
       <ol className="queue">

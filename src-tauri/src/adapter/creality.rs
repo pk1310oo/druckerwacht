@@ -9,6 +9,7 @@
 //!   Das ist eine reine Leseanfrage.
 
 use super::{AdapterEvent, ConnectionState, PrinterAdapter};
+use crate::settings::PrinterProfile;
 use crate::model::{merge, parse, parse_history, PrinterStatus};
 use futures_util::{future::BoxFuture, FutureExt, SinkExt, StreamExt};
 use serde_json::{Map, Value};
@@ -36,11 +37,12 @@ pub struct CrealityWsAdapter;
 impl PrinterAdapter for CrealityWsAdapter {
     fn run(
         &self,
-        host: String,
+        printer: PrinterProfile,
         tx: mpsc::UnboundedSender<AdapterEvent>,
         shutdown: watch::Receiver<bool>,
     ) -> BoxFuture<'static, ()> {
-        run_loop(host, PORT, tx, shutdown).boxed()
+        let port = printer.port.unwrap_or(PORT);
+        run_loop(printer.host, port, tx, shutdown).boxed()
     }
 }
 
@@ -188,7 +190,7 @@ async fn session(
     }
 }
 
-fn humanize_error(raw: &str) -> String {
+pub(super) fn humanize_error(raw: &str) -> String {
     let r = raw.to_lowercase();
     if r.contains("refused") {
         crate::i18n::tr("Verbindung abgelehnt – ist die IP richtig?", "Connection refused – is the IP correct?").into()

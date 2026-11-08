@@ -63,12 +63,30 @@ export function installPreview() {
   if (new URLSearchParams(location.search).has("orca")) (window as unknown as { __dwOrca: string }).__dwOrca = "/Applications/OrcaSlicer.app";
   const mode = new URLSearchParams(location.search).get("preview");
   if (!mode) return;
+  const fleet = new URLSearchParams(location.search).has("fleet");
   const settings = {
     ...DEFAULT_SETTINGS,
     printerIp: "192.168.178.42",
+    activePrinter: "p1",
+    printers: [
+      { id: "p1", name: "Ender 3 V3 KE", kind: "creality" as const, host: "192.168.178.42", port: null, key: "" },
+      ...(fleet
+        ? [
+            { id: "p2", name: "Voron 2.4", kind: "moonraker" as const, host: "voron.local", port: null, key: "" },
+            { id: "p3", name: "Prusa MK4", kind: "prusalink" as const, host: "192.168.178.57", port: null, key: "geheim" },
+          ]
+        : []),
+    ],
     cameraUrl: new URLSearchParams(location.search).has("cam") ? "http://127.0.0.1:9/stream" : "",
   };
   const host = settings.printerIp;
+  if (fleet)
+    setState({
+      others: [
+        { id: "p2", name: "Voron 2.4", kind: "moonraker", connection: { kind: "connected", host: "voron.local", sinceMs: Date.now() }, status: { ...base, progress: 63, remainingS: 2280, state: "printing" } },
+        { id: "p3", name: "Prusa MK4", kind: "prusalink", connection: { kind: "connected", host: "192.168.178.57", sinceMs: Date.now() }, status: { ...base, state: "idle", nozzleTemp: 24.8, bedTemp: 23.9 } },
+      ],
+    });
   switch (mode) {
     case "printing":
       setState({ settings, connection: { kind: "connected", host, sinceMs: Date.now() }, status: base, samples: samples(20) });

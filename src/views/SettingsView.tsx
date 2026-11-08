@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bug, Check, Download, ExternalLink, FolderGit2, Loader2, PlugZap, Radar, RefreshCw, Search, Send, Wifi } from "lucide-react";
+import { Bug, Check, Download, ExternalLink, FolderGit2, Loader2, Pencil, PlugZap, Plus, Radar, RefreshCw, Search, Send, Trash2, Wifi } from "lucide-react";
 import { useStore } from "../lib/store";
 import { discoverPrinters, isTauri, rawLogDir, reconnect, saveSettings } from "../lib/api";
 import { connectionLabel } from "../lib/format";
-import type { FoundPrinter, Settings } from "../lib/types";
+import type { FoundPrinter, PrinterKind, PrinterProfile, Settings } from "../lib/types";
+import { KINDS, defaultPort, hostLabel, kindInfo, newPrinterId } from "../lib/printers";
 import { Card, Segmented, Switch } from "../components/ui";
 import { t } from "../lib/i18n";
 import { THEMES, THEME_IDS } from "../lib/theme";
@@ -18,10 +19,15 @@ const THEME_NAMES: Record<(typeof THEME_IDS)[number], string> = { orange: "Orang
 
 const HOST_RE = /^(?:(?:25[0-5]|2[0-4]\d|1?\d?\d)(?:\.(?!$)|$)){4}$|^[a-zA-Z0-9][a-zA-Z0-9.-]*$/;
 
+/** Fehler je Feld; Drucker unter `printer:<id>` bzw. `key:<id>` */
 function validate(s: Settings) {
-  const errors: Partial<Record<keyof Settings, string>> = {};
-  const ip = s.printerIp.trim().replace(/^(wss?|https?):\/\//, "").replace(/[:/].*$/, "");
-  if (s.printerIp.trim() && !HOST_RE.test(ip)) errors.printerIp = t("Bitte eine gültige IP-Adresse eingeben, z. B. 192.168.178.42.");
+  const errors: Record<string, string> = {};
+  for (const p of s.printers) {
+    const ip = p.host.trim().replace(/^(wss?|https?):\/\//, "").replace(/[:/].*$/, "");
+    if (!ip) errors[`printer:${p.id}`] = t("Bitte die Adresse des Druckers eintragen.");
+    else if (!HOST_RE.test(ip)) errors[`printer:${p.id}`] = t("Bitte eine gültige IP-Adresse eingeben, z. B. 192.168.178.42.");
+    if (p.kind === "octoprint" && !p.key.trim()) errors[`key:${p.id}`] = t("OctoPrint braucht einen API-Schlüssel.");
+  }
   if (s.cameraUrl.trim() && !/^https?:\/\/.+/i.test(s.cameraUrl.trim()))
     errors.cameraUrl = t("Die Adresse muss mit http:// oder https:// beginnen.");
   return errors;
@@ -34,7 +40,6 @@ export function SettingsView() {
   const [busy, setBusy] = useState(false);
   const [justSaved, setJustSaved] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
-  const [scan, setScan] = useState<{ running: boolean; results: FoundPrinter[] | null }>({ running: false, results: null });
   const [logDir, setLogDir] = useState("");
   const [orca, setOrca] = useState<SlicerInfo | null>(null);
   useEffect(() => {
@@ -66,15 +71,6 @@ export function SettingsView() {
       setSaveError(typeof e === "string" ? e : t("Einstellungen konnten nicht gespeichert werden."));
     } finally {
       setBusy(false);
-    }
-  }
-
-  async function onScan() {
-    setScan({ running: true, results: null });
-    try {
-      setScan({ running: false, results: await discoverPrinters() });
-    } catch {
-      setScan({ running: false, results: [] });
     }
   }
 
@@ -125,57 +121,11 @@ export function SettingsView() {
         </div>
       </Card>
 
-      <Card className="form-section">
-        <span className="label">{t("Drucker")}</span>
-        <div className="field">
-          <label htmlFor="name">{t("Name")}</label>
-          <input id="name" className="input" value={draft.printerName} onChange={(e) => set("printerName", e.target.value)} />
-        </div>
-        <div className="field">
-          <label htmlFor="ip">{t("IP-Adresse")}</label>
-          <div className="field-row">
-            <input
-              id="ip"
-              className={`input num ${errors.printerIp ? "invalid" : ""}`}
-              placeholder={t("z. B. 192.168.178.42")}
-              value={draft.printerIp}
-              spellCheck={false}
-              onChange={(e) => set("printerIp", e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && void onSave()}
-            />
-            <button className="btn" onClick={() => void onScan()} disabled={scan.running || !isTauri}>
-              {scan.running ? <Loader2 size={16} className="spin" /> : <Radar size={16} />}
-              {scan.running ? t("Suche…") : t("Im Netz suchen")}
-            </button>
-          </div>
-          {errors.printerIp ? (
-            <span className="hint error">{errors.printerIp}</span>
-          ) : (
-            <span className="hint">
-              {t("Zu finden am Druckerdisplay unter Einstellungen → Netzwerk. Verbindung über Port 9999.")}
-            </span>
-          )}
-        </div>
-        {scan.results && (
-          <div className="found">
-            {scan.results.length === 0 ? (
-              <span className="hint">
-                {t("Kein Drucker gefunden. Ist er eingeschaltet und im selben WLAN? Die IP kannst du auch von Hand eintragen.")}
-              </span>
-            ) : (
-              scan.results.map((p) => (
-                <button key={p.ip} onClick={() => set("printerIp", p.ip)}>
-                  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                    <Wifi size={16} className="muted" />
-                    <span>{p.model ?? p.hostname ?? t("Creality-Drucker")}</span>
-                  </span>
-                  <span className="num muted">{p.ip}</span>
-                </button>
-              ))
-            )}
-          </div>
-        )}
-      </Card>
+      <PrintersCard
+        draft={draft}
+        errors={errors}
+        onChange={(printers, activePrinter) => setDraft((d) => ({ ...d, printers, activePrinter: activePrinter ?? d.activePrinter }))}
+      />
 
       <Card className="form-section">
         <span className="label">{t("Kamera")}</span>
@@ -505,5 +455,192 @@ function WebcamPicker({ value, onChange }: { value: string; onChange: (v: string
         </div>
       )}
     </>
+  );
+}
+
+/** Liste aller Drucker: hinzufügen, bearbeiten, entfernen, im Netz suchen. */
+function PrintersCard({ draft, errors, onChange }: { draft: Settings; errors: Record<string, string>; onChange: (p: PrinterProfile[], active?: string) => void }) {
+  const others = useStore((s) => s.others);
+  const connection = useStore((s) => s.connection);
+  const savedActive = useStore((s) => s.settings.activePrinter);
+  const [editing, setEditing] = useState<string | null>(null);
+  const [confirmDel, setConfirmDel] = useState<string | null>(null);
+  const [scan, setScan] = useState<{ running: boolean; results: FoundPrinter[] | null }>({ running: false, results: null });
+  const printers = draft.printers;
+
+  const update = (id: string, patch: Partial<PrinterProfile>) => onChange(printers.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+  const add = (init: Partial<PrinterProfile> = {}) => {
+    const p: PrinterProfile = { id: newPrinterId(), name: t("Drucker {n}", { n: printers.length + 1 }), kind: "creality", host: "", port: null, key: "", ...init };
+    onChange([...printers, p], printers.length === 0 ? p.id : undefined);
+    setEditing(p.id);
+  };
+  const remove = (id: string) => {
+    const rest = printers.filter((p) => p.id !== id);
+    onChange(rest, draft.activePrinter === id ? rest[0]?.id ?? "" : undefined);
+    setConfirmDel(null);
+    if (editing === id) setEditing(null);
+  };
+  const onScan = async () => {
+    setScan({ running: true, results: null });
+    try {
+      setScan({ running: false, results: await discoverPrinters() });
+    } catch {
+      setScan({ running: false, results: [] });
+    }
+  };
+  const take = (f: FoundPrinter) => {
+    const name = f.hostname || f.model || kindInfo(f.kind).label;
+    const target = editing ? printers.find((p) => p.id === editing) : undefined;
+    if (target && !target.host) update(target.id, { kind: f.kind, host: f.ip, port: f.port, name: target.name.startsWith(t("Drucker")) ? name : target.name });
+    else add({ kind: f.kind, host: f.ip, port: f.port, name });
+  };
+  const statusDot = (id: string) => {
+    if (id !== savedActive) {
+      const c = others.find((o) => o.id === id)?.connection;
+      return c?.kind === "connected" ? "ok" : c?.kind === "reconnecting" ? "bad" : c ? "wait" : "";
+    }
+    return connection.kind === "connected" ? "ok" : connection.kind === "reconnecting" ? "bad" : connection.kind === "connecting" ? "wait" : "";
+  };
+
+  return (
+    <Card className="form-section">
+      <span className="label">{t("Drucker")}</span>
+      <div className="printer-list">
+        {printers.length === 0 && <span className="hint">{t("Noch kein Drucker eingerichtet. Lass das Netzwerk durchsuchen oder füge ihn von Hand hinzu.")}</span>}
+        {printers.map((p) => {
+          const info = kindInfo(p.kind);
+          const open = editing === p.id;
+          const err = errors[`printer:${p.id}`];
+          return (
+            <div key={p.id} className={`printer-item${open ? " open" : ""}${err ? " invalid" : ""}`}>
+              <div className="printer-row">
+                <span className={`dot ${statusDot(p.id)}`} aria-hidden />
+                <div className="pr-main">
+                  <span className="pr-name">{p.name || t("Ohne Namen")}</span>
+                  <span className="small muted num">
+                    {info.label} · {p.host ? hostLabel(p) : t("keine Adresse")}
+                  </span>
+                </div>
+                {draft.activePrinter === p.id ? (
+                  <span className="badge accent">{t("Aktiv")}</span>
+                ) : (
+                  <button className="btn sm ghost" onClick={() => onChange(printers, p.id)}>
+                    {t("Aktiv setzen")}
+                  </button>
+                )}
+                <button className="btn sm ghost" aria-label={t("Bearbeiten")} title={t("Bearbeiten")} onClick={() => setEditing(open ? null : p.id)}>
+                  <Pencil size={14} />
+                </button>
+                {confirmDel === p.id ? (
+                  <button className="btn sm danger" onClick={() => remove(p.id)}>
+                    {t("Wirklich entfernen")}
+                  </button>
+                ) : (
+                  <button className="btn sm ghost" aria-label={t("Entfernen")} title={t("Entfernen")} onClick={() => setConfirmDel(p.id)}>
+                    <Trash2 size={14} />
+                  </button>
+                )}
+              </div>
+              {open && (
+                <div className="printer-edit">
+                  <div className="field">
+                    <label htmlFor={`n-${p.id}`}>{t("Name")}</label>
+                    <input id={`n-${p.id}`} className="input" value={p.name} onChange={(e) => update(p.id, { name: e.target.value })} />
+                  </div>
+                  <div className="field">
+                    <label htmlFor={`k-${p.id}`}>{t("Druckertyp")}</label>
+                    <select id={`k-${p.id}`} className="input" value={p.kind} onChange={(e) => update(p.id, { kind: e.target.value as PrinterKind, port: null })}>
+                      {KINDS.map((k) => (
+                        <option key={k} value={k}>
+                          {kindInfo(k).label}
+                        </option>
+                      ))}
+                    </select>
+                    <span className="hint">{info.models}</span>
+                  </div>
+                  <div className="field-grid">
+                    <div className="field">
+                      <label htmlFor={`h-${p.id}`}>{t("IP-Adresse")}</label>
+                      <input
+                        id={`h-${p.id}`}
+                        className={`input num ${err ? "invalid" : ""}`}
+                        placeholder={t("z. B. 192.168.178.42")}
+                        value={p.host}
+                        spellCheck={false}
+                        onChange={(e) => update(p.id, { host: e.target.value })}
+                      />
+                    </div>
+                    <div className="field">
+                      <label htmlFor={`p-${p.id}`}>Port</label>
+                      <input
+                        id={`p-${p.id}`}
+                        className="input num"
+                        inputMode="numeric"
+                        placeholder={String(defaultPort(p.kind))}
+                        value={p.port ?? ""}
+                        onChange={(e) => {
+                          const v = Number(e.target.value.replace(/\D/g, ""));
+                          update(p.id, { port: v > 0 && v < 65536 ? v : null });
+                        }}
+                      />
+                    </div>
+                  </div>
+                  {err && <span className="hint error">{err}</span>}
+                  {info.keyLabel && (
+                    <div className="field">
+                      <label htmlFor={`key-${p.id}`}>{info.keyLabel}</label>
+                      <input
+                        id={`key-${p.id}`}
+                        className={`input ${errors[`key:${p.id}`] ? "invalid" : ""}`}
+                        type="password"
+                        autoComplete="off"
+                        value={p.key}
+                        spellCheck={false}
+                        onChange={(e) => update(p.id, { key: e.target.value })}
+                      />
+                      {errors[`key:${p.id}`] && <span className="hint error">{errors[`key:${p.id}`]}</span>}
+                    </div>
+                  )}
+                  <span className="hint">{info.hint}</span>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+      <div className="row-input">
+        <button className="btn" onClick={() => void onScan()} disabled={scan.running || !isTauri}>
+          {scan.running ? <Loader2 size={16} className="spin" /> : <Radar size={16} />}
+          {scan.running ? t("Suche…") : t("Im Netz suchen")}
+        </button>
+        <button className="btn ghost" onClick={() => add()}>
+          <Plus size={16} /> {t("Drucker hinzufügen")}
+        </button>
+      </div>
+      {scan.results && (
+        <div className="found">
+          {scan.results.length === 0 ? (
+            <span className="hint">{t("Kein Drucker gefunden. Ist er eingeschaltet und im selben WLAN? Die IP kannst du auch von Hand eintragen.")}</span>
+          ) : (
+            scan.results.map((f) => {
+              const known = printers.some((p) => p.host === f.ip && p.kind === f.kind);
+              return (
+                <button key={`${f.ip}-${f.kind}`} disabled={known} onClick={() => take(f)}>
+                  <span style={{ display: "flex", alignItems: "center", gap: 12 }}>
+                    <Wifi size={16} className="muted" />
+                    <span>
+                      {f.hostname ?? f.model ?? kindInfo(f.kind).label}
+                      <span className="small muted"> · {kindInfo(f.kind).label}</span>
+                    </span>
+                  </span>
+                  <span className="num muted">{known ? t("schon eingerichtet") : f.port ? `${f.ip}:${f.port}` : f.ip}</span>
+                </button>
+              );
+            })
+          )}
+        </div>
+      )}
+      <span className="hint">{t("Alle Drucker werden gleichzeitig überwacht – Benachrichtigungen kommen von jedem. Im Dashboard steht der aktive Drucker, die anderen laufen in der Leiste darüber mit.")}</span>
+    </Card>
   );
 }

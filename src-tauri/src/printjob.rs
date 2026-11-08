@@ -199,28 +199,8 @@ pub async fn start(host: &str, port: Option<u16>, file_name: &str) -> Result<(),
     Ok(())
 }
 
-/// Steuerbefehl an den laufenden Druck (wie Creality Print / Home-Assistant-Integration):
-/// Pause `{"pause":1}`, Fortsetzen `{"pause":0}`, Abbrechen `{"stop":1}`.
-/// Live-Geschwindigkeit: `speed:<prozent>` setzt den Geschwindigkeitsfaktor (wie M220).
-/// Grenzen: 10–200 % (Firmware-Bereich); die Oberfläche bietet 25–150 % an.
-pub const SPEED_MIN: u32 = 10;
-pub const SPEED_MAX: u32 = 200;
-
-pub fn control_params(action: &str) -> Option<serde_json::Value> {
-    if let Some(v) = action.strip_prefix("speed:") {
-        let pct: u32 = v.trim().parse().ok()?;
-        return Some(serde_json::json!({ "setFeedratePct": pct.clamp(SPEED_MIN, SPEED_MAX) }));
-    }
-    match action {
-        "pause" => Some(serde_json::json!({ "pause": 1 })),
-        "resume" => Some(serde_json::json!({ "pause": 0 })),
-        "stop" => Some(serde_json::json!({ "stop": 1 })),
-        _ => None,
-    }
-}
-
-pub async fn control(host: &str, port: Option<u16>, action: &str) -> Result<(), String> {
-    let params = control_params(action).ok_or(crate::i18n::tr("Unbekannter Befehl.", "Unknown command."))?;
+/// Schickt `{"method":"set","params":…}` über den WebSocket des Druckers.
+pub async fn send_set(host: &str, port: Option<u16>, params: serde_json::Value) -> Result<(), String> {
     let url = format!("ws://{host}:{}", port.unwrap_or(WS_PORT));
     let (mut ws, _) = tokio::time::timeout(Duration::from_secs(6), connect_async(url.as_str()))
         .await
@@ -242,25 +222,43 @@ mod tests {
 
     #[tokio::test]
     async fn control_commands() {
+        // Der neue Weg: Oberfläche → control::parse → control::run → WebSocket des Druckers
         for (action, expected) in [
-            ("pause", r#"{"method":"set","params":{"pause":1}}"#),
-            ("resume", r#"{"method":"set","params":{"pause":0}}"#),
-            ("stop", r#"{"method":"set","params":{"stop":1}}"#),
-            ("speed:150", r#"{"method":"set","params":{"setFeedratePct":150}}"#),
-            ("speed:999", r#"{"method":"set","params":{"setFeedratePct":200}}"#),
+            ("pause", vec![r#"{"method":"set","params":{"pause":1}}"#]),
+            ("resume", vec![r#"{"method":"set","params":{"pause":0}}"#]),
+            ("stop", vec![r#"{"method":"set","params":{"stop":1}}"#]),
+            ("speed:150", vec![r#"{"method":"set","params":{"setFeedratePct":150}}"#]),
+            ("speed:999", vec![r#"{"method":"set","params":{"setFeedratePct":200}}"#]),
+            ("nozzle:215", vec![r#"{"method":"set","params":{"nozzleTempControl":215}}"#]),
+            ("bed:60", vec![r#"{"method":"set","params":{"bedTempControl":{"num":0,"val":60}}}"#]),
+            ("light:1", vec![r#"{"method":"set","params":{"lightSw":1}}"#]),
+            (
+                "level",
+                vec![
+                    r#"{"method":"set","params":{"gcodeCmd":"G28"}}"#,
+                    r#"{"method":"set","params":{"gcodeCmd":"BED_MESH_CALIBRATE"}}"#,
+                    r#"{"method":"set","params":{"gcodeCmd":"SAVE_CONFIG"}}"#,
+                ],
+            ),
+            ("fan:50", vec![r#"{"method":"set","params":{"gcodeCmd":"M106 P0 S128"}}"#]),
         ] {
             let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
             let port = l.local_addr().unwrap().port();
+            let n = expected.len();
             let srv = tokio::spawn(async move {
-                let (sock, _) = l.accept().await.unwrap();
-                let mut ws = tokio_tungstenite::accept_async(sock).await.unwrap();
-                ws.next().await.unwrap().unwrap().into_text().unwrap().to_string()
+                let mut got = Vec::new();
+                for _ in 0..n {
+                    let (sock, _) = l.accept().await.unwrap();
+                    let mut ws = tokio_tungstenite::accept_async(sock).await.unwrap();
+                    got.push(ws.next().await.unwrap().unwrap().into_text().unwrap().to_string());
+                }
+                got
             });
-            control("127.0.0.1", Some(port), action).await.unwrap();
-            assert_eq!(srv.await.unwrap(), expected);
+            let p = crate::settings::PrinterProfile { kind: "creality".into(), host: "127.0.0.1".into(), port: Some(port), ..Default::default() };
+            let cmd = crate::adapter::control::parse(action).unwrap();
+            crate::adapter::control::run(&p, &cmd).await.unwrap();
+            assert_eq!(srv.await.unwrap(), expected, "{action}");
         }
-        assert!(control_params("explode").is_none());
-        assert!(control_params("speed:schnell").is_none());
     }
 
     #[test]

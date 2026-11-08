@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getState, pushSample, setState } from "./store";
-import type { Connection, FoundPrinter, JobRecord, PrinterHistory, PrinterStatus, Sample, Settings } from "./types";
+import type { Connection, FoundPrinter, JobRecord, OtherPrinter, PrinterHistory, PrinterStatus, Sample, Settings } from "./types";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -24,14 +24,16 @@ export async function init() {
       listen("printer://jobs", () => void refreshJobs()),
       listen<PrinterHistory>("printer://history", (e) => setState({ printerHistory: e.payload })),
       listen<Settings>("settings://changed", (e) => setState({ settings: e.payload })),
+      listen<OtherPrinter[]>("printers://others", (e) => setState({ others: e.payload })),
     ]);
-    const [snap, settings, jobs, printerHistory] = await Promise.all([
+    const [snap, settings, jobs, printerHistory, others] = await Promise.all([
       invoke<Snapshot>("get_snapshot"),
       invoke<Settings>("get_settings"),
       invoke<JobRecord[]>("get_jobs"),
       invoke<PrinterHistory | null>("get_printer_history"),
+      invoke<OtherPrinter[]>("get_others"),
     ]);
-    setState({ ...snap, settings, jobs, printerHistory, ready: true });
+    setState({ ...snap, settings, jobs, printerHistory, others, ready: true });
     void ensureNotificationPermission();
   } catch (err) {
     console.error("Initialisierung fehlgeschlagen", err);
@@ -85,21 +87,48 @@ export async function rawLogDir(): Promise<string> {
   return invoke<string>("raw_log_dir");
 }
 
+/** Typ des aktiven Druckers */
+export function activeKind() {
+  const s = getState().settings;
+  return s.printers.find((p) => p.id === s.activePrinter)?.kind ?? "creality";
+}
+
 /** Vorschaubild des aktuellen Drucks (K1/KE-Firmware, Port 80). Fehler werden im UI abgefangen. */
 export function thumbnailUrl(fileName: string | null): string | null {
   const host = getState().settings.printerIp;
-  if (!host || !fileName) return null;
+  if (!host || !fileName || activeKind() !== "creality") return null;
   return `http://${host}/downloads/original/current_print_image.png?f=${encodeURIComponent(fileName)}`;
 }
 
-/** Pause, Fortsetzen oder Abbrechen des laufenden Drucks. */
-export async function printerControl(action: "pause" | "resume" | "stop" | `speed:${number}`): Promise<void> {
+/**
+ * Befehle an den aktiven Drucker. Das Backend prüft Grenzen und ob der Befehl gerade erlaubt ist
+ * (z. B. Leveling nur ohne laufenden Druck) und übersetzt ihn für den Druckertyp.
+ */
+export type ControlAction =
+  | "pause" | "resume" | "stop" | "home" | "level" | "motors_off"
+  | `speed:${number}` | `flow:${number}` | `nozzle:${number}` | `bed:${number}` | `light:${0 | 1}` | `fan:${number}`
+  | `zoffset:${number}` | `extrude:${number}` | `level:${number}` | `pid_nozzle:${number}` | `pid_bed:${number}`;
+
+export async function printerControl(action: ControlAction): Promise<void> {
   if (!isTauri) {
     (window as unknown as { __dwLastControl: string }).__dwLastControl = action;
     (demo()?.control as ((a: string) => void) | undefined)?.(action);
     return;
   }
   await invoke("printer_control", { action });
+}
+
+/** Fertige G-Code-Datei vom Computer an den aktiven Drucker schicken (und auf Wunsch starten). */
+export async function sendGcodeFile(path: string, start: boolean): Promise<string> {
+  if (!isTauri) return path.split(/[\\/]/).pop() ?? path;
+  return invoke<string>("printer_send_file", { path, start });
+}
+
+/** Anderen gespeicherten Drucker im Dashboard und Slicer zeigen. */
+export async function switchPrinter(id: string) {
+  const s = getState().settings;
+  if (s.activePrinter === id || !s.printers.some((p) => p.id === id)) return;
+  await saveSettings({ ...s, activePrinter: id });
 }
 
 /**
@@ -109,7 +138,7 @@ export async function printerControl(action: "pause" | "resume" | "stop" | `spee
  */
 export function historyThumbCandidates(job: { thumbnail: string | null; file: string }): string[] {
   const host = getState().settings.printerIp;
-  if (!host) return [];
+  if (!host || activeKind() !== "creality") return [];
   const out: string[] = [];
   const t = job.thumbnail ?? "";
   const m = /\/creality\/userdata\/(.+)$/.exec(t);

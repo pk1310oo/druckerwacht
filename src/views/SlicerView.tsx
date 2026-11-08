@@ -71,6 +71,7 @@ import type { ViewId } from "../components/Shell";
 import { fmtDec, t } from "../lib/i18n";
 import { rememberSentPrint } from "../lib/sentPrint";
 import { queueAdd } from "../lib/extras";
+import { useCaps } from "../lib/printers";
 import { activeSpool, costOf, useSpools } from "../lib/spools";
 
 // Die Druckplatte lebt über Ansichtswechsel hinweg weiter (WebGL-Kontext, geladene Modelle).
@@ -110,6 +111,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   const connection = useStore((st) => st.connection);
   const status = useStore((st) => st.status);
   const printerName = useStore((st) => st.settings.printerName);
+  const sliceFits = useCaps().slicer;
   const [models, setModels] = useState<ModelInfo[]>(() => plate.list());
   const [selected, setSelected] = useState<number | null>(() => plate.selectedId());
   const [selectedIds, setSelectedIds] = useState<number[]>(() => plate.selectedIds());
@@ -800,12 +802,15 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
               <button className="btn" onClick={() => void saveGcodeAs(phase.result.gcodePath, phase.result.fileName, pauses)}>
                 <Download size={16} /> {t("G-Code speichern")}
               </button>
-              <button className="btn" onClick={() => setPrintOpen(true)}>
+              <button className="btn" disabled={!sliceFits} onClick={() => setPrintOpen(true)}>
                 <Send size={16} /> {t("Drucken")}
               </button>
             </div>
           )}
-          {phase.kind === "done" && !phase.stale && (
+          {phase.kind === "done" && !phase.stale && !sliceFits && (
+            <p className="hint">{t("Die Slicer-Profile sind für den Ender 3 V3 KE. Der aktive Drucker ist ein anderer – damit nichts Falsches gedruckt wird, ist „Drucken“ hier aus.")}</p>
+          )}
+          {phase.kind === "done" && !phase.stale && sliceFits && (
             <div className="actions-row">
               <button
                 className="btn ghost wide"

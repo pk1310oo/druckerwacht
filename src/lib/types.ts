@@ -50,9 +50,38 @@ export interface Sample {
   fan: number | null;
 }
 
+/** Druckertypen mit eigener Anbindung (siehe src-tauri/src/adapter) */
+export type PrinterKind = "creality" | "moonraker" | "octoprint" | "prusalink";
+
+export interface PrinterProfile {
+  id: string;
+  name: string;
+  kind: PrinterKind;
+  /** IP-Adresse oder Hostname */
+  host: string;
+  /** Nur wenn abweichend vom Standard des Typs */
+  port: number | null;
+  /** API-Schlüssel (OctoPrint, optional Moonraker) bzw. Passwort (PrusaLink) */
+  key: string;
+}
+
+/** Weitere eingerichtete Drucker, die im Hintergrund mitlaufen */
+export interface OtherPrinter {
+  id: string;
+  name: string;
+  kind: PrinterKind;
+  connection: Connection;
+  status: PrinterStatus | null;
+}
+
 export interface Settings {
+  /** Name des aktiven Druckers (vom Backend aus `printers` abgeleitet) */
   printerName: string;
+  /** Adresse des aktiven Druckers (vom Backend aus `printers` abgeleitet) */
   printerIp: string;
+  printers: PrinterProfile[];
+  /** ID des Druckers, der im Dashboard und Slicer gezeigt wird */
+  activePrinter: string;
   cameraUrl: string;
   notifyFinished: boolean;
   notifyError: boolean;
@@ -101,11 +130,15 @@ export interface FoundPrinter {
   ip: string;
   model: string | null;
   hostname: string | null;
+  kind: PrinterKind;
+  port: number | null;
 }
 
 export const DEFAULT_SETTINGS: Settings = {
   printerName: "Ender 3 V3 KE",
   printerIp: "",
+  printers: [],
+  activePrinter: "",
   cameraUrl: "",
   notifyFinished: true,
   notifyError: true,
