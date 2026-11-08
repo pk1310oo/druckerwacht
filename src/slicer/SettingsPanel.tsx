@@ -19,7 +19,7 @@ import {
   type Overrides,
   type Preset,
 } from "./settings";
-import { fmtDec, getLang, t } from "../lib/i18n";
+import { fmtDec, getLang, isEn, t } from "../lib/i18n";
 
 interface Props {
   presets: Record<Group, Preset>;
@@ -230,6 +230,12 @@ function NumInput(props: { value: string; onCommit: (v: string) => void; unit?: 
   );
 }
 
+/** Zahl oder Prozent in der Schreibweise der App-Sprache anzeigen („112.5%“ → „112,5%“) */
+function localNum(v: string): string {
+  const m = /^(-?\d+)\.(\d+)(%?)$/.exec(v.trim());
+  return m ? `${m[1]}${isEn() ? "." : ","}${m[2]}${m[3]}` : v;
+}
+
 function TextInput(props: { value: string; onCommit: (v: string) => void; unit?: string; label: string }) {
   const [draft, setDraft] = useState<string | null>(null);
   return (
@@ -238,10 +244,11 @@ function TextInput(props: { value: string; onCommit: (v: string) => void; unit?:
         className="input"
         aria-label={props.label}
         spellCheck={false}
-        value={draft ?? props.value}
+        value={draft ?? localNum(props.value)}
         onChange={(e) => setDraft(e.target.value)}
         onBlur={() => {
-          if (draft != null) props.onCommit(draft.trim());
+          // Dezimalkomma zurück in den Punkt, den OrcaSlicer erwartet („112,5%“ → „112.5%“)
+          if (draft != null) props.onCommit(/^-?\d+(,\d+)?%?$/.test(draft.trim()) ? draft.trim().replace(",", ".") : draft.trim());
           setDraft(null);
         }}
         onKeyDown={(e) => e.key === "Enter" && (e.target as HTMLInputElement).blur()}

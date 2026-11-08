@@ -381,7 +381,7 @@ function EffectsRow() {
     <div className="toggle-row">
       <div>
         <div>{t("Effekte")}</div>
-        <div className="hint">{t("„Dezent“ schaltet Neon-Hintergrund, 3D-Karten und Funken ab – für ältere oder langsame Rechner.")}</div>
+        <div className="hint">{t("„Dezent“ schaltet Neon-Hintergrund, Glas-Unschärfe und 3D-Karten ab – für ältere oder langsame Rechner.")}</div>
       </div>
       <Segmented<FxLevel>
         ariaLabel={t("Effekte")}

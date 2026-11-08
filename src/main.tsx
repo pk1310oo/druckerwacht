@@ -40,8 +40,8 @@ window.addEventListener(
     if (!calm && document.documentElement.dataset.fx !== "calm" && card.matches(TILT)) {
       const nx = (e.clientX - r.left) / r.width - 0.5;
       const ny = (e.clientY - r.top) / r.height - 0.5;
-      card.style.setProperty("--rx", `${(-ny * 7).toFixed(2)}deg`);
-      card.style.setProperty("--ry", `${(nx * 9).toFixed(2)}deg`);
+      card.style.setProperty("--rx", `${(-ny * 4).toFixed(2)}deg`);
+      card.style.setProperty("--ry", `${(nx * 5).toFixed(2)}deg`);
       card.classList.add("tilting");
       tilted = card;
     }

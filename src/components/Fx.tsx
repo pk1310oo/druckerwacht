@@ -1,9 +1,8 @@
 /**
- * Effekte: Start-Intro und Konfetti.
+ * Effekte: Start-Intro, ruhiger Gitter-Hintergrund, Fortschritts-Strahl und Klick-Wellen.
  * Beide entfallen bei „Bewegung reduzieren“ im System.
  */
 import { useEffect, useRef, useState } from "react";
-import { accentHex } from "../lib/theme";
 import { fxLevel } from "../lib/fx";
 
 const reduceMotion = () => !!window.matchMedia?.("(prefers-reduced-motion: reduce)").matches;
@@ -42,65 +41,9 @@ export function Intro() {
   );
 }
 
-/** Konfetti-Explosion, z. B. wenn ein Druck fertig ist. Zeigt sich, solange `fire` hochzählt. */
-export function Confetti({ fire }: { fire: number }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  useEffect(() => {
-    if (!fire || reduceMotion()) return;
-    const cv = canvas.current;
-    const ctx = cv?.getContext("2d");
-    if (!cv || !ctx) return;
-    const dpr = Math.min(2, window.devicePixelRatio || 1);
-    cv.width = innerWidth * dpr;
-    cv.height = innerHeight * dpr;
-    ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-    const colors = [accentHex(), "#4CAF7A", "#F5F4EF", "#E0A43A"];
-    const parts = Array.from({ length: 160 }, () => {
-      const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.6;
-      const v = 7 + Math.random() * 9;
-      return {
-        x: innerWidth / 2 + (Math.random() - 0.5) * 200,
-        y: innerHeight * 0.55,
-        vx: Math.cos(a) * v,
-        vy: Math.sin(a) * v,
-        r: Math.random() * Math.PI,
-        vr: (Math.random() - 0.5) * 0.3,
-        w: 6 + Math.random() * 6,
-        h: 3 + Math.random() * 4,
-        c: colors[Math.floor(Math.random() * colors.length)],
-      };
-    });
-    let raf = 0;
-    const t0 = performance.now();
-    const step = (now: number) => {
-      const k = (now - t0) / 2600;
-      ctx.clearRect(0, 0, innerWidth, innerHeight);
-      for (const p of parts) {
-        p.vy += 0.28;
-        p.vx *= 0.99;
-        p.x += p.vx;
-        p.y += p.vy;
-        p.r += p.vr;
-        ctx.save();
-        ctx.globalAlpha = Math.max(0, 1 - k * k);
-        ctx.translate(p.x, p.y);
-        ctx.rotate(p.r);
-        ctx.fillStyle = p.c;
-        ctx.fillRect(-p.w / 2, -p.h / 2, p.w, p.h * Math.abs(Math.cos(p.r * 2)));
-        ctx.restore();
-      }
-      if (k < 1) raf = requestAnimationFrame(step);
-      else ctx.clearRect(0, 0, innerWidth, innerHeight);
-    };
-    raf = requestAnimationFrame(step);
-    return () => cancelAnimationFrame(raf);
-  }, [fire]);
-  return <canvas ref={canvas} className="confetti" aria-hidden />;
-}
-
 /**
- * Lebender Hintergrund: Neon-Gitterboden mit Tiefe, aufsteigende Glutfunken und Parallax
- * zur Maus. Beim Drucken lebhafter. Pausiert, wenn das Fenster nicht sichtbar ist.
+ * Lebender Hintergrund: ruhiger Neon-Gitterboden mit Tiefe und leichter Parallax zur Maus.
+ * Beim Drucken zieht er etwas zügiger. 30 Bilder/s genügen; pausiert, wenn unsichtbar.
  */
 export function BackgroundFx({ printing, off = false }: { printing: boolean; off?: boolean }) {
   const canvas = useRef<HTMLCanvasElement>(null);
@@ -132,15 +75,11 @@ export function BackgroundFx({ printing, off = false }: { printing: boolean; off
 
     const rgb = getComputedStyle(document.documentElement).getPropertyValue("--accent-rgb").trim().split(/\s+/).map(Number);
     const col = (a: number) => `rgba(${rgb[0] ?? 217},${rgb[1] ?? 119},${rgb[2] ?? 87},${a})`;
-    type P = { x: number; y: number; v: number; r: number; s: number; ph: number };
-    const spawn = (anyY: boolean): P => ({ x: Math.random(), y: anyY ? Math.random() : 1.05, v: 0.02 + Math.random() * 0.05, r: 0.6 + Math.random() * 1.8, s: Math.random() * 2 - 1, ph: Math.random() * 6.28 });
-    const parts: P[] = Array.from({ length: 140 }, () => spawn(true));
-
     let raf = 0, last = performance.now(), off = 0;
     const draw = (now: number) => {
       const dt = Math.min(0.05, (now - last) / 1000);
       last = now;
-      const boost = live.current ? 1.8 : 1;
+      const boost = live.current ? 1.6 : 1;
       mouse.x += (mouse.tx - mouse.x) * 0.04;
       mouse.y += (mouse.ty - mouse.y) * 0.04;
       ctx.clearRect(0, 0, w, h);
@@ -153,7 +92,7 @@ export function BackgroundFx({ printing, off = false }: { printing: boolean; off
       for (let i = 0; i < 14; i++) {
         const t = (i + off) / 14; // 0 = Horizont, 1 = vorne
         const y = horizon + (h - horizon) * t * t;
-        ctx.strokeStyle = col(0.03 + 0.26 * t * t);
+        ctx.strokeStyle = col(0.025 + 0.17 * t * t);
         ctx.beginPath();
         ctx.moveTo(0, y);
         ctx.lineTo(w, y);
@@ -163,7 +102,7 @@ export function BackgroundFx({ printing, off = false }: { printing: boolean; off
         const xb = vx + i * w * 0.09;
         const g = ctx.createLinearGradient(0, horizon, 0, h);
         g.addColorStop(0, col(0));
-        g.addColorStop(1, col(0.24));
+        g.addColorStop(1, col(0.15));
         ctx.strokeStyle = g;
         ctx.beginPath();
         ctx.moveTo(vx + i * 6, horizon);
@@ -177,30 +116,13 @@ export function BackgroundFx({ printing, off = false }: { printing: boolean; off
       ctx.fillStyle = hg;
       ctx.fillRect(0, 0, w, h); // ganze Fläche – sonst entstehen harte Kanten am Rechteckrand
 
-      // Glutfunken
-      const n = live.current ? parts.length : 80;
-      for (let i = 0; i < n; i++) {
-        const p = parts[i];
-        p.y -= p.v * dt * boost;
-        p.ph += dt * 2;
-        if (p.y < -0.05) Object.assign(p, spawn(false));
-        const x = (p.x + Math.sin(p.ph) * 0.004 * p.s - (mouse.x - 0.5) * 0.02 * p.r) * w;
-        const y = p.y * h;
-        const a = (0.4 + 0.5 * Math.sin(p.ph * 1.7) ** 2) * Math.min(1, p.y * 3);
-        ctx.fillStyle = col(a);
-        ctx.shadowColor = col(0.9);
-        ctx.shadowBlur = 6 * p.r;
-        ctx.beginPath();
-        ctx.arc(x, y, p.r, 0, Math.PI * 2);
-        ctx.fill();
-      }
-      ctx.shadowBlur = 0;
       if (!calm) raf = requestAnimationFrame(loop);
     };
     const loop = (now: number) => {
-      if (document.hidden || hidden.current) {
+      // unsichtbar oder zu früh für das nächste Bild (max. 30/s): nur weiter warten
+      if (document.hidden || hidden.current || now - last < 32) {
         if (hidden.current) ctx.clearRect(0, 0, w, h);
-        last = now;
+        if (document.hidden || hidden.current) last = now;
         raf = requestAnimationFrame(loop);
         return;
       }

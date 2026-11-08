@@ -516,7 +516,7 @@ export const EN: Record<string, string> = {
   "Limette": "Lime",
   " – den Windows-Installer laden und ganz normal installieren.": " – download the Windows installer and install it as usual.",
   "Effekte": "Effects",
-  "„Dezent“ schaltet Neon-Hintergrund, 3D-Karten und Funken ab – für ältere oder langsame Rechner.": "“Subtle” turns off the neon background, 3D cards and sparks – for older or slower computers.",
+  "„Dezent“ schaltet Neon-Hintergrund, Glas-Unschärfe und 3D-Karten ab – für ältere oder langsame Rechner.": "“Subtle” turns off the neon background, glass blur and 3D cards – for older or slower computers.",
   "Voll": "Full",
   "Dezent": "Subtle",
 };

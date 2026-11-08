@@ -6,7 +6,6 @@ import { DASH, fmtDuration, fmtEta, fmtNum, STATE_LABEL, STATE_TONE } from "../l
 import type { PrinterStatus } from "../lib/types";
 import { Badge, Card, EmptyState, Rolling, Segmented, StatCard } from "../components/ui";
 import { Chart, type SeriesDef } from "../components/Chart";
-import { Confetti } from "../components/Fx";
 
 import type { ViewId } from "../components/Shell";
 import { t } from "../lib/i18n";
@@ -50,14 +49,12 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
   const tempSeries = useMemo(TEMP_SERIES, []);
   // Kurzes grünes Leuchten, wenn ein Druck fertig wird
   const [celebrate, setCelebrate] = useState(false);
-  const [confetti, setConfetti] = useState(0);
   const prevState = useRef(status?.state);
   useEffect(() => {
     const was = prevState.current;
     prevState.current = status?.state;
     if (was && was !== "finished" && status?.state === "finished") {
       setCelebrate(true);
-      setConfetti((n) => n + 1);
       const timer = setTimeout(() => setCelebrate(false), 1900);
       return () => clearTimeout(timer);
     }
@@ -96,7 +93,6 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
 
   return (
     <div className="view">
-      <Confetti fire={confetti} />
       <div className="top-row">
         <HeroCard s={status} celebrate={celebrate} />
         <Stats status={status} />
@@ -299,12 +295,6 @@ function HeroCard({ s, celebrate }: { s: PrinterStatus | null; celebrate: boolea
 }
 
 const TICKS = 60;
-/** Funken, die vom Lichtpunkt des Rings wegspritzen (feste Werte, damit nichts flackert) */
-const SPARKS = Array.from({ length: 12 }, (_, i) => {
-  const ang = (i / 12) * Math.PI * 2 + (i % 3) * 0.4;
-  const dist = 14 + ((i * 7) % 11);
-  return { dx: Math.round(Math.cos(ang) * dist), dy: Math.round(Math.sin(ang) * dist), r: 1 + (i % 3) * 0.6, d: (i * 137) % 1100 };
-});
 
 function HeroRing({ s, job }: { s: PrinterStatus; job: boolean }) {
   const pct = job ? Math.max(0, Math.min(100, s.state === "finished" ? 100 : s.progress ?? 0)) : 0;
@@ -343,13 +333,6 @@ function HeroRing({ s, job }: { s: PrinterStatus; job: boolean }) {
             <circle className="hr-glow" cx={C} cy={C} r={R} pathLength={100} strokeDasharray={`${pct} 100`} transform={`rotate(-90 ${C} ${C})`} />
             <circle className="hr-fill" cx={C} cy={C} r={R} pathLength={100} strokeDasharray={`${pct} 100`} transform={`rotate(-90 ${C} ${C})`} />
             <circle className="hr-head" cx={C + Math.cos(a) * R} cy={C + Math.sin(a) * R} r={6} />
-            {s.state === "printing" && !s.preparing && (
-              <g className="hr-sparks" transform={`translate(${C + Math.cos(a) * R} ${C + Math.sin(a) * R})`}>
-                {SPARKS.map((sp, i) => (
-                  <circle key={i} r={sp.r} style={{ ["--dx" as string]: `${sp.dx}px`, ["--dy" as string]: `${sp.dy}px`, animationDelay: `${sp.d}ms` }} />
-                ))}
-              </g>
-            )}
           </>
         )}
       </svg>
@@ -362,7 +345,6 @@ function HeroRing({ s, job }: { s: PrinterStatus; job: boolean }) {
           </div>
         )}
       </div>
-      {s.state === "printing" && !s.preparing && <i className="hero-orbit" aria-hidden />}
     </div>
   );
 }
