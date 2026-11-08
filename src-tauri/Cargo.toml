@@ -1,6 +1,6 @@
 [package]
 name = "druckerwacht"
-version = "0.10.2"
+version = "0.11.0"
 description = "Live-Überwachung für Creality Ender 3 V3 KE"
 edition = "2021"
 license = "AGPL-3.0-or-later"
@@ -31,3 +31,7 @@ reqwest = { version = "0.12", default-features = false, features = ["rustls-tls"
 # Menüleisten-Anzeige (Fortschritt neben der Uhr) gibt es nur auf dem Mac
 [target.'cfg(target_os = "macos")'.dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
+
+# Webcam am Computer: WebKitGTK muss Kamerazugriff erlauben
+[target.'cfg(target_os = "linux")'.dependencies]
+webkit2gtk = { version = "2.0", features = ["v2_4"] }

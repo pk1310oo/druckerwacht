@@ -1,9 +1,11 @@
 /**
- * Zusatzfunktionen: Warteschlange und Handy-Benachrichtigung (ntfy).
- * Im Browser (Vorschau) arbeitet die Warteschlange mit Beispieldaten im Speicher.
+ * Zusatzfunktionen: Warteschlange, Zeitraffer, Handy-Benachrichtigung (ntfy), Kamerasuche.
+ * Im Browser (Vorschau) arbeiten Warteschlange und Zeitraffer mit Beispieldaten im Speicher.
  */
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 import { isTauri } from "./api";
+import { t } from "./i18n";
 
 export interface QueueItem {
   id: string;
@@ -13,6 +15,15 @@ export interface QueueItem {
   filamentG: number | null;
   /** Filamentwechsel vor diesen Schichten (ab 1) */
   pauses: number[];
+}
+
+export interface Timelapse {
+  id: string;
+  name: string;
+  createdMs: number;
+  frames: number;
+  sizeBytes: number;
+  cover: string | null;
 }
 
 // ----------------------------------------------------------------------------- Vorschau-Daten
@@ -79,7 +90,30 @@ export async function queueStart(id: string): Promise<string> {
   return name;
 }
 
-// ----------------------------------------------------------------------------- Handy
+// ----------------------------------------------------------------------------- Zeitraffer
+export async function timelapseList(): Promise<Timelapse[]> {
+  if (!isTauri) return (window as unknown as { __dwTimelapses?: Timelapse[] }).__dwTimelapses ?? [];
+  return invoke<Timelapse[]>("timelapse_list");
+}
+
+export async function timelapseExport(tl: Timelapse): Promise<boolean> {
+  const { save } = await import("@tauri-apps/plugin-dialog");
+  const to = await save({ title: t("Zeitraffer speichern"), defaultPath: `${tl.name}.mov`, filters: [{ name: "Video", extensions: ["mov"] }] });
+  if (!to) return false;
+  await invoke("timelapse_export", { id: tl.id, to });
+  return true;
+}
+
+export async function timelapseDelete(id: string) {
+  if (isTauri) await invoke("timelapse_delete", { id });
+}
+
+export async function onTimelapse(fn: () => void) {
+  if (!isTauri) return () => {};
+  return listen("printer://timelapse", fn);
+}
+
+// ----------------------------------------------------------------------------- Handy & Kamera
 export async function ntfyTest(topic: string) {
   if (!isTauri) return;
   await invoke("ntfy_test", { topic });
@@ -90,4 +124,9 @@ export function randomTopic() {
   const a = new Uint8Array(6);
   crypto.getRandomValues(a);
   return `druckerwacht-${Array.from(a, (b) => b.toString(36).padStart(2, "0")).join("").slice(0, 10)}`;
+}
+
+export async function cameraProbe(): Promise<string | null> {
+  if (!isTauri) return null;
+  return invoke<string | null>("camera_probe");
 }

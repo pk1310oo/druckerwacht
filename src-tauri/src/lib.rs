@@ -59,6 +59,8 @@ struct ActiveJob {
     file: String,
     started_ms: i64,
     total_layers: Option<i64>,
+    /// Zuletzt für den Zeitraffer fotografierte Schicht
+    last_frame_layer: Option<i64>,
 }
 
 #[derive(Serialize, Clone)]
@@ -79,6 +81,8 @@ struct Inner {
     shutdown: Option<watch::Sender<bool>>,
     disconnect_notified: bool,
     printer_history: Option<PrinterHistory>,
+    /// Neuestes Kamerabild (Zeit in ms, JPEG) – für Fotos in Handy-Nachrichten
+    last_snapshot: Option<(i64, Vec<u8>)>,
 }
 
 pub struct AppState {
@@ -96,6 +100,7 @@ struct Paths {
     printer_history: PathBuf,
     raw_log_dir: PathBuf,
     queue_dir: PathBuf,
+    timelapse_dir: PathBuf,
 }
 
 fn now_ms() -> i64 {
@@ -111,14 +116,38 @@ impl AppState {
 
 fn notify(app: &AppHandle, title: &str, body: &str) {
     let _ = app.notification().builder().title(title).body(body).show();
-    // Zusätzlich aufs Handy, wenn ein ntfy-Thema eingetragen ist
-    let topic = app.state::<Arc<AppState>>().lock().settings.ntfy_topic.clone();
-    if !topic.is_empty() {
-        let (title, body) = (title.to_string(), body.to_string());
-        tauri::async_runtime::spawn(async move {
-            let _ = extras::push(&topic, &title, &body, "printer").await;
-        });
+    // Zusätzlich aufs Handy, wenn ein ntfy-Thema eingetragen ist – mit Kamerafoto, falls vorhanden
+    let (topic, has_cam, snap_url) = {
+        let st = app.state::<Arc<AppState>>();
+        let inner = st.lock();
+        let s = &inner.settings;
+        (s.ntfy_topic.clone(), !s.local_camera.trim().is_empty(), extras::snapshot_url(&s.camera_url))
+    };
+    if topic.is_empty() {
+        return;
     }
+    let (title, body, app) = (title.to_string(), body.to_string(), app.clone());
+    tauri::async_runtime::spawn(async move {
+        let mut photo: Option<Vec<u8>> = None;
+        if has_cam || snap_url.is_some() {
+            // Die Oberfläche schickt bei Pause/Fertig/Fehler sofort ein frisches Bild – kurz darauf warten
+            tokio::time::sleep(Duration::from_secs(4)).await;
+            let recent = app.state::<Arc<AppState>>().lock().last_snapshot.clone().filter(|(t, _)| now_ms() - t < 120_000);
+            photo = recent.map(|(_, b)| b);
+            if photo.is_none() {
+                if let Some(url) = snap_url {
+                    photo = extras::fetch_snapshot(&url).await;
+                }
+            }
+        }
+        let sent = match photo {
+            Some(img) => extras::push_image(&topic, &title, &body, "printer", img).await,
+            None => Err(String::new()),
+        };
+        if sent.is_err() {
+            let _ = extras::push(&topic, &title, &body, "printer").await;
+        }
+    });
 }
 
 /// (Neu)start der Verbindung mit den aktuellen Einstellungen.
@@ -188,6 +217,9 @@ fn set_connection(app: &AppHandle, state: &Arc<AppState>, c: ConnectionState) {
         was
     };
     let _ = app.emit("printer://connection", &c);
+    if c.is_connected() && !was_connected {
+        probe_camera_once(app);
+    }
 
     if was_connected && !c.is_connected() && !matches!(c, ConnectionState::Unconfigured) {
         // Verzögert melden – kurze Aussetzer sollen niemanden wecken.
@@ -220,6 +252,9 @@ fn set_connection(app: &AppHandle, state: &Arc<AppState>, c: ConnectionState) {
 fn handle_status(app: &AppHandle, state: &Arc<AppState>, s: PrinterStatus) {
     let mut notes: Vec<(String, String)> = Vec::new();
     let mut job_done = false;
+    // Zeitraffer: (Ordner, Standbild-Adresse, Bildnummer) für ein neues Bild; Ordner zum Abschließen
+    let mut frame: Option<(PathBuf, String, i64)> = None;
+    let mut finish_tl: Option<PathBuf> = None;
     {
         let mut inner = state.lock();
         let prev = inner.status.clone();
@@ -231,13 +266,27 @@ fn handle_status(app: &AppHandle, state: &Arc<AppState>, s: PrinterStatus) {
             let changed = inner.active_job.as_ref().map(|j| j.file != file).unwrap_or(true);
             if changed {
                 let started = now_ms() - (s.elapsed_s.unwrap_or(0.0) * 1000.0) as i64;
-                inner.active_job = Some(ActiveJob { file: file.clone(), started_ms: started, total_layers: None });
+                inner.active_job = Some(ActiveJob { file: file.clone(), started_ms: started, total_layers: None, last_frame_layer: None });
             }
+            let snap = (inner.settings.timelapse && !s.preparing)
+                .then(|| extras::snapshot_url(&inner.settings.camera_url))
+                .flatten();
+            let tl_dir = state.paths.timelapse_dir.clone();
             if let Some(j) = inner.active_job.as_mut() {
                 j.total_layers = s.total_layers.or(j.total_layers);
+                // Pro neuer Schicht ein Bild
+                if let (Some(url), Some(layer)) = (snap, s.layer) {
+                    if layer > 0 && j.last_frame_layer != Some(layer) && s.state == PrintState::Printing {
+                        j.last_frame_layer = Some(layer);
+                        frame = Some((tl_dir.join(extras::timelapse_key(j.started_ms, &j.file)), url, layer));
+                    }
+                }
             }
         } else if matches!(s.state, PrintState::Finished | PrintState::Failed | PrintState::Aborted) {
             if let Some(j) = inner.active_job.take() {
+                if j.last_frame_layer.is_some() {
+                    finish_tl = Some(state.paths.timelapse_dir.join(extras::timelapse_key(j.started_ms, &j.file)));
+                }
                 let ended = now_ms();
                 let result = match s.state {
                     PrintState::Finished => "finished",
@@ -301,6 +350,25 @@ fn handle_status(app: &AppHandle, state: &Arc<AppState>, s: PrinterStatus) {
     update_tray(app, &s);
     for (t, b) in notes {
         notify(app, &t, &b);
+    }
+    if let Some((dir, url, layer)) = frame {
+        tauri::async_runtime::spawn(async move {
+            if let Some(img) = extras::fetch_snapshot(&url).await {
+                let _ = std::fs::create_dir_all(&dir);
+                let _ = std::fs::write(dir.join(format!("{layer:06}.jpg")), img);
+            }
+        });
+    }
+    if let Some(dir) = finish_tl {
+        let app = app.clone();
+        tauri::async_runtime::spawn(async move {
+            // Kurz warten, damit das letzte Bild noch ankommt
+            tokio::time::sleep(Duration::from_secs(5)).await;
+            let ok = tauri::async_runtime::spawn_blocking(move || extras::finish_timelapse(&dir, 30)).await;
+            if matches!(ok, Ok(Ok(_))) {
+                let _ = app.emit("printer://timelapse", ());
+            }
+        });
     }
     if job_done {
         save_jobs(state);
@@ -368,6 +436,68 @@ fn setup_tray(app: &tauri::App) {
 
 #[cfg(not(target_os = "macos"))]
 fn setup_tray(_app: &tauri::App) {}
+
+/// Linux: WebKitGTK lehnt Kamerazugriff ohne eigenen Handler still ab – für die Webcam am
+/// Computer erlauben (nur Kamera/Mikrofon-Anfragen der eigenen Oberfläche).
+#[cfg(target_os = "linux")]
+fn allow_webcam(app: &tauri::App) {
+    use webkit2gtk::glib::prelude::ObjectExt;
+    use webkit2gtk::{PermissionRequestExt, SettingsExt, UserMediaPermissionRequest, WebViewExt};
+    let Some(w) = app.get_webview_window("main") else { return };
+    let _ = w.with_webview(|wv| {
+        let view = wv.inner();
+        // Ist die Schnittstelle beim Laden der Seite aus, fehlt navigator.mediaDevices bis zum
+        // nächsten Laden – daher nach dem Einschalten einmal neu laden.
+        let mut reload = false;
+        if let Some(settings) = WebViewExt::settings(&view) {
+            if !settings.enables_media_stream() {
+                settings.set_enable_media_stream(true);
+                reload = true;
+            }
+        }
+        view.connect_permission_request(|_, req| {
+            if req.is::<UserMediaPermissionRequest>() {
+                req.allow();
+                true
+            } else {
+                false
+            }
+        });
+        if reload {
+            view.reload();
+        }
+    });
+}
+
+#[cfg(not(target_os = "linux"))]
+fn allow_webcam(_app: &tauri::App) {}
+
+/// Nach dem Verbinden einmal nach einer Kamera am Drucker suchen, wenn noch keine eingetragen ist.
+fn probe_camera_once(app: &AppHandle) {
+    let state = app.state::<Arc<AppState>>();
+    let (host, empty) = {
+        let inner = state.lock();
+        (inner.settings.printer_ip.clone(), inner.settings.camera_url.trim().is_empty())
+    };
+    if host.is_empty() || !empty {
+        return;
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        let Some(url) = extras::probe_camera(&host).await else { return };
+        let state = app.state::<Arc<AppState>>();
+        let settings = {
+            let mut inner = state.lock();
+            if !inner.settings.camera_url.trim().is_empty() || inner.settings.printer_ip != host {
+                return;
+            }
+            inner.settings.camera_url = url;
+            inner.settings.clone()
+        };
+        let _ = settings.save(&state.paths.settings);
+        let _ = app.emit("settings://changed", &settings);
+    });
+}
 
 fn write_raw(state: &Arc<AppState>, incoming: bool, text: &str) {
     if !state.lock().settings.raw_log {
@@ -720,6 +850,16 @@ async fn upload_and_start(app: &AppHandle, host: &str, file_name: &str, data: &[
 
 // ----------------------------------------------------------------------------- Extras
 
+/// Sucht jetzt nach einer Kamera am Drucker (für den Knopf in den Einstellungen).
+#[tauri::command]
+async fn camera_probe(app: AppHandle) -> Option<String> {
+    let host = app.state::<Arc<AppState>>().lock().settings.printer_ip.clone();
+    if host.is_empty() {
+        return None;
+    }
+    extras::probe_camera(&host).await
+}
+
 #[tauri::command]
 async fn ntfy_test(topic: String) -> Result<(), String> {
     extras::push(
@@ -798,6 +938,69 @@ async fn queue_start(app: AppHandle, id: String) -> Result<String, String> {
     Ok(name)
 }
 
+/// Zeitraffer-Bild der Webcam am Computer für die aktuelle Schicht (JPEG, base64).
+#[tauri::command]
+fn timelapse_add_frame(app: AppHandle, layer: i64, data: String) -> Result<(), String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data.as_bytes()).map_err(|e| e.to_string())?;
+    if !extras::is_jpeg(&bytes) {
+        return Err("kein JPEG".into());
+    }
+    let state = app.state::<Arc<AppState>>();
+    let dir = {
+        let mut inner = state.lock();
+        inner.last_snapshot = Some((now_ms(), bytes.clone()));
+        let printing = inner.status.as_ref().map(|s| s.state == PrintState::Printing).unwrap_or(false);
+        let timelapse = inner.settings.timelapse;
+        let Some(j) = inner.active_job.as_mut().filter(|_| printing && timelapse) else { return Ok(()) };
+        if j.last_frame_layer == Some(layer) {
+            return Ok(());
+        }
+        j.last_frame_layer = Some(layer);
+        state.paths.timelapse_dir.join(extras::timelapse_key(j.started_ms, &j.file))
+    };
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    std::fs::write(dir.join(format!("{layer:06}.jpg")), bytes).map_err(|e| e.to_string())
+}
+
+/// Frisches Kamerabild der Webcam am Computer (z. B. bei Pause oder Druckende) – für die Handy-Nachricht.
+#[tauri::command]
+fn camera_snapshot(app: AppHandle, data: String) -> Result<(), String> {
+    use base64::Engine;
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data.as_bytes()).map_err(|e| e.to_string())?;
+    if !extras::is_jpeg(&bytes) {
+        return Err("kein JPEG".into());
+    }
+    app.state::<Arc<AppState>>().lock().last_snapshot = Some((now_ms(), bytes));
+    Ok(())
+}
+
+#[tauri::command]
+fn timelapse_list(app: AppHandle) -> Vec<extras::Timelapse> {
+    extras::list_timelapses(&app.state::<Arc<AppState>>().paths.timelapse_dir)
+}
+
+fn timelapse_file(app: &AppHandle, id: &str) -> Result<PathBuf, String> {
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '_' || c == '-') {
+        return Err(crate::i18n::tr("Ungültiger Zeitraffer.", "Invalid timelapse.").into());
+    }
+    Ok(app.state::<Arc<AppState>>().paths.timelapse_dir.join(format!("{id}.mov")))
+}
+
+#[tauri::command]
+fn timelapse_export(app: AppHandle, id: String, to: String) -> Result<(), String> {
+    std::fs::copy(timelapse_file(&app, &id)?, &to)
+        .map(|_| ())
+        .map_err(|_| crate::i18n::tr("Datei konnte nicht gespeichert werden.", "The file could not be saved.").to_string())
+}
+
+#[tauri::command]
+fn timelapse_delete(app: AppHandle, id: String) -> Result<(), String> {
+    let f = timelapse_file(&app, &id)?;
+    let _ = std::fs::remove_file(f.with_extension("jpg"));
+    std::fs::remove_file(f).map_err(|e| e.to_string())
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -814,6 +1017,7 @@ pub fn run() {
                 printer_history: data_dir.join("printer_history.json"),
                 raw_log_dir: log_dir.join("raw"),
                 queue_dir: data_dir.join("queue"),
+                timelapse_dir: data_dir.join("timelapse"),
             };
             let settings = Settings::load(&paths.settings);
             let printer_history: Option<PrinterHistory> = std::fs::read_to_string(&paths.printer_history)
@@ -835,6 +1039,7 @@ pub fn run() {
                     shutdown: None,
                     disconnect_notified: false,
                     printer_history,
+                    last_snapshot: None,
                 }),
                 generation: AtomicU64::new(0),
                 disconnect_seq: AtomicU64::new(0),
@@ -842,6 +1047,7 @@ pub fn run() {
             }));
 
             setup_tray(app);
+            allow_webcam(app);
             restart_connection(app.handle());
             spawn_sampler(app.handle().clone());
             Ok(())
@@ -871,12 +1077,18 @@ pub fn run() {
             save_project,
             read_project,
             printer_control,
+            camera_probe,
             ntfy_test,
             queue_list,
             queue_add,
             queue_remove,
             queue_shift,
-            queue_start
+            queue_start,
+            timelapse_list,
+            timelapse_add_frame,
+            camera_snapshot,
+            timelapse_export,
+            timelapse_delete
         ])
         .run(tauri::generate_context!())
         .expect("Druckerwacht konnte nicht gestartet werden");

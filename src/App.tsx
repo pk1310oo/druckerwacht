@@ -1,12 +1,14 @@
 import { useEffect, useRef, useState } from "react";
 import { Header, Sidebar, type ViewId } from "./components/Shell";
 import { Dashboard } from "./views/Dashboard";
+import { CameraView } from "./views/CameraView";
 import { HistoryView } from "./views/HistoryView";
 import { SettingsView } from "./views/SettingsView";
 import { SlicerView } from "./views/SlicerView";
 import { FilamentView } from "./views/FilamentView";
 import { consume } from "./lib/spools";
 import { useFxLevel } from "./lib/fx";
+import { useWebcamTimelapse } from "./lib/webcam";
 import { useStore } from "./lib/store";
 import { resolveLang, setLang } from "./lib/i18n";
 import { setBackendLanguage } from "./lib/api";
@@ -16,6 +18,7 @@ import { BackgroundFx, Intro, TopBeam } from "./components/Fx";
 export default function App() {
   const [view, setView] = useState<ViewId>("dashboard");
   const ready = useStore((s) => s.ready);
+  const hasCamera = useStore((s) => s.settings.cameraUrl.trim() !== "" || s.settings.localCamera.trim() !== "");
   const langSetting = useStore((s) => s.settings.language);
   const lang = resolveLang(langSetting);
   // vor dem Rendern der Kinder setzen, damit t() und die Farben sofort stimmen
@@ -38,9 +41,15 @@ export default function App() {
   const beamPct = useStore((s) => s.status?.progress ?? 0);
   const printing = beamTone === "live";
   const fx = useFxLevel();
+  useWebcamTimelapse();
+
+  // Kamera-Ansicht verlassen, wenn die Kamera entfernt wurde
+  useEffect(() => {
+    if (view === "camera" && !hasCamera) setView("dashboard");
+  }, [view, hasCamera]);
 
   // Richtung des Ansichtswechsels (nach unten in der Seitenleiste → Inhalt gleitet von unten herein)
-  const order: ViewId[] = ["dashboard", "slicer", "history", "filament", "settings"];
+  const order: ViewId[] = ["dashboard", "slicer", "camera", "history", "filament", "settings"];
   const prevView = useRef(view);
   const dir = order.indexOf(view) >= order.indexOf(prevView.current) ? "down" : "up";
   useEffect(() => {
@@ -67,6 +76,8 @@ export default function App() {
             <Dashboard go={setView} />
           ) : view === "slicer" ? (
             <SlicerView go={setView} />
+          ) : view === "camera" ? (
+            <CameraView go={setView} />
           ) : view === "history" ? (
             <HistoryView />
           ) : view === "filament" ? (

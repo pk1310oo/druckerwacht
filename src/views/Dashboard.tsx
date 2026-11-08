@@ -6,6 +6,8 @@ import { DASH, fmtDuration, fmtEta, fmtNum, STATE_LABEL, STATE_TONE } from "../l
 import type { PrinterStatus } from "../lib/types";
 import { Badge, Card, EmptyState, Rolling, Segmented, StatCard } from "../components/ui";
 import { Chart, type SeriesDef } from "../components/Chart";
+import { CameraBox } from "../components/Camera";
+import { useCameraSource } from "../lib/webcam";
 
 import type { ViewId } from "../components/Shell";
 import { t } from "../lib/i18n";
@@ -46,6 +48,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
   const status = useStore((s) => s.status);
   const samples = useStore((s) => s.samples);
   const [windowMin, setWindowMin] = useState(loadWindow);
+  const camera = useCameraSource();
   const tempSeries = useMemo(TEMP_SERIES, []);
   // Kurzes grünes Leuchten, wenn ein Druck fertig wird
   const [celebrate, setCelebrate] = useState(false);
@@ -93,7 +96,7 @@ export function Dashboard({ go }: { go: (v: ViewId) => void }) {
 
   return (
     <div className="view">
-      <div className="top-row">
+      <div className={`top-row${camera ? " with-cam" : ""}`}>
         <HeroCard s={status} celebrate={celebrate} />
         <Stats status={status} />
       </div>
@@ -276,17 +279,31 @@ function PrintAnim() {
 
 /** Große Karte „Aktueller Druck“: leuchtender Fortschrittsring mit Skala, Vorschaubild, Zeiten und Steuerung. */
 function HeroCard({ s, celebrate }: { s: PrinterStatus | null; celebrate: boolean }) {
+  const camera = useCameraSource();
   const job = !!s && isJob(s);
   const printing = !!s && s.state === "printing" && !s.preparing;
   const tone = !s || !job ? "idle" : s.preparing ? "prep" : s.state === "paused" ? "paused" : s.state === "finished" ? "done" : s.state === "failed" || s.state === "aborted" ? "failed" : "live";
   return (
-    <Card className={`hero tone-${tone}${printing ? " is-printing" : ""}${celebrate ? " celebrate" : ""}`}>
+    <Card className={`hero tone-${tone}${printing ? " is-printing" : ""}${celebrate ? " celebrate" : ""}${camera ? " with-cam" : ""}`}>
       <div className="hero-glow" aria-hidden />
       {!s ? (
         <WaitingPanel />
       ) : (
         <div className="hero-body">
-          <HeroRing s={s} job={job} />
+          {camera ? (
+            <div className="hero-cam">
+              <CameraBox source={camera} />
+              <span className="live hero-live">
+                <i /> Live
+              </span>
+              <div className="hero-cam-ring">
+                <HeroRing s={s} job={job} />
+                <span className="hero-cam-pct num">{job ? `${Math.round(s.state === "finished" ? 100 : s.progress ?? 0)} %` : "–"}</span>
+              </div>
+            </div>
+          ) : (
+            <HeroRing s={s} job={job} />
+          )}
           <HeroInfo s={s} job={job} />
         </div>
       )}
