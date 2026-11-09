@@ -84,6 +84,10 @@ pub struct Settings {
     pub remote_enabled: bool,
     /// Geheimer Schlüssel für die Handy-Seite (steht im QR-Code)
     pub remote_token: String,
+    /// KI-Fehlerwächter (braucht eine Kamera)
+    pub ai_enabled: bool,
+    /// Bei erkanntem Fehler automatisch pausieren (sonst nur melden)
+    pub ai_pause: bool,
 }
 
 impl Default for Settings {
@@ -106,6 +110,8 @@ impl Default for Settings {
             local_camera: String::new(),
             remote_enabled: false,
             remote_token: String::new(),
+            ai_enabled: false,
+            ai_pause: true,
         }
     }
 }

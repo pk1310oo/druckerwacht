@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bug, Check, Copy, Download, ExternalLink, FolderGit2, KeyRound, Loader2, Pencil, PlugZap, Plus, Radar, RefreshCw, Search, Send, Smartphone, Trash2, Wifi } from "lucide-react";
+import { BrainCircuit, Bug, Check, Copy, Download, ExternalLink, FolderGit2, KeyRound, Loader2, Pencil, PlugZap, Plus, Radar, RefreshCw, Search, Send, Smartphone, Trash2, Wifi } from "lucide-react";
 import { useStore } from "../lib/store";
-import { discoverPrinters, isTauri, onRemoteChange, rawLogDir, reconnect, remoteInfo, remoteNewToken, saveSettings, type RemoteInfo } from "../lib/api";
+import { aiDownload, discoverPrinters, isTauri, onRemoteChange, rawLogDir, reconnect, remoteInfo, remoteNewToken, saveSettings, type RemoteInfo } from "../lib/api";
 import { Qr } from "../components/Qr";
 import { exportBackup, importBackup } from "../lib/backup";
 import { setVoice, useVoice, voiceSupported } from "../lib/voice";
@@ -165,6 +165,8 @@ export function SettingsView() {
           />
         </div>
       </Card>
+
+      <AiCard draft={draft} set={set} />
 
       <RemoteCard />
 
@@ -771,5 +773,71 @@ function VoiceRow() {
       on={on}
       set={setVoice}
     />
+  );
+}
+
+/** KI-Fehlerwächter: Obico-Modell lokal, erkennt Spaghetti und abgelöste Drucke */
+function AiCard({ draft, set }: { draft: Settings; set: <K extends keyof Settings>(k: K, v: Settings[K]) => void }) {
+  const ai = useStore((s) => s.ai);
+  const [error, setError] = useState<string | null>(null);
+  const hasCam = !!(draft.localCamera || draft.cameraUrl);
+  const downloading = ai?.downloadPct != null;
+  return (
+    <Card className="form-section">
+      <span className="label">{t("KI-Fehlerwächter")}</span>
+      <div>
+        <div className="toggle-row" style={{ borderTop: 0, paddingTop: 0 }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <BrainCircuit size={16} style={{ color: "var(--accent)" }} /> {t("Druck mit KI überwachen")}
+            </div>
+            <div className="hint">
+              {t("Erkennt Spaghetti und abgelöste Drucke im Kamerabild – alle 10 Sekunden, komplett auf diesem Computer, ohne Cloud. Modell: Obico (Open Source).")}
+            </div>
+          </div>
+          <Switch on={draft.aiEnabled} onChange={(v) => set("aiEnabled", v)} label={t("Druck mit KI überwachen")} />
+        </div>
+        {draft.aiEnabled && (
+          <>
+            {!hasCam && <div className="hint error" style={{ paddingTop: 8 }}>{t("Dafür braucht es eine Kamera – oben unter „Kamera“ einrichten.")}</div>}
+            {ai && !ai.model && (
+              <div className="toggle-row">
+                <div>
+                  <div>{t("KI-Modell laden")}</div>
+                  <div className="hint">
+                    {downloading ? t("Lädt … {p} % von 200 MB", { p: Math.round(ai.downloadPct ?? 0) }) : t("Einmalig etwa 200 MB. Danach läuft alles offline.")}
+                    {error && <span className="error"> {error}</span>}
+                  </div>
+                  {downloading && (
+                    <div className="bar" style={{ marginTop: 8 }}>
+                      <i style={{ width: `${ai.downloadPct}%` }} />
+                    </div>
+                  )}
+                </div>
+                <button
+                  className="btn sm primary"
+                  disabled={downloading}
+                  onClick={() => {
+                    setError(null);
+                    aiDownload().catch((e) => setError(typeof e === "string" ? e : t("Download fehlgeschlagen.")));
+                  }}
+                >
+                  {downloading ? <Loader2 size={14} className="spin" /> : <Download size={14} />} {t("Herunterladen")}
+                </button>
+              </div>
+            )}
+            <ToggleRow
+              label={t("Bei Fehler automatisch pausieren")}
+              hint={t("Sonst kommt nur eine Nachricht (mit Foto aufs Handy, wenn ntfy eingerichtet ist).")}
+              on={draft.aiPause}
+              set={(v) => set("aiPause", v)}
+            />
+            <div className="hint" style={{ paddingTop: 8 }}>
+              {t("Die ersten 5 Minuten eines Drucks lernt der Wächter dein Kamerabild kennen und meldet nichts. Am besten zeigt die Kamera schräg von vorn auf das Bett.")}
+            </div>
+          </>
+        )}
+      </div>
+    </Card>
   );
 }

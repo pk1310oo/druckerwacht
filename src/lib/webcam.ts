@@ -176,6 +176,20 @@ export function useWebcamTimelapse() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [active, layer]);
 
+  // KI-Fehlerwächter: alle 10 s ein Bild (das Backend wertet es aus)
+  const ai = useStore((s) => s.settings.aiEnabled);
+  useEffect(() => {
+    if (!active || !ai || preparing || state !== "printing") return;
+    const timer = setInterval(() => {
+      const s = cam.current;
+      if (!s?.active) return;
+      void grabJpeg(s).then((data) => {
+        if (data) invoke("camera_snapshot", { data }).catch(() => {});
+      });
+    }, 10_000);
+    return () => clearInterval(timer);
+  }, [active, ai, preparing, state]);
+
   // Zustandswechsel (Pause, fertig, Fehler, abgebrochen): sofort ein frisches Foto fürs Handy
   useEffect(() => {
     const was = prevState.current;

@@ -75,6 +75,7 @@ export function ToolsCard({ s, connected }: { s: PrinterStatus | null; connected
       <div className="chart-head">
         <span className="label">
           <Wrench size={14} /> {t("Werkzeuge")}
+          <AiChip />
         </span>
         <span className="tools-head-actions">
           <button className="btn sm ghost" disabled={running} onClick={() => setUpload(true)} title={running ? t("Das geht nur, wenn gerade nicht gedruckt wird.") : undefined}>
@@ -495,5 +496,27 @@ export function FleetStrip() {
         );
       })}
     </div>
+  );
+}
+
+/** Zustand des KI-Fehlerwächters (nur wenn eingeschaltet) */
+function AiChip() {
+  const ai = useStore((s) => s.ai);
+  const on = useStore((s) => s.settings.aiEnabled);
+  if (!on || !ai || ai.state === "off" || ai.state === "") return null;
+  const map: Record<string, [string, string]> = {
+    nomodel: [t("KI: Modell fehlt"), "warn"],
+    nocamera: [t("KI: keine Kamera"), "warn"],
+    idle: [t("KI bereit"), ""],
+    watching: [t("KI wacht"), "ok"],
+    warning: [t("KI: genauer hinsehen"), "warn"],
+    failing: [t("KI: Fehler erkannt"), "bad"],
+  };
+  const [label, tone] = map[ai.state] ?? ["", ""];
+  if (!label) return null;
+  return (
+    <span className={`ai-chip ${tone}`} title={ai.state === "watching" ? t("Letzte Bewertung: {s}", { s: ai.score.toFixed(2) }) : undefined}>
+      <i /> {label}
+    </span>
   );
 }

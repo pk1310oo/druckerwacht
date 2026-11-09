@@ -102,6 +102,20 @@ export interface Settings {
   remoteEnabled: boolean;
   /** Geheimer Schlüssel der Handy-Seite (im QR-Code) */
   remoteToken: string;
+  /** KI-Fehlerwächter */
+  aiEnabled: boolean;
+  /** Bei erkanntem Fehler automatisch pausieren */
+  aiPause: boolean;
+}
+
+export interface AiStatus {
+  state: "off" | "nomodel" | "nocamera" | "idle" | "watching" | "warning" | "failing" | "";
+  model: boolean;
+  downloadPct: number | null;
+  score: number;
+  ewm: number;
+  frames: number;
+  lastMs: number;
 }
 
 export interface JobRecord {
@@ -156,4 +170,6 @@ export const DEFAULT_SETTINGS: Settings = {
   localCamera: "",
   remoteEnabled: false,
   remoteToken: "",
+  aiEnabled: false,
+  aiPause: true,
 };

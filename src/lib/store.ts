@@ -1,5 +1,5 @@
 import { useSyncExternalStore } from "react";
-import type { Connection, JobRecord, OtherPrinter, PrinterHistory, PrinterStatus, Sample, Settings } from "./types";
+import type { AiStatus, Connection, JobRecord, OtherPrinter, PrinterHistory, PrinterStatus, Sample, Settings } from "./types";
 import { DEFAULT_SETTINGS } from "./types";
 
 export interface AppStore {
@@ -12,6 +12,7 @@ export interface AppStore {
   printerHistory: PrinterHistory | null;
   /** Weitere Drucker (nicht der aktive) */
   others: OtherPrinter[];
+  ai: AiStatus | null;
 }
 
 const MAX_SAMPLES = 3600;
@@ -25,6 +26,7 @@ let state: AppStore = {
   jobs: [],
   printerHistory: null,
   others: [],
+  ai: null,
 };
 const listeners = new Set<() => void>();
 

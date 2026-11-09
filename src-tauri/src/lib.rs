@@ -1,6 +1,7 @@
 #[macro_use]
 mod i18n;
 mod adapter;
+mod ai;
 mod discovery;
 mod extras;
 mod model;
@@ -90,6 +91,32 @@ struct Inner {
     remote: Option<(watch::Sender<bool>, String)>,
     /// Letzter Fehler der Handy-Seite (z. B. Port belegt)
     remote_error: Option<String>,
+    /// KI-Fehlerwächter: geglätteter Zustand und Anzeige
+    ai_pred: ai::Prediction,
+    ai: AiStatus,
+}
+
+#[derive(Serialize, Clone, Debug, Default)]
+#[serde(rename_all = "camelCase")]
+struct AiStatus {
+    /// "off", "nomodel", "nocamera", "idle", "watching", "warning", "failing"
+    state: String,
+    /// Modell geladen (Datei vorhanden)
+    model: bool,
+    /// Download läuft: 0–100
+    download_pct: Option<f64>,
+    /// Letzte Bewertung (Summe der Konfidenzen) und geglätteter Wert
+    score: f32,
+    ewm: f32,
+    frames: u32,
+    last_ms: i64,
+    /// Bereits gemeldet/pausiert in diesem Druck
+    #[serde(skip)]
+    warned: bool,
+    #[serde(skip)]
+    alerted: bool,
+    #[serde(skip)]
+    print_key: String,
 }
 
 /// Kurzstatus eines weiteren Druckers für die Übersicht
@@ -1088,6 +1115,192 @@ async fn reprint(app: AppHandle, name: String) -> Result<String, String> {
     upload_and_start(&app, &a, &name, data, true, check).await
 }
 
+// ----------------------------------------------------------------------------- KI-Fehlerwächter
+
+fn ai_dir(app: &AppHandle) -> PathBuf {
+    app.path().app_data_dir().unwrap_or_default().join("ai")
+}
+
+fn emit_ai(app: &AppHandle) {
+    let st = app.state::<Arc<AppState>>();
+    let s = st.lock().ai.clone();
+    let _ = app.emit("ai://status", &s);
+}
+
+/// Prüft alle 10 s während eines Drucks ein Kamerabild.
+fn spawn_ai_watch(app: AppHandle, data_dir: PathBuf) {
+    tauri::async_runtime::spawn(async move {
+        let model_path = ai::model_path(&data_dir);
+        let detector: ai::Shared = Default::default();
+        let mut saved_frames = 0u32;
+        loop {
+            tokio::time::sleep(std::time::Duration::from_secs(10)).await;
+            let st = app.state::<Arc<AppState>>().inner().clone();
+            let (enabled, pause, cam_url, status, local_cam, connected) = {
+                let i = st.lock();
+                (i.settings.ai_enabled, i.settings.ai_pause, i.settings.camera_url.clone(), i.status.clone(), !i.settings.local_camera.is_empty(), matches!(i.connection, ConnectionState::Connected { .. }))
+            };
+            let model = ai::model_ready(&model_path);
+            let printing = connected && status.as_ref().map(|s| s.state == PrintState::Printing && !s.preparing).unwrap_or(false);
+            let has_cam = local_cam || !cam_url.trim().is_empty();
+            let base = if !enabled { "off" } else if !model { "nomodel" } else if !has_cam { "nocamera" } else if !printing { "idle" } else { "watching" };
+            {
+                let mut i = st.lock();
+                if i.ai.download_pct.is_none() {
+                    i.ai.model = model;
+                }
+                // Neuer Druck → Kurzzeitwerte zurücksetzen
+                let key = status.as_ref().map(|s| format!("{}", s.file_name.clone().unwrap_or_default())).unwrap_or_default();
+                let active = status.as_ref().map(|s| s.state.is_active()).unwrap_or(false);
+                if !active {
+                    i.ai.print_key.clear();
+                } else if i.ai.print_key != key {
+                    i.ai.print_key = key;
+                    i.ai.warned = false;
+                    i.ai.alerted = false;
+                    i.ai_pred.reset_print();
+                }
+                if base != "watching" || !matches!(i.ai.state.as_str(), "warning" | "failing") || !printing {
+                    i.ai.state = base.into();
+                }
+            }
+            emit_ai(&app);
+            if base != "watching" {
+                continue;
+            }
+            // Bild: Webcam am Computer liefert laufend Fotos; sonst die Kamera am Drucker abfragen
+            let now = now_ms();
+            let mut frame = st.lock().last_snapshot.as_ref().filter(|(t, _)| now - t < 30_000).map(|(_, b)| b.clone());
+            if frame.is_none() && !cam_url.trim().is_empty() {
+                if let Some(url) = extras::snapshot_url(&cam_url) {
+                    if let Some(b) = extras::fetch_snapshot(&url).await {
+                        st.lock().last_snapshot = Some((now, b.clone()));
+                        frame = Some(b);
+                    }
+                }
+            }
+            let Some(jpeg) = frame.filter(|b| extras::is_jpeg(b)) else { continue };
+            let det = detector.clone();
+            let mp = model_path.clone();
+            let result = tauri::async_runtime::spawn_blocking(move || -> Result<f32, String> {
+                let d = {
+                    let mut g = det.lock().map_err(|_| "lock")?;
+                    if g.is_none() {
+                        *g = Some(Arc::new(ai::Detector::load(&mp)?));
+                    }
+                    g.clone().unwrap()
+                };
+                Ok(d.detect(&jpeg)?.iter().map(|f| f.0).sum())
+            })
+            .await;
+            let Ok(Ok(p)) = result else { continue };
+            let (warn_now, fail_now) = {
+                let mut i = st.lock();
+                i.ai_pred.update(p);
+                let warning = i.ai_pred.is_failing(1.0, 1.0);
+                let failing = i.ai_pred.is_failing(1.0, ai::ESCALATING_FACTOR);
+                i.ai.score = p;
+                i.ai.ewm = i.ai_pred.ewm_mean;
+                i.ai.frames = i.ai_pred.current_frame_num;
+                i.ai.last_ms = now;
+                i.ai.state = if failing { "failing" } else if warning { "warning" } else { "watching" }.into();
+                let warn_now = warning && !i.ai.warned;
+                let fail_now = failing && !i.ai.alerted;
+                if warn_now {
+                    i.ai.warned = true;
+                }
+                if fail_now {
+                    i.ai.alerted = true;
+                }
+                (warn_now, fail_now)
+            };
+            emit_ai(&app);
+            saved_frames += 1;
+            if saved_frames % 30 == 0 {
+                let pred = st.lock().ai_pred.clone();
+                let _ = std::fs::create_dir_all(data_dir.join("ai"));
+                let _ = std::fs::write(data_dir.join("ai").join("state.json"), serde_json::to_string(&pred).unwrap_or_default());
+            }
+            if fail_now {
+                if pause {
+                    let paused = control_active(&app, "pause").await.is_ok();
+                    notify(
+                        &app,
+                        crate::i18n::tr("KI-Wächter: Druck pausiert", "AI watch: print paused"),
+                        if paused {
+                            crate::i18n::tr("Das Kamerabild sieht nach einem misslungenen Druck aus (Spaghetti oder abgelöst). Bitte nachsehen und dann fortsetzen oder abbrechen.", "The camera picture looks like a failed print (spaghetti or detached). Please check, then resume or cancel.")
+                        } else {
+                            crate::i18n::tr("Fehler erkannt, aber die Pause wurde nicht angenommen – bitte sofort nachsehen!", "Failure detected but the pause was not accepted – please check right away!")
+                        },
+                    );
+                } else {
+                    notify(&app, crate::i18n::tr("KI-Wächter: Druck misslungen?", "AI watch: print failing?"), crate::i18n::tr("Das Kamerabild sieht nach einem misslungenen Druck aus. Bitte nachsehen.", "The camera picture looks like a failed print. Please check."));
+                }
+            } else if warn_now {
+                notify(&app, crate::i18n::tr("KI-Wächter: Bitte kurz nachsehen", "AI watch: please take a look"), crate::i18n::tr("Im Kamerabild könnte etwas schiefgehen – noch kein Alarm.", "Something might be going wrong in the camera picture – no alarm yet."));
+            }
+        }
+    });
+}
+
+#[tauri::command]
+fn ai_status(state: State<'_, Arc<AppState>>) -> AiStatus {
+    state.lock().ai.clone()
+}
+
+/// Modell einmalig herunterladen (~200 MB) – Fortschritt über „ai://status“
+#[tauri::command]
+async fn ai_download(app: AppHandle) -> Result<(), String> {
+    let dir = ai_dir(&app);
+    let path = ai::model_path(app.path().app_data_dir().map_err(|e| e.to_string())?.as_path());
+    if ai::model_ready(&path) {
+        return Ok(());
+    }
+    {
+        let st = app.state::<Arc<AppState>>();
+        let mut i = st.lock();
+        if i.ai.download_pct.is_some() {
+            return Ok(());
+        }
+        i.ai.download_pct = Some(0.0);
+    }
+    let result: Result<(), String> = async {
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        let tmp = path.with_extension("part");
+        let client = reqwest::Client::builder().timeout(std::time::Duration::from_secs(1800)).build().map_err(|e| e.to_string())?;
+        let mut resp = client.get(ai::MODEL_URL).send().await.and_then(|r| r.error_for_status()).map_err(|_| crate::i18n::tr("Download fehlgeschlagen – ist der Computer online?", "Download failed – is the computer online?").to_string())?;
+        let mut file = std::fs::File::create(&tmp).map_err(|e| e.to_string())?;
+        let mut got: u64 = 0;
+        let mut last = -1i64;
+        use std::io::Write;
+        while let Some(chunk) = resp.chunk().await.map_err(|_| crate::i18n::tr("Download abgebrochen.", "Download interrupted.").to_string())? {
+            file.write_all(&chunk).map_err(|e| e.to_string())?;
+            got += chunk.len() as u64;
+            let pct = (got as f64 / ai::MODEL_SIZE as f64 * 100.0).min(100.0);
+            if pct as i64 != last {
+                last = pct as i64;
+                app.state::<Arc<AppState>>().lock().ai.download_pct = Some(pct);
+                emit_ai(&app);
+            }
+        }
+        drop(file);
+        if got != ai::MODEL_SIZE {
+            let _ = std::fs::remove_file(&tmp);
+            return Err(crate::i18n::tr("Die heruntergeladene Datei ist unvollständig.", "The downloaded file is incomplete.").into());
+        }
+        std::fs::rename(&tmp, &path).map_err(|e| e.to_string())
+    }
+    .await;
+    {
+        let st = app.state::<Arc<AppState>>();
+        let mut i = st.lock();
+        i.ai.download_pct = None;
+        i.ai.model = ai::model_ready(&path);
+    }
+    emit_ai(&app);
+    result
+}
+
 // ----------------------------------------------------------------------------- Handy im WLAN
 
 /// Zustand aller Drucker für die Handy-Seite
@@ -1390,6 +1603,8 @@ pub fn run() {
                     others: Vec::new(),
                     remote: None,
                     remote_error: None,
+                    ai_pred: std::fs::read_to_string(data_dir.join("ai").join("state.json")).ok().and_then(|s| serde_json::from_str(&s).ok()).unwrap_or_default(),
+                    ai: AiStatus::default(),
                 }),
                 generation: AtomicU64::new(0),
                 disconnect_seq: AtomicU64::new(0),
@@ -1401,6 +1616,7 @@ pub fn run() {
             restart_connection(app.handle());
             apply_remote(app.handle());
             spawn_sampler(app.handle().clone());
+            spawn_ai_watch(app.handle().clone(), data_dir.clone());
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -1412,6 +1628,8 @@ pub fn run() {
             get_printer_history,
             gcode_calib,
             remote_info,
+            ai_status,
+            ai_download,
             backup_write,
             save_png,
             reprint_names,

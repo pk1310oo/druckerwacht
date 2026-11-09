@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { getState, pushSample, setState } from "./store";
-import type { Connection, FoundPrinter, JobRecord, OtherPrinter, PrinterHistory, PrinterStatus, Sample, Settings } from "./types";
+import type { AiStatus, Connection, FoundPrinter, JobRecord, OtherPrinter, PrinterHistory, PrinterStatus, Sample, Settings } from "./types";
 
 export const isTauri = typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;
 
@@ -25,6 +25,7 @@ export async function init() {
       listen<PrinterHistory>("printer://history", (e) => setState({ printerHistory: e.payload })),
       listen<Settings>("settings://changed", (e) => setState({ settings: e.payload })),
       listen<OtherPrinter[]>("printers://others", (e) => setState({ others: e.payload })),
+      listen<AiStatus>("ai://status", (e) => setState({ ai: e.payload })),
     ]);
     const [snap, settings, jobs, printerHistory, others] = await Promise.all([
       invoke<Snapshot>("get_snapshot"),
@@ -34,6 +35,7 @@ export async function init() {
       invoke<OtherPrinter[]>("get_others"),
     ]);
     setState({ ...snap, settings, jobs, printerHistory, others, ready: true });
+    void invoke<AiStatus>("ai_status").then((ai) => setState({ ai })).catch(() => {});
     void ensureNotificationPermission();
   } catch (err) {
     console.error("Initialisierung fehlgeschlagen", err);
@@ -194,4 +196,13 @@ export function findCopy(file: string, names: string[]): string | undefined {
   const norm = (n: string) => n.split(/[\\/]/).pop()!.replace(/\.(b?gcode|gco|g)$/i, "").replace(/[^A-Za-z0-9]+/g, "_").toLowerCase();
   const f = norm(file);
   return names.find((n) => norm(n) === f);
+}
+
+/** KI-Modell (~200 MB) einmalig herunterladen – Fortschritt kommt über „ai://status“ */
+export async function aiDownload() {
+  if (!isTauri) {
+    setState({ ai: { state: "idle", model: true, downloadPct: null, score: 0, ewm: 0, frames: 0, lastMs: 0 } });
+    return;
+  }
+  await invoke("ai_download");
 }
