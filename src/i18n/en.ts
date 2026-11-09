@@ -796,4 +796,10 @@ export const EN: Record<string, string> = {
   "Letzte Bewertung: {s}": "Last score: {s}",
   "Lädt … {p} % von 200 MB": "Loading … {p} % of 200 MB",
   "Sonst kommt nur eine Nachricht (mit Foto aufs Handy, wenn ntfy eingerichtet ist).": "Otherwise you only get a message (with a photo on your phone if ntfy is set up).",
+  "Modelle finden": "Find models",
+  "Modell suchen – Download im Browser, dann landet es hier auf der Platte:": "Search for a model – download it in your browser, then it lands here on the plate:",
+  "z. B. Kabelhalter, Benchy, Vase …": "e.g. cable holder, Benchy, vase …",
+  "Neu heruntergeladen:": "Just downloaded:",
+  "Warte auf deinen Download …": "Waiting for your download …",
+  "Auf die Platte": "Put on plate",
 };

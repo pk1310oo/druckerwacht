@@ -1346,3 +1346,12 @@
 .ai-chip.warn i { background: var(--warning); }
 .ai-chip.bad { color: var(--danger); background: rgba(224, 90, 79, 0.14); }
 .ai-chip.bad i { background: var(--danger); }
+.model-search { width: 300px; }
+.model-search .input { margin: 2px 0 4px; }
+.dl-watch { position: fixed; right: 24px; bottom: 24px; z-index: 60; width: 340px; display: flex; flex-direction: column; gap: 8px; padding: 12px 14px; box-shadow: 0 18px 48px rgba(0, 0, 0, 0.55); animation: fade-in 200ms var(--ease); }
+.dl-head { display: flex; align-items: center; justify-content: space-between; color: var(--text-2); }
+.dl-head .small { display: inline-flex; align-items: center; gap: 6px; }
+.dl-item { display: flex; align-items: center; gap: 10px; }
+.dl-item .file-name { flex: 1; min-width: 0; }
+.top-menu-layer { position: fixed; z-index: 90; }
+.top-menu-layer > .tool-menu { position: static; transform: none; }

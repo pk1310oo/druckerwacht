@@ -869,7 +869,9 @@ fn open_project_link(url: String) -> Result<(), String> {
     const BASE: &str = "https://github.com/pk1310oo/druckerwacht";
     // Außerdem: Suche nach einem Creality-Fehlercode (nur Ziffern)
     let error_search = url.strip_prefix("https://duckduckgo.com/?q=creality+error+").map(|c| !c.is_empty() && c.len() <= 6 && c.chars().all(|x| x.is_ascii_digit())).unwrap_or(false);
-    let ok = (url == BASE || url.starts_with(&format!("{BASE}/")) || error_search)
+    // Modellsuche auf den großen Plattformen
+    let model_search = ["https://www.printables.com/search/models?q=", "https://www.thingiverse.com/search?q=", "https://makerworld.com/en/search/models?keyword="].iter().any(|p| url.starts_with(p));
+    let ok = (url == BASE || url.starts_with(&format!("{BASE}/")) || error_search || model_search)
         && url.chars().all(|c| c.is_ascii_alphanumeric() || "/:.-_?=&#%+".contains(c));
     if !ok {
         return Err(crate::i18n::tr("Diese Adresse darf nicht geöffnet werden.", "This address may not be opened.").into());
@@ -1022,6 +1024,85 @@ fn backup_read(path: String) -> Result<String, String> {
         return Err(crate::i18n::tr("Die Datei ist zu groß für eine Sicherung.", "The file is too large for a backup.").into());
     }
     std::fs::read_to_string(&p).map_err(|_| crate::i18n::tr("Sicherung konnte nicht gelesen werden.", "The backup could not be read.").to_string())
+}
+
+#[derive(Serialize)]
+#[serde(rename_all = "camelCase")]
+struct RecentModel {
+    path: String,
+    name: String,
+    modified_ms: i64,
+}
+
+const MODEL_EXT: [&str; 3] = ["stl", "3mf", "obj"];
+
+/// Neu heruntergeladene Modelle (STL/3MF/OBJ oder ZIP mit Modellen) im Download-Ordner
+#[tauri::command]
+fn recent_models(app: AppHandle, since_ms: i64) -> Vec<RecentModel> {
+    let Ok(dir) = app.path().download_dir() else { return vec![] };
+    let mut out: Vec<RecentModel> = std::fs::read_dir(dir)
+        .map(|rd| {
+            rd.flatten()
+                .filter_map(|e| {
+                    let p = e.path();
+                    let ext = p.extension()?.to_string_lossy().to_lowercase();
+                    if !(MODEL_EXT.contains(&ext.as_str()) || ext == "zip") {
+                        return None;
+                    }
+                    let m = e.metadata().ok()?;
+                    let ms = m.modified().ok()?.duration_since(std::time::UNIX_EPOCH).ok()?.as_millis() as i64;
+                    if ms < since_ms || m.len() == 0 {
+                        return None;
+                    }
+                    if ext == "zip" && zip_models(&p).map(|v| v.is_empty()).unwrap_or(true) {
+                        return None;
+                    }
+                    Some(RecentModel { name: p.file_name()?.to_string_lossy().into_owned(), path: p.to_string_lossy().into_owned(), modified_ms: ms })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    out.sort_by_key(|m| -m.modified_ms);
+    out
+}
+
+fn zip_models(p: &std::path::Path) -> Option<Vec<String>> {
+    let f = std::fs::File::open(p).ok()?;
+    let mut z = zip::ZipArchive::new(f).ok()?;
+    Some(
+        (0..z.len())
+            .filter_map(|i| {
+                let e = z.by_index(i).ok()?;
+                let n = e.name().ok()?.to_string();
+                let ext = n.rsplit('.').next()?.to_lowercase();
+                (MODEL_EXT.contains(&ext.as_str()) && !n.starts_with("__MACOSX")).then_some(n)
+            })
+            .collect(),
+    )
+}
+
+/// Modelle aus einer ZIP-Datei (z. B. von Printables) entpacken – liefert die Pfade
+#[tauri::command]
+fn unzip_models(app: AppHandle, path: String) -> Result<Vec<String>, String> {
+    let p = std::path::PathBuf::from(&path);
+    let names = zip_models(&p).ok_or_else(|| crate::i18n::tr("Die ZIP-Datei konnte nicht gelesen werden.", "The ZIP file could not be read.").to_string())?;
+    let dest = app.path().app_cache_dir().map_err(|e| e.to_string())?.join("downloads").join(p.file_stem().map(|s| s.to_string_lossy().into_owned()).unwrap_or_default());
+    std::fs::create_dir_all(&dest).map_err(|e| e.to_string())?;
+    let mut z = zip::ZipArchive::new(std::fs::File::open(&p).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+    let mut out = Vec::new();
+    for n in names.iter().take(20) {
+        let mut e = z.by_name(n).map_err(|e| e.to_string())?;
+        if e.size() > 400 * 1024 * 1024 {
+            continue;
+        }
+        // Nur den Dateinamen verwenden – keine Pfade aus dem Archiv
+        let file = n.rsplit(['/', '\\']).next().unwrap_or(n);
+        let target = dest.join(file);
+        let mut f = std::fs::File::create(&target).map_err(|e| e.to_string())?;
+        std::io::copy(&mut e, &mut f).map_err(|e| e.to_string())?;
+        out.push(target.to_string_lossy().into_owned());
+    }
+    Ok(out)
 }
 
 /// Liest ein Projekt.
@@ -1631,6 +1712,8 @@ pub fn run() {
             ai_status,
             ai_download,
             backup_write,
+            recent_models,
+            unzip_models,
             save_png,
             reprint_names,
             reprint,

@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import {
   AlertTriangle,
   Box,
@@ -17,6 +18,7 @@ import {
   Undo2,
   Wand2,
   Sparkles,
+  Globe,
   Download,
   Eye,
   FlaskConical,
@@ -76,6 +78,7 @@ import { rememberSentPrint } from "../lib/sentPrint";
 import { queueAdd } from "../lib/extras";
 import { useCaps } from "../lib/printers";
 import { MATERIALS } from "../slicer/materials";
+import { DownloadWatcher, ModelSearchMenu } from "../slicer/ModelSearch";
 import { endsAtNight } from "../lib/night";
 import { TOWER_PRESETS, calibHelp, calibStl, calibTitle, makeTower, range, towerSteps, unitOf, type CalibKind, type Tower } from "../slicer/calib";
 import { invoke } from "@tauri-apps/api/core";
@@ -463,6 +466,8 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   const [mirrorOpen, setMirrorOpen] = useState(false);
   const [calibOpen, setCalibOpen] = useState(false);
   const [matOpen, setMatOpen] = useState(false);
+  const [searchOpen, setSearchOpen] = useState(false);
+  const [watchSince, setWatchSince] = useState<number | null>(null);
   const [material, setMaterial] = useState<string | null>(null);
   const [tower, setTower] = useState<Tower | null>(null);
   const towerModel = tower ? models.find((m) => m.name === tower.name) : undefined;
@@ -559,8 +564,22 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
         />
         <div className="top-actions">
           <span className="tool-wrap">
+            <ToolBtn icon={Globe} label="Modelle finden" on={searchOpen} onClick={() => setSearchOpen((o) => !o)} disabled={!!preview} />
+            {searchOpen && (
+              <TopMenu>
+              <ModelSearchMenu
+                onSearch={() => {
+                  setSearchOpen(false);
+                  setWatchSince(Date.now() - 5000);
+                }}
+              />
+              </TopMenu>
+            )}
+          </span>
+          <span className="tool-wrap">
             <ToolBtn icon={Sparkles} label="Filament-Assistent" on={matOpen} onClick={() => setMatOpen((o) => !o)} disabled={!!preview} />
             {matOpen && (
+              <TopMenu>
               <span className="tool-menu card calib-menu">
                 <span className="small muted">{t("Startwerte für dein Material – Düse, Bett und Lüfter:")}</span>
                 {MATERIALS.map((m) => (
@@ -583,11 +602,13 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
                 ))}
                 <span className="small muted">{t("Richtwerte – die Angabe auf der Spule hat Vorrang.")}</span>
               </span>
+              </TopMenu>
             )}
           </span>
           <span className="tool-wrap">
             <ToolBtn icon={FlaskConical} label="Kalibrier-Druck" on={calibOpen} onClick={() => setCalibOpen((o) => !o)} disabled={!!preview} />
             {calibOpen && (
+              <TopMenu>
               <span className="tool-menu card calib-menu">
                 <span className="small muted">{t("Temperaturturm – je Block 5 °C kühler:")}</span>
                 {TOWER_PRESETS.map((p) => (
@@ -609,12 +630,15 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
                   <Grid3x3 size={14} /> {t("Erste-Schicht-Test")} <span className="muted num">5 × 30 mm</span>
                 </button>
               </span>
+              </TopMenu>
             )}
           </span>
           <ToolBtn icon={FolderOpen} label="Projekt öffnen" onClick={() => void openProject()} />
           <ToolBtn icon={Save} label="Projekt speichern (Strg/Cmd+S)" onClick={() => void saveProject()} disabled={!models.length} />
         </div>
       </div>
+
+      <DownloadWatcher since={watchSince} onStop={() => setWatchSince(null)} onAdd={addPaths} />
 
       <div className="slicer-stage">
         <div className="slicer-canvas" ref={host}>
@@ -1620,5 +1644,22 @@ function OrcaMissing({ go }: { go: (v: ViewId) => void }) {
         </button>
       </div>
     </div>
+  );
+}
+
+/** Menü der oberen Leiste: über dem Rest der Seite (die Leiste selbst schneidet Überstehendes ab) */
+function TopMenu({ children }: { children: React.ReactNode }) {
+  const anchor = useRef<HTMLSpanElement>(null);
+  const [pos, setPos] = useState<{ top: number; right: number } | null>(null);
+  useLayoutEffect(() => {
+    const el = anchor.current?.parentElement;
+    if (!el) return;
+    const r = el.getBoundingClientRect();
+    setPos({ top: r.bottom + 8, right: Math.max(8, window.innerWidth - r.right) });
+  }, []);
+  return (
+    <span ref={anchor}>
+      {pos && createPortal(<div className="top-menu-layer" style={{ top: pos.top, right: pos.right }}>{children}</div>, document.body)}
+    </span>
   );
 }
