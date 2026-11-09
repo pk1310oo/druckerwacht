@@ -4,7 +4,7 @@
  */
 import { useEffect, useRef, useSyncExternalStore } from "react";
 import { useStore } from "./store";
-import { isEn, t } from "./i18n";
+import { getLang, locale, t } from "./i18n";
 import { plannedPauses } from "./sentPrint";
 
 const KEY = "dw.voice";
@@ -44,8 +44,8 @@ export function say(text: string) {
   if (!voiceSupported()) return;
   try {
     const u = new SpeechSynthesisUtterance(text);
-    u.lang = isEn() ? "en-US" : "de-DE";
-    const v = speechSynthesis.getVoices().find((x) => x.lang.toLowerCase().startsWith(isEn() ? "en" : "de"));
+    u.lang = locale();
+    const v = speechSynthesis.getVoices().find((x) => x.lang.toLowerCase().startsWith(getLang()));
     if (v) u.voice = v;
     speechSynthesis.speak(u);
   } catch {

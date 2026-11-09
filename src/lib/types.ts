@@ -89,7 +89,7 @@ export interface Settings {
   rawLog: boolean;
   orcaPath: string;
   /** "" = wie das System, "de" oder "en" */
-  language: "" | "de" | "en";
+  language: "" | "de" | "en" | "es" | "fr" | "pl";
   /** Farbthema der Akzentfarbe */
   accent: "orange" | "blue" | "green" | "purple" | "pink" | "cyan" | "lime";
   /** Thema für Push-Nachrichten aufs Handy (ntfy.sh), leer = aus */

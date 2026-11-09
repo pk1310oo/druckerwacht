@@ -3,7 +3,7 @@
 🇬🇧 **English** · 🇩🇪 [Deutsch](README.de.md)
 
 **The free all-in-one app for your 3D printers: watch, slice and control over Wi-Fi – made for the Creality Ender 3 V3 KE, and it also runs your K1, Klipper, OctoPrint and Prusa printers.**
-Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
+Open source (AGPL-3.0) · **Windows, macOS and Linux** · English, German, Spanish, French and Polish
 
 [**⬇ Download**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Website](https://pk1310oo.github.io/druckerwacht/) · [Report a bug / request a feature](https://github.com/pk1310oo/druckerwacht/issues) · [Contributing](CONTRIBUTING.md)
 
@@ -19,6 +19,14 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 - **Phone on Wi-Fi:** scan a QR code and see every printer live in your phone's browser – pause, resume, cancel, speed and light included, no app needed
 - **Plain-language printer errors** and a **maintenance planner** that reminds you to clean the plate, lubricate rails or check belts by print hours
 
+**AI failure watch**
+- Detects spaghetti and detached prints in the camera picture and **pauses the print automatically** – runs entirely on your computer with the open Obico model, no cloud, no subscription
+
+**Calibrate like a pro**
+- Temperature, **flow**, **retraction** and **speed towers** plus a **first-layer test** – the app builds the model and writes the values into the G-code; click the best block to put its value into your profile
+- **Remembered Z offset**: tune the first layer once, it's applied to every print automatically
+- **Filament assistant** with proven starting values (PLA, PETG, TPU, ABS, ASA …) and a **duration comparison** for 50–150 % speed
+
 **Many printers**
 - Creality (Ender 3 V3 KE, K1, K1C, K1 Max), every **Klipper** printer with Moonraker (Voron, Sovol, Elegoo Neptune 4, Qidi …), **OctoPrint** (practically any Marlin printer) and **Prusa** via PrusaLink (MK4, MK3.9, Core One, Mini, XL)
 - The network search finds all of them; every printer is watched at the same time, switch with one click
@@ -27,6 +35,7 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 - Pause, resume, cancel
 - **Tools card:** home, **bed leveling with save**, **PID tuning**, preheat (PLA/PETG/ABS/TPU), load/unload filament, Z offset babystepping during the first layer, fan, light, motors off
 - Send any finished G-code file and print it
+- **Find models** on Printables, Thingiverse and MakerWorld – the download lands straight on the plate
 - **Print again** from the history with one click – the app keeps a copy of your last 15 prints
 - **Night mode:** quiet 50 % between 22:00 and 07:00, back to your speed in the morning
 - **Live speed** from 25 % *Whisper* to 150 % *Turbo* – the first layer always stays at max. 50 mm/s so it sticks
@@ -46,7 +55,7 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English and German
 
 ![Filament stock](docs/images/filament.jpg)
 
-**Comfort:** on first start the app searches your network and sets up the printer with one click · **backup & restore** of all printers, settings, spools and maintenance status.
+**Comfort:** **voice announcements** (start, 25/50/75 %, colour change, done) · **print calendar with electricity cost** · **share image** of finished prints for Instagram & TikTok · on first start the app searches your network and sets up the printer with one click · **backup & restore** of all printers, settings, spools and maintenance status.
 
 **Looks:** calm neon grid background, glowing progress ring, 3D cards, seven colour themes – or switch effects to *Subtle* on slower computers.
 

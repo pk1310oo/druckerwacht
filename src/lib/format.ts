@@ -1,5 +1,5 @@
 import type { Connection, PrintState } from "./types";
-import { isEn, locale, t } from "./i18n";
+import { isDe, locale, t } from "./i18n";
 
 export const DASH = "–";
 
@@ -27,7 +27,7 @@ export function fmtEta(remainingS: number | null | undefined): string {
   const end = new Date(Date.now() + remainingS * 1000);
   const sameDay = end.toDateString() === new Date().toDateString();
   const time = fmtClock(end.getTime());
-  const suffix = isEn() ? "" : " Uhr";
+  const suffix = isDe() ? " Uhr" : "";
   return sameDay ? `${time}${suffix}` : `${end.toLocaleDateString(locale(), { weekday: "short" })} ${time}${suffix}`;
 }
 

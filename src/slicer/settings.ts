@@ -1,5 +1,5 @@
 import catalogJson from "./catalog.json";
-import { isEn, t } from "../lib/i18n";
+import { isDe, t } from "../lib/i18n";
 
 /** Ein Eintrag aus dem Orca-Einstellungskatalog (siehe scripts/build-settings-catalog.py) */
 export interface CatalogEntry {
@@ -360,27 +360,27 @@ export function labelOf(key: string, field?: FieldDef) {
   if (field?.label) return t(field.label);
   const e = CATALOG[key];
   if (!e) return key;
-  return isEn() ? e.labelEn ?? e.label : e.label;
+  return !isDe() ? e.labelEn ?? e.label : e.label;
 }
 
 export function tooltipOf(key: string): string | undefined {
   const e = CATALOG[key];
-  return isEn() ? e?.tooltipEn ?? e?.tooltip : e?.tooltip;
+  return !isDe() ? e?.tooltipEn ?? e?.tooltip : e?.tooltip;
 }
 
 export function categoryOf(e: CatalogEntry): string | undefined {
-  return isEn() ? e.categoryEn ?? e.category : e.category;
+  return !isDe() ? e.categoryEn ?? e.category : e.category;
 }
 
 /** Auswahlwerte mit Bezeichnung in der aktiven Sprache */
 export function enumOptions(key: string): { value: string; label: string }[] {
-  return (CATALOG[key]?.enum ?? []).map((o) => ({ value: o.value, label: isEn() ? o.labelEn ?? o.label : o.label }));
+  return (CATALOG[key]?.enum ?? []).map((o) => ({ value: o.value, label: !isDe() ? o.labelEn ?? o.label : o.label }));
 }
 
 /** Einheiten kurz und einheitlich */
 export function unitOf(key: string): string | undefined {
   const e = CATALOG[key];
-  const u = isEn() ? e?.unitEn ?? e?.unit : e?.unit;
+  const u = !isDe() ? e?.unitEn ?? e?.unit : e?.unit;
   if (!u) return undefined;
   return u.replace("mm/s²", "mm/s²").replace(/^°C$/, "°C");
 }

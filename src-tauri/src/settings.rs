@@ -158,7 +158,7 @@ impl Settings {
     }
 
     pub fn normalized(mut self) -> Self {
-        if !matches!(self.language.as_str(), "" | "de" | "en") {
+        if !matches!(self.language.as_str(), "" | "de" | "en" | "es" | "fr" | "pl") {
             self.language.clear();
         }
         if !matches!(self.accent.as_str(), "orange" | "blue" | "green" | "purple" | "pink" | "cyan" | "lime") {

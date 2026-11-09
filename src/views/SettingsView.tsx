@@ -111,16 +111,19 @@ export function SettingsView() {
             <div>{t("Sprache der App")}</div>
             <div className="hint">{t("„System“ folgt der Sprache deines Computers.")}</div>
           </div>
-          <Segmented
-            ariaLabel={t("Sprache")}
+          <select
+            className="input lang-select"
+            aria-label={t("Sprache")}
             value={saved.language}
-            options={[
-              { value: "", label: t("System") },
-              { value: "de", label: "Deutsch" },
-              { value: "en", label: "English" },
-            ]}
-            onChange={(language) => void saveSettings({ ...saved, language })}
-          />
+            onChange={(e) => void saveSettings({ ...saved, language: e.target.value as Settings["language"] })}
+          >
+            <option value="">{t("System")}</option>
+            <option value="de">Deutsch</option>
+            <option value="en">English</option>
+            <option value="es">Español</option>
+            <option value="fr">Français</option>
+            <option value="pl">Polski</option>
+          </select>
         </div>
       </Card>
 

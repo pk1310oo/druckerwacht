@@ -1355,3 +1355,4 @@
 .dl-item .file-name { flex: 1; min-width: 0; }
 .top-menu-layer { position: fixed; z-index: 90; }
 .top-menu-layer > .tool-menu { position: static; transform: none; }
+.lang-select { width: 180px; }

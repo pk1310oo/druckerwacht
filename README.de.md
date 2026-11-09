@@ -3,7 +3,7 @@
 🇬🇧 [English](README.md) · 🇩🇪 **Deutsch**
 
 **Die kostenlose Komplett-App für deine 3D-Drucker: überwachen, slicen und steuern per WLAN – gemacht für den Creality Ender 3 V3 KE, und sie steuert auch K1, Klipper-, OctoPrint- und Prusa-Drucker.**
-Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
+Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch, Englisch, Spanisch, Französisch und Polnisch
 
 [**⬇ Download**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Website](https://pk1310oo.github.io/druckerwacht/) · [Fehler melden / Wünsche](https://github.com/pk1310oo/druckerwacht/issues) · [Mitmachen](CONTRIBUTING.md)
 
@@ -19,6 +19,14 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 - **Handy im WLAN:** QR-Code scannen und alle Drucker live im Handy-Browser sehen – mit Pause, Fortsetzen, Abbrechen, Tempo und Licht, ganz ohne App
 - **Druckerfehler in Klartext** und ein **Wartungsplaner**, der nach Druckstunden an Platte reinigen, Schienen schmieren oder Riemen prüfen erinnert
 
+**KI-Fehlerwächter**
+- Erkennt Spaghetti und abgelöste Drucke im Kamerabild und **pausiert automatisch** – läuft komplett auf deinem Computer mit dem offenen Obico-Modell, ohne Cloud und ohne Abo
+
+**Kalibrieren wie ein Profi**
+- Temperatur-, **Fluss-**, **Rückzugs-** und **Tempo-Turm** plus **Erste-Schicht-Test** – die App baut das Modell und schreibt die Werte in den G-Code; den besten Block anklicken und der Wert landet im Profil
+- **Gemerkter Z-Offset**: erste Schicht einmal einstellen, ab dann bei jedem Druck automatisch
+- **Filament-Assistent** mit bewährten Startwerten (PLA, PETG, TPU, ABS, ASA …) und **Dauer-Vergleich** für 50–150 % Tempo
+
 **Viele Drucker**
 - Creality (Ender 3 V3 KE, K1, K1C, K1 Max), jeder **Klipper**-Drucker mit Moonraker (Voron, Sovol, Elegoo Neptune 4, Qidi …), **OctoPrint** (praktisch jeder Marlin-Drucker) und **Prusa** über PrusaLink (MK4, MK3.9, Core One, Mini, XL)
 - Die Netzwerksuche findet alle; jeder Drucker wird gleichzeitig überwacht, Umschalten mit einem Klick
@@ -27,6 +35,7 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 - Pausieren, Fortsetzen, Abbrechen
 - **Werkzeug-Karte:** Referenzfahrt, **Bett-Leveling mit Speichern**, **PID-Kalibrierung**, Vorheizen (PLA/PETG/ABS/TPU), Filament laden/entladen, Z-Offset während der ersten Schicht, Lüfter, Licht, Motoren aus
 - Beliebige fertige G-Code-Dateien senden und drucken
+- **Modelle finden** auf Printables, Thingiverse und MakerWorld – der Download landet direkt auf der Platte
 - **Nochmal drucken** aus dem Verlauf mit einem Klick – die App behält eine Kopie deiner letzten 15 Drucke
 - **Nachtmodus:** zwischen 22 und 7 Uhr leise mit 50 %, morgens zurück aufs eigene Tempo
 - **Tempo live** von 25 % *Flüster* bis 150 % *Turbo* – die erste Schicht bleibt immer bei höchstens 50 mm/s, damit sie haftet
@@ -46,7 +55,7 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch und Englisch
 
 ![Filament-Lager](docs/bilder/filament.jpg)
 
-**Komfort:** Beim ersten Start sucht die App das Netzwerk ab und richtet den Drucker mit einem Klick ein · **Sichern & Wiederherstellen** aller Drucker, Einstellungen, Spulen und Wartungsstände.
+**Komfort:** **Sprachansagen** (Start, 25/50/75 %, Farbwechsel, fertig) · **Druck-Kalender mit Stromkosten** · **Teilen-Bild** fertiger Drucke für Instagram & TikTok · Beim ersten Start sucht die App das Netzwerk ab und richtet den Drucker mit einem Klick ein · **Sichern & Wiederherstellen** aller Drucker, Einstellungen, Spulen und Wartungsstände.
 
 **Optik:** ruhiges Neon-Gitter im Hintergrund, leuchtender Fortschrittsring, 3D-Karten, sieben Farbthemen – oder Effekte auf *Dezent* für langsamere Rechner.
 

@@ -41,4 +41,13 @@ else:
     print(f"{len(keys)} Texte, {len(missing)} ohne Übersetzung, {len(unused)} unbenutzt")
     for u in unused:
         print("  unbenutzt:", u)
+# Weitere Sprachen: gleiche Schlüssel wie Englisch (fehlende zeigen Englisch)
+other_missing = 0
+for lang in ("es", "fr", "pl"):
+    src = open(os.path.join(root, "i18n", f"{lang}.ts"), encoding="utf-8").read()
+    got = {json.loads('"' + m + '"') for m in re.findall(r'^\s*' + STR + r'\s*:', src, re.M)}
+    miss = sorted(keys - got)
+    other_missing += len(miss)
+    if miss:
+        print(f"  {lang}: {len(miss)} ohne Übersetzung (zeigt Englisch), z. B. {miss[0]!r}")
 sys.exit(1 if missing else 0)

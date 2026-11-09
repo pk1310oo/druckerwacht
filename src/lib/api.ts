@@ -150,7 +150,7 @@ export function historyThumbCandidates(job: { thumbnail: string | null; file: st
 }
 
 /** Teilt dem Backend die Sprache für Meldungen und Benachrichtigungen mit. */
-export async function setBackendLanguage(lang: "de" | "en") {
+export async function setBackendLanguage(lang: string) {
   if (isTauri) await invoke("set_ui_language", { lang }).catch(() => {});
 }
 

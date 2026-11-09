@@ -860,7 +860,8 @@ fn with_pauses(data: Vec<u8>, pauses: Option<&[u32]>) -> Vec<u8> {
 /// Sprache für Meldungen aus dem Backend (von der Oberfläche gesetzt).
 #[tauri::command]
 fn set_ui_language(lang: String) {
-    i18n::set_english(lang == "en");
+    // Meldungen des Backends gibt es auf Deutsch und Englisch; alle anderen Sprachen bekommen Englisch
+    i18n::set_english(lang != "de");
 }
 
 /// Öffnet eine Projektseite im Standardbrowser – nur Adressen des Druckerwacht-Repositorys.
