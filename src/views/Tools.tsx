@@ -13,6 +13,8 @@ import { isTauri, printerControl, sendGcodeFile, switchPrinter, type ControlActi
 import { DASH, fmtDuration, fmtNum, STATE_LABEL, STATE_TONE } from "../lib/format";
 import { capsOf, useCaps } from "../lib/printers";
 import { useMaintenance } from "../lib/maintenance";
+import { setSavedZ, useSavedZ } from "../lib/zoffset";
+import { getState } from "../lib/store";
 import type { PrinterStatus } from "../lib/types";
 import { Badge, Card } from "../components/ui";
 import { t } from "../lib/i18n";
@@ -57,6 +59,8 @@ export function ToolsCard({ s, connected }: { s: PrinterStatus | null; connected
   const [zSum, setZSum] = useState(0);
   useEffect(() => setZSum(0), [file]);
   const { due } = useMaintenance();
+  const savedZ = useSavedZ();
+  const fmtZ = (v: number) => (v > 0 ? "+" : v < 0 ? "−" : "") + Math.abs(v).toFixed(2);
 
   if (!connected || !s) return null;
   const running = s.state === "printing" || s.state === "paused";
@@ -102,6 +106,26 @@ export function ToolsCard({ s, connected }: { s: PrinterStatus | null; connected
                   {Math.abs(d).toFixed(2)}
                 </button>
               ))}
+              {zSum !== 0 && (
+                <button
+                  className="btn sm tool-chip accent"
+                  title={t("Wird bei jedem Druck automatisch angewendet, sobald Heizen und Leveling vorbei sind.")}
+                  onClick={() => {
+                    setSavedZ(getState().settings.activePrinter, savedZ + zSum);
+                    setZSum(0);
+                  }}
+                >
+                  {t("Merken")}
+                </button>
+              )}
+              {savedZ !== 0 && (
+                <span className="small muted z-saved">
+                  {t("Gemerkt: {v} mm, wird bei jedem Druck angewendet", { v: fmtZ(savedZ) })}
+                  <button className="link" onClick={() => setSavedZ(getState().settings.activePrinter, 0)}>
+                    {t("vergessen")}
+                  </button>
+                </span>
+              )}
             </ToolGroup>
           )}
           {caps.temps && (

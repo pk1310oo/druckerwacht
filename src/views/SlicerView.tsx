@@ -16,10 +16,12 @@ import {
   Thermometer,
   Undo2,
   Wand2,
+  Sparkles,
   Download,
   Eye,
   FlaskConical,
   FolderOpen,
+  Gauge,
   Grid3x3,
   Layers,
   ListPlus,
@@ -73,8 +75,9 @@ import { fmtDec, t } from "../lib/i18n";
 import { rememberSentPrint } from "../lib/sentPrint";
 import { queueAdd } from "../lib/extras";
 import { useCaps } from "../lib/printers";
+import { MATERIALS } from "../slicer/materials";
 import { endsAtNight } from "../lib/night";
-import { TOWER_PRESETS, towerName, towerSteps, towerStl, towerTemps, type Tower } from "../slicer/calib";
+import { TOWER_PRESETS, calibHelp, calibStl, calibTitle, makeTower, range, towerSteps, unitOf, type CalibKind, type Tower } from "../slicer/calib";
 import { invoke } from "@tauri-apps/api/core";
 import { activeSpool, costOf, useSpools } from "../lib/spools";
 
@@ -355,7 +358,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       });
       // Temperaturturm: Temperaturwechsel je Block in den G-Code schreiben
       const tw = tower && models.find((m) => m.name === tower.name);
-      if (tw && isTauri) await invoke("gcode_temp_steps", { path: result.gcodePath, steps: towerSteps(tower!.temps, tw.scale[2]) });
+      if (tw && tower!.values.length && isTauri) await invoke("gcode_calib", { path: result.gcodePath, kind: tower!.kind, steps: towerSteps(tower!, tw.scale[2]) });
       setPhase({ kind: "done", result, stale: false });
       await openPreview(result.gcodePath);
     } catch (e) {
@@ -459,15 +462,29 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   const [printOpen, setPrintOpen] = useState(false);
   const [mirrorOpen, setMirrorOpen] = useState(false);
   const [calibOpen, setCalibOpen] = useState(false);
+  const [matOpen, setMatOpen] = useState(false);
+  const [material, setMaterial] = useState<string | null>(null);
   const [tower, setTower] = useState<Tower | null>(null);
   const towerModel = tower ? models.find((m) => m.name === tower.name) : undefined;
-  const addTower = async (from: number, to: number) => {
-    const temps = towerTemps(from, to);
-    const name = towerName(temps);
+  const addTower = async (kind: CalibKind, values: number[]) => {
+    const tw = makeTower(kind, values);
     setCalibOpen(false);
-    await plate.addFile(`${name}.stl`, towerStl(temps.length));
-    setTower({ name, temps });
+    await plate.addFile(`${tw.name}.stl`, calibStl(tw));
+    setTower(tw);
   };
+  /** Ergebnis eines Kalibrier-Drucks ins aktuelle Profil übernehmen */
+  const [applied, setApplied] = useState<number | null>(null);
+  const applyCalib = (v: number) => {
+    if (!tower || !active) return;
+    if (tower.kind === "temp") setOverrides((o) => ({ ...o, nozzle_temperature: String(v) }));
+    if (tower.kind === "retract") setOverrides((o) => ({ ...o, retraction_length: String(v) }));
+    if (tower.kind === "flow") {
+      const cur = Number(effective("filament_flow_ratio", active, overrides)) || 1;
+      setOverrides((o) => ({ ...o, filament_flow_ratio: String(Math.round(cur * v) / 100) }));
+    }
+    setApplied(v);
+  };
+  useEffect(() => setApplied(null), [tower]);
   const measure = plate.getMeasure();
   const bedType = overrides.curr_bed_type ?? "Cool Plate";
 
@@ -542,15 +559,55 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
         />
         <div className="top-actions">
           <span className="tool-wrap">
+            <ToolBtn icon={Sparkles} label="Filament-Assistent" on={matOpen} onClick={() => setMatOpen((o) => !o)} disabled={!!preview} />
+            {matOpen && (
+              <span className="tool-menu card calib-menu">
+                <span className="small muted">{t("Startwerte für dein Material – Düse, Bett und Lüfter:")}</span>
+                {MATERIALS.map((m) => (
+                  <button
+                    key={m.id}
+                    className={`btn sm ghost mat-item${material === m.id ? " on" : ""}`}
+                    title={m.note()}
+                    onClick={() => {
+                      onSetting("nozzle_temperature", String(m.nozzle), ["nozzle_temperature_initial_layer"]);
+                      onSetting("cool_plate_temp", String(m.bed), BED_TEMP_KEYS);
+                      onSetting("fan_min_speed", String(m.fan[0]));
+                      onSetting("fan_max_speed", String(m.fan[1]));
+                      setMaterial(m.id);
+                      setMatOpen(false);
+                      setNotice(t("{m}: Düse {n} °C, Bett {b} °C – {note}", { m: m.name, n: m.nozzle, b: m.bed, note: m.note() }));
+                    }}
+                  >
+                    {m.name} <span className="muted num">{m.nozzle}/{m.bed} °C</span>
+                  </button>
+                ))}
+                <span className="small muted">{t("Richtwerte – die Angabe auf der Spule hat Vorrang.")}</span>
+              </span>
+            )}
+          </span>
+          <span className="tool-wrap">
             <ToolBtn icon={FlaskConical} label="Kalibrier-Druck" on={calibOpen} onClick={() => setCalibOpen((o) => !o)} disabled={!!preview} />
             {calibOpen && (
               <span className="tool-menu card calib-menu">
                 <span className="small muted">{t("Temperaturturm – je Block 5 °C kühler:")}</span>
                 {TOWER_PRESETS.map((p) => (
-                  <button key={p.material} className="btn sm ghost" onClick={() => void addTower(p.from, p.to)}>
+                  <button key={p.material} className="btn sm ghost" onClick={() => void addTower("temp", range(p.from, p.to, 5))}>
                     <Thermometer size={14} /> {p.material} <span className="muted num">{p.from}–{p.to} °C</span>
                   </button>
                 ))}
+                <span className="small muted">{t("Weitere Tests:")}</span>
+                <button className="btn sm ghost" onClick={() => void addTower("flow", range(92, 108, 2))}>
+                  <Layers size={14} /> {t("Fluss-Turm")} <span className="muted num">92–108 %</span>
+                </button>
+                <button className="btn sm ghost" onClick={() => void addTower("retract", range(0.2, 1.6, 0.2))}>
+                  <Scissors size={14} /> {t("Rückzugs-Test")} <span className="muted num">0,2–1,6 mm</span>
+                </button>
+                <button className="btn sm ghost" onClick={() => void addTower("speed", range(100, 250, 25))}>
+                  <Gauge size={14} /> {t("Tempo-Turm")} <span className="muted num">100–250 %</span>
+                </button>
+                <button className="btn sm ghost" onClick={() => void addTower("firstlayer", [])}>
+                  <Grid3x3 size={14} /> {t("Erste-Schicht-Test")} <span className="muted num">5 × 30 mm</span>
+                </button>
               </span>
             )}
           </span>
@@ -817,16 +874,27 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
           {towerModel && tower && (
             <div className="tower-legend small">
               <strong>
-                <FlaskConical size={13} /> {t("Temperaturturm")}
+                <FlaskConical size={13} /> {calibTitle(tower.kind)}
               </strong>
-              <span className="muted">{t("Block 1 ist unten. Nach dem Druck den saubersten Block suchen (Fäden, Überhang-Nase, Oberfläche) – dessen Temperatur ins Filamentprofil übernehmen.")}</span>
-              <div className="tl-grid num">
-                {tower.temps.map((v, i) => (
-                  <span key={i}>
-                    <b>{i + 1}</b> {v} °C
-                  </span>
-                ))}
-              </div>
+              <span className="muted">{calibHelp(tower.kind)}</span>
+              {tower.values.length > 0 && (
+                <div className="tl-grid num">
+                  {tower.values.map((v, i) => (
+                    <button
+                      key={i}
+                      className={`tl-cell${applied === v ? " on" : ""}`}
+                      disabled={tower.kind === "speed"}
+                      title={tower.kind === "speed" ? undefined : t("Diesen Wert ins Profil übernehmen")}
+                      onClick={() => applyCalib(v)}
+                    >
+                      <b>{i + 1}</b> {fmtDec(String(v))} {unitOf(tower.kind)}
+                    </button>
+                  ))}
+                </div>
+              )}
+              {tower.kind !== "speed" && tower.kind !== "firstlayer" && (
+                <span className="muted">{applied != null ? t("Übernommen – zum Behalten das Profil speichern.") : t("Nach dem Druck: Block anklicken, um den Wert zu übernehmen.")}</span>
+              )}
             </div>
           )}
 
@@ -1401,6 +1469,14 @@ function PresetSelect(props: {
   );
 }
 
+/**
+ * Druckdauer bei anderem Tempo (live im Dashboard wählbar). Grob: etwa ein Viertel der Zeit
+ * (Beschleunigen, Bremsen, kurze Wege) skaliert kaum mit; die erste Schicht bleibt bei 100 %.
+ */
+function estimateAt(timeS: number, pct: number) {
+  return timeS * 0.25 + (timeS * 0.75 * 100) / pct;
+}
+
 function ResultCard({ phase }: { phase: Phase }) {
   if (phase.kind === "error") {
     return (
@@ -1429,6 +1505,18 @@ function ResultCard({ phase }: { phase: Phase }) {
         <span className="label">{t("Schichten")}</span>
         <span className="value num">{fmtNum(r.layers)}</span>
       </div>
+      {r.timeS != null && r.timeS > 0 && !phase.stale && (
+        <div className="speed-compare">
+          <span className="label">{t("Dauer je Tempo (ca.)")}</span>
+          <div className="sc-row num">
+            {[50, 75, 100, 125, 150].map((f) => (
+              <span key={f} className={f === 100 ? "on" : ""} title={t("Schätzung: Beschleunigungen und Heizen werden nicht schneller.")}>
+                <b>{f}%</b> {fmtDuration(estimateAt(r.timeS!, f))}
+              </span>
+            ))}
+          </div>
+        </div>
+      )}
       {phase.stale && <p className="hint">{t("Geändert – bitte erneut slicen.")}</p>}
       {r.warnings.map((w) => (
         <p key={w} className="hint" style={{ color: "var(--warning)" }}>

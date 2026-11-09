@@ -4,6 +4,7 @@ import { useStore } from "../lib/store";
 import { discoverPrinters, isTauri, onRemoteChange, rawLogDir, reconnect, remoteInfo, remoteNewToken, saveSettings, type RemoteInfo } from "../lib/api";
 import { Qr } from "../components/Qr";
 import { exportBackup, importBackup } from "../lib/backup";
+import { setVoice, useVoice, voiceSupported } from "../lib/voice";
 import { connectionLabel } from "../lib/format";
 import type { FoundPrinter, PrinterKind, PrinterProfile, Settings } from "../lib/types";
 import { KINDS, defaultPort, hostLabel, kindInfo, newPrinterId } from "../lib/printers";
@@ -219,6 +220,7 @@ export function SettingsView() {
         <div>
           <ToggleRow label={t("Druck fertig")} hint={t("Wenn ein Druck erfolgreich beendet wurde.")} on={draft.notifyFinished} set={(v) => set("notifyFinished", v)} />
           <ToggleRow label={t("Fehler")} hint={t("Druckerfehler, fehlgeschlagene oder abgebrochene Drucke.")} on={draft.notifyError} set={(v) => set("notifyError", v)} />
+          <VoiceRow />
           <ToggleRow label={t("Verbindung verloren")} hint={t("Wenn der Drucker länger als 20 Sekunden nicht erreichbar ist.")} on={draft.notifyDisconnect} set={(v) => set("notifyDisconnect", v)} />
         </div>
       </Card>
@@ -755,5 +757,19 @@ function BackupRow() {
         </button>
       </span>
     </div>
+  );
+}
+
+/** Sprachansagen – gilt nur für diesen Computer */
+function VoiceRow() {
+  const on = useVoice();
+  if (!voiceSupported()) return null;
+  return (
+    <ToggleRow
+      label={t("Sprachansagen")}
+      hint={t("Der Computer sagt an: Druckstart, 25/50/75 %, Farbwechsel, fertig und Fehler.")}
+      on={on}
+      set={setVoice}
+    />
   );
 }

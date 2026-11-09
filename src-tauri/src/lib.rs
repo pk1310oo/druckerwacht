@@ -797,18 +797,18 @@ fn read_gcode(app: AppHandle, path: String) -> Result<String, String> {
 }
 
 /// Speichert den erzeugten G-Code an einen vom Nutzer gewählten Ort.
-/// Kalibrier-Turm: Temperaturstufen in den gesliceten G-Code schreiben (Datei wird ersetzt).
+/// Kalibrier-Turm: Werte je Höhe in den gesliceten G-Code schreiben (Datei wird ersetzt).
 #[tauri::command]
-fn gcode_temp_steps(path: String, steps: Vec<(f64, u32)>) -> Result<(), String> {
+fn gcode_calib(path: String, kind: String, steps: Vec<(f64, f64)>) -> Result<(), String> {
     let p = std::path::PathBuf::from(&path);
     if p.extension().map(|e| e != "gcode").unwrap_or(true) {
         return Err(crate::i18n::tr("Nur G-Code-Dateien.", "G-code files only.").into());
     }
     let text = std::fs::read_to_string(&p).map_err(|e| e.to_string())?;
-    if text.contains("DRUCKERWACHT_TEMP_TOWER") {
+    if text.contains("DRUCKERWACHT_CALIB") {
         return Ok(());
     }
-    std::fs::write(&p, printjob::insert_temps(&text, &steps)).map_err(|e| e.to_string())
+    std::fs::write(&p, printjob::insert_steps(&text, &kind, &steps)?).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -971,6 +971,21 @@ fn backup_path(path: &str) -> Result<std::path::PathBuf, String> {
 #[tauri::command]
 fn backup_write(path: String, contents: String) -> Result<(), String> {
     std::fs::write(backup_path(&path)?, contents).map_err(|_| crate::i18n::tr("Sicherung konnte nicht gespeichert werden.", "The backup could not be saved.").to_string())
+}
+
+/// Teilen-Bild (PNG) speichern
+#[tauri::command]
+fn save_png(path: String, data: String) -> Result<(), String> {
+    use base64::Engine;
+    let p = std::path::PathBuf::from(&path);
+    if p.extension().and_then(|e| e.to_str()).map(|e| e.eq_ignore_ascii_case("png")) != Some(true) {
+        return Err(crate::i18n::tr("Bitte eine .png-Datei wählen.", "Please choose a .png file.").into());
+    }
+    let bytes = base64::engine::general_purpose::STANDARD.decode(data.trim_start_matches("data:image/png;base64,")).map_err(|e| e.to_string())?;
+    if bytes.len() < 8 || &bytes[1..4] != b"PNG" {
+        return Err("PNG?".into());
+    }
+    std::fs::write(p, bytes).map_err(|_| crate::i18n::tr("Bild konnte nicht gespeichert werden.", "The image could not be saved.").to_string())
 }
 
 #[tauri::command]
@@ -1395,9 +1410,10 @@ pub fn run() {
             get_snapshot,
             get_jobs,
             get_printer_history,
-            gcode_temp_steps,
+            gcode_calib,
             remote_info,
             backup_write,
+            save_png,
             reprint_names,
             reprint,
             backup_read,

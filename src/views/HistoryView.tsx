@@ -1,6 +1,10 @@
 import { useEffect, useState } from "react";
 import { Box, Check, CheckCircle2, Loader2, RotateCcw, CircleSlash, Clock, Download, Film, History, Layers, Printer, Ruler, Trash2, Wrench, XCircle } from "lucide-react";
 import { useMaintenance } from "../lib/maintenance";
+import { kwhOf, powerCost, setPower, usePower } from "../lib/power";
+import { saveShareCard } from "../lib/share";
+import { activeSpool, costOf, gramsFromMm, useSpools } from "../lib/spools";
+import { ChevronLeft, ChevronRight, Share2 } from "lucide-react";
 import { onTimelapse, timelapseDelete, timelapseExport, timelapseList, type Timelapse } from "../lib/extras";
 import { useStore } from "../lib/store";
 import { clearJobs, findCopy, historyThumbCandidates, reprint, reprintNames } from "../lib/api";
@@ -22,6 +26,7 @@ export function HistoryView() {
   return (
     <div className="view">
       <StatsCard />
+      <CalendarCard />
       <MaintenanceCard />
       <Timelapses />
       <div className="section-head" style={{ marginTop: 0 }}>
@@ -88,7 +93,10 @@ function PrinterHistoryList() {
               <span className="col-date muted num">{j.startedS ? fmtDateTime(j.startedS * 1000) : "–"}</span>
               <span className="right num">{fmtDuration(j.durationS)}</span>
               <span className="right num muted">{fmtNum(j.materialMm / 1000, 2)} m</span>
-              <span className={`right ${j.finished ? "ok-text" : "muted"}`}>{j.finished ? t("Fertig") : t("Abgebrochen")}</span>
+              <span className={`right ${j.finished ? "ok-text" : "muted"}`}>
+                {j.finished && <ShareButton job={{ file: j.file, startMs: j.startedS * 1000, durationS: j.durationS, ok: true, mm: j.materialMm }} />}
+                {j.finished ? t("Fertig") : t("Abgebrochen")}
+              </span>
             </div>
           ))}
         </div>
@@ -167,7 +175,10 @@ function AppHistory() {
                   </span>
                   <span className="col-date muted num">{fmtDateTime(j.endedMs)}</span>
                   <span className="right num">{fmtDuration(j.durationS)}</span>
-                  <span className="right muted">{r.label}</span>
+                  <span className="right muted">
+                    {j.result === "finished" && <ShareButton job={{ file: j.file, startMs: j.startedMs, durationS: j.durationS, ok: true, mm: null }} />}
+                    {r.label}
+                  </span>
                 </div>
               );
             })}
@@ -315,12 +326,7 @@ function MaintenanceCard() {
 
 /** Statistik: Erfolgsquote, Druckstunden je Woche (letzte 8 Wochen) */
 function StatsCard() {
-  const hist = useStore((s) => s.printerHistory);
-  const app = useStore((s) => s.jobs);
-  // Verlauf vom Drucker hat mehr Angaben (Filament); sonst der App-Verlauf
-  const jobs = hist?.jobs.length
-    ? hist.jobs.map((j) => ({ startMs: j.startedS * 1000, durationS: j.durationS, ok: j.finished, mm: j.materialMm }))
-    : app.map((j) => ({ startMs: j.startedMs, durationS: j.durationS, ok: j.result === "finished", mm: null as number | null }));
+  const jobs = useAllJobs();
   if (jobs.length < 2) return null;
   const ok = jobs.filter((j) => j.ok).length;
   const avg = jobs.reduce((a, j) => a + j.durationS, 0) / jobs.length;
@@ -397,5 +403,169 @@ function ReprintButton({ name }: { name: string }) {
       </button>
       {step !== "idle" && <span className="small" style={{ color: "var(--warning)" }}>{step}</span>}
     </span>
+  );
+}
+
+interface AnyJob {
+  file: string;
+  startMs: number;
+  durationS: number;
+  ok: boolean;
+  /** Filament in mm (nur aus dem Verlauf des Druckers) */
+  mm: number | null;
+}
+
+/** Verlauf vom Drucker (hat Filamentangaben), sonst der App-Verlauf */
+function useAllJobs(): AnyJob[] {
+  const hist = useStore((s) => s.printerHistory);
+  const app = useStore((s) => s.jobs);
+  return hist?.jobs.length
+    ? hist.jobs.map((j) => ({ file: j.file, startMs: j.startedS * 1000, durationS: j.durationS, ok: j.finished, mm: j.materialMm }))
+    : app.map((j) => ({ file: j.file, startMs: j.startedMs, durationS: j.durationS, ok: j.result === "finished", mm: null }));
+}
+
+/** Druck-Kalender: Drucke je Tag, Monatssumme mit Strom und Kosten */
+function CalendarCard() {
+  const jobs = useAllJobs();
+  const power = usePower();
+  const spools = useSpools();
+  const [month, setMonth] = useState(() => {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), 1).getTime();
+  });
+  const [day, setDay] = useState<number | null>(null);
+  if (jobs.length === 0) return null;
+  const m = new Date(month);
+  const next = new Date(m.getFullYear(), m.getMonth() + 1, 1).getTime();
+  const inMonth = jobs.filter((j) => j.startMs >= month && j.startMs < next);
+  const firstDow = (m.getDay() + 6) % 7;
+  const days = new Date(m.getFullYear(), m.getMonth() + 1, 0).getDate();
+  const byDay = (d: number) => inMonth.filter((j) => new Date(j.startMs).getDate() === d);
+  const hours = inMonth.reduce((a, j) => a + j.durationS, 0) / 3600;
+  const kwh = inMonth.reduce((a, j) => a + kwhOf(j.durationS, power), 0);
+  const grams = inMonth.reduce((a, j) => a + (j.mm != null ? gramsFromMm(j.mm) : 0), 0);
+  const filamentCost = grams > 0 ? costOf(grams, activeSpool(spools)) : null;
+  const today = new Date();
+  const shown = day != null ? byDay(day) : [];
+  const shift = (n: number) => {
+    setDay(null);
+    setMonth(new Date(m.getFullYear(), m.getMonth() + n, 1).getTime());
+  };
+  return (
+    <Card className="cal-card">
+      <div className="chart-head">
+        <span className="label">{t("Druck-Kalender")}</span>
+        <span className="cal-nav">
+          <button className="btn sm ghost" aria-label={t("Voriger Monat")} onClick={() => shift(-1)}>
+            <ChevronLeft size={14} />
+          </button>
+          <b>{m.toLocaleDateString(undefined, { month: "long", year: "numeric" })}</b>
+          <button className="btn sm ghost" aria-label={t("Nächster Monat")} disabled={next > Date.now()} onClick={() => shift(1)}>
+            <ChevronRight size={14} />
+          </button>
+        </span>
+      </div>
+      <div className="cal-body">
+        <div className="cal-grid">
+          {[t("Mo"), t("Di"), t("Mi"), t("Do"), t("Fr"), t("Sa"), t("So")].map((d) => (
+            <span key={d} className="cal-dow">
+              {d}
+            </span>
+          ))}
+          {Array.from({ length: firstDow }, (_, i) => (
+            <span key={`e${i}`} />
+          ))}
+          {Array.from({ length: days }, (_, i) => {
+            const d = i + 1;
+            const list = byDay(d);
+            const isToday = today.getFullYear() === m.getFullYear() && today.getMonth() === m.getMonth() && today.getDate() === d;
+            return (
+              <button key={d} className={`cal-day${list.length ? " has" : ""}${isToday ? " today" : ""}${day === d ? " on" : ""}`} disabled={!list.length} onClick={() => setDay(day === d ? null : d)}>
+                <span className="num">{d}</span>
+                <span className="cal-dots">
+                  {list.slice(0, 4).map((j, k) => (
+                    <i key={k} className={j.ok ? "ok" : "bad"} />
+                  ))}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="cal-side">
+          <div className="cal-sum">
+            <div>
+              <span className="label">{t("Drucke")}</span>
+              <b className="num">{inMonth.length}</b>
+            </div>
+            <div>
+              <span className="label">{t("Druckzeit")}</span>
+              <b className="num">{fmtNum(hours, 1)} h</b>
+            </div>
+            <div>
+              <span className="label">{t("Strom")}</span>
+              <b className="num">{fmtNum(kwh, 1)} kWh</b>
+              <span className="small muted num">≈ {fmtNum(kwh * power.price, 2)} €</span>
+            </div>
+            {filamentCost != null && (
+              <div>
+                <span className="label">{t("Filament")}</span>
+                <b className="num">{fmtNum(grams, 0)} g</b>
+                <span className="small muted num">≈ {fmtNum(filamentCost, 2)} €</span>
+              </div>
+            )}
+          </div>
+          {shown.length > 0 && (
+            <div className="cal-list">
+              {shown.map((j) => (
+                <div key={j.startMs} className="small">
+                  <span className={j.ok ? "ok-text" : "muted"}>{j.ok ? "✓" : "✕"}</span> <span className="file-name">{j.file}</span>
+                  <span className="muted num">
+                    {" "}
+                    · {fmtDuration(j.durationS)} · {fmtNum(powerCost(j.durationS, power), 2)} € {t("Strom")}
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+          <div className="cal-power small">
+            <label>
+              {t("Leistung")}
+              <input className="input num mini" type="number" min={20} max={1000} value={power.watts} onChange={(e) => setPower({ watts: Math.max(20, Math.min(1000, Number(e.target.value) || 120)) })} /> W
+            </label>
+            <label>
+              {t("Strompreis")}
+              <input className="input num mini" type="number" step={0.01} min={0} max={2} value={power.price} onChange={(e) => setPower({ price: Math.max(0, Math.min(2, Number(e.target.value) || 0)) })} /> €/kWh
+            </label>
+          </div>
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/** „Teilen“: Bild vom fertigen Druck speichern */
+function ShareButton({ job }: { job: AnyJob }) {
+  const printer = useStore((s) => s.settings.printerName);
+  const spools = useSpools();
+  const power = usePower();
+  const [done, setDone] = useState(false);
+  const grams = job.mm != null ? gramsFromMm(job.mm) : null;
+  const fil = grams != null ? costOf(grams, activeSpool(spools)) : null;
+  const cost = (fil ?? 0) + powerCost(job.durationS, power);
+  return (
+    <button
+      className="btn sm ghost share-btn"
+      title={t("Teilen-Bild speichern (für Instagram, TikTok & Co.)")}
+      onClick={() =>
+        void saveShareCard({ file: job.file, durationS: job.durationS, grams, cost, endedMs: job.startMs + job.durationS * 1000, printer, ok: job.ok }).then((ok) => {
+          if (ok) {
+            setDone(true);
+            setTimeout(() => setDone(false), 2000);
+          }
+        })
+      }
+    >
+      {done ? <Check size={13} /> : <Share2 size={13} />}
+    </button>
   );
 }

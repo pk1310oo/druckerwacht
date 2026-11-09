@@ -114,18 +114,59 @@ pub fn insert_pauses(text: &str, layers: &[u32]) -> String {
     out
 }
 
-/// Temperaturwechsel für Kalibrier-Türme: setzt `M104` direkt nach dem ersten Schichtwechsel,
-/// dessen Höhe (`;Z:`) die Stufe erreicht. Stufen: (Höhe in mm, Düse in °C).
-pub fn insert_temps(text: &str, steps: &[(f64, u32)]) -> String {
-    let mut want: Vec<(f64, u32)> = steps.iter().copied().filter(|(z, t)| z.is_finite() && *z >= 0.0 && *t <= 300).collect();
+/// Kalibrier-Türme: ab einer Höhe (`;Z:` nach `;LAYER_CHANGE`) gilt ein neuer Wert.
+/// - `temp`: Düsentemperatur (M104), `flow`: Flussfaktor % (M221), `speed`: Tempo % (M220)
+/// - `retract`: Rückzugslänge in mm – ersetzt die Länge der Rückzüge (`G1 E-x F…`) und des
+///   Wiedereinzugs (`G1 Ex F…`); braucht relative Extrusion (M83), wie in den KE-Profilen.
+pub fn insert_steps(text: &str, kind: &str, steps: &[(f64, f64)]) -> Result<String, String> {
+    let (lo, hi) = match kind {
+        "temp" => (150.0, 300.0),
+        "flow" => (50.0, 150.0),
+        "speed" => (10.0, 300.0),
+        "retract" => (0.0, 8.0),
+        _ => return Err("unknown calibration".into()),
+    };
+    let mut want: Vec<(f64, f64)> = steps.iter().copied().filter(|(z, v)| z.is_finite() && *z >= 0.0 && *v >= lo && *v <= hi).collect();
     want.sort_by(|a, b| a.0.total_cmp(&b.0));
     if want.is_empty() {
-        return text.to_string();
+        return Ok(text.to_string());
+    }
+    if kind == "retract" && !text.lines().any(|l| l.starts_with("M83")) {
+        return Err(crate::i18n::tr("Der Rückzugs-Test braucht relative Extrusion (M83).", "The retraction test needs relative extrusion (M83).").into());
     }
     let mut out = String::with_capacity(text.len() + want.len() * 48);
     let mut next = 0usize;
     let mut after_change = false;
+    let mut retract: Option<f64> = None;
+    // Beim Wischen (Bewegung mit negativem E) zurückgezogenes Filament muss beim Wiedereinzug mit
+    let mut wiped = 0.0f64;
     for line in text.split_inclusive('\n') {
+        if let (Some(_), true) = (retract, kind == "retract") {
+            if line.starts_with("G1 X") || line.starts_with("G1 Y") {
+                if let Some(e) = line.split_whitespace().find_map(|w| w.strip_prefix('E')).and_then(|v| v.parse::<f64>().ok()) {
+                    if e < 0.0 {
+                        wiped += -e;
+                    }
+                }
+            }
+        }
+        if let (Some(r), true) = (retract, kind == "retract") {
+            if let Some(rest) = line.strip_prefix("G1 E") {
+                // nur reine Rückzüge ohne Bewegung: „G1 E-.5 F1800“
+                let mut parts = rest.trim_end().split(' ');
+                let e = parts.next().and_then(|v| v.parse::<f64>().ok());
+                let f = parts.next().filter(|f| f.starts_with('F'));
+                if let (Some(e), Some(f), None) = (e, f, parts.next()) {
+                    if e < 0.0 {
+                        out.push_str(&format!("G1 E-{r:.2} {f}\n"));
+                    } else {
+                        out.push_str(&format!("G1 E{:.2} {f}\n", r + wiped));
+                        wiped = 0.0;
+                    }
+                    continue;
+                }
+            }
+        }
         out.push_str(line);
         if line.starts_with(";LAYER_CHANGE") {
             after_change = true;
@@ -134,18 +175,26 @@ pub fn insert_temps(text: &str, steps: &[(f64, u32)]) -> String {
         if after_change {
             if let Some(z) = line.strip_prefix(";Z:").and_then(|v| v.trim().parse::<f64>().ok()) {
                 after_change = false;
-                let mut temp = None;
+                let mut val = None;
                 while next < want.len() && z + 1e-6 >= want[next].0 {
-                    temp = Some(want[next].1);
+                    val = Some(want[next].1);
                     next += 1;
                 }
-                if let Some(t) = temp {
-                    out.push_str(&format!("M104 S{t} ; DRUCKERWACHT_TEMP_TOWER\n"));
+                if let Some(v) = val {
+                    match kind {
+                        "temp" => out.push_str(&format!("M104 S{v:.0} ; DRUCKERWACHT_CALIB\n")),
+                        "flow" => out.push_str(&format!("M221 S{v:.0} ; DRUCKERWACHT_CALIB\n")),
+                        "speed" => out.push_str(&format!("M220 S{v:.0} ; DRUCKERWACHT_CALIB\n")),
+                        _ => {
+                            out.push_str(&format!("; DRUCKERWACHT_CALIB retract {v:.2}\n"));
+                            retract = Some(v);
+                        }
+                    }
                 }
             }
         }
     }
-    out
+    Ok(out)
 }
 
 /// Lädt `data` als `file_name` hoch. `progress` erhält 0…1.
@@ -335,14 +384,25 @@ mod tests {
     }
 
     #[test]
-    fn temperature_tower_steps() {
-        let g = "G28\n;LAYER_CHANGE\n;Z:0.2\nG1 E1\n;LAYER_CHANGE\n;Z:5.0\nG1 E1\n;LAYER_CHANGE\n;Z:10.2\nG1 E1\n;LAYER_CHANGE\n;Z:20.0\nG1 E1\n";
-        let out = insert_temps(g, &[(10.0, 220), (0.6, 230), (20.0, 215), (30.0, 999)]);
-        assert!(out.contains(";Z:5.0\nM104 S230 ; DRUCKERWACHT_TEMP_TOWER\n"));
+    fn calibration_steps() {
+        let g = "M83\nG28\n;LAYER_CHANGE\n;Z:0.2\nG1 E-.5 F1800\nG1 X1 Y1\nG1 E.5 F1800\n;LAYER_CHANGE\n;Z:5.0\nG1 E1\n;LAYER_CHANGE\n;Z:10.2\nG1 E-.5 F1800\nG1 X2 E.3\nG1 E.5 F1800\n;LAYER_CHANGE\n;Z:20.0\nG1 E1\n";
+        let out = insert_steps(g, "temp", &[(10.0, 220.0), (0.6, 230.0), (20.0, 215.0), (30.0, 999.0)]).unwrap();
+        assert!(out.contains(";Z:5.0\nM104 S230 ; DRUCKERWACHT_CALIB\n"));
         assert!(out.contains(";Z:10.2\nM104 S220"));
         assert!(out.contains(";Z:20.0\nM104 S215"));
         assert_eq!(out.matches("M104").count(), 3);
-        assert_eq!(insert_temps(g, &[]), g);
+        assert_eq!(insert_steps(g, "temp", &[]).unwrap(), g);
+        let flow = insert_steps(g, "flow", &[(10.0, 95.0)]).unwrap();
+        assert!(flow.contains(";Z:10.2\nM221 S95"));
+        // Rückzug: unten unverändert, ab 10 mm 1,2 mm – Bewegungen mit E bleiben unberührt
+        let r = insert_steps(g, "retract", &[(10.0, 1.2)]).unwrap();
+        assert!(r.contains(";Z:0.2\nG1 E-.5 F1800\n"));
+        assert!(r.contains("G1 E-1.20 F1800\nG1 X2 E.3\nG1 E1.20 F1800\n"));
+        assert!(insert_steps("G28\n", "retract", &[(1.0, 1.0)]).is_err());
+        // Wischen mit Rückzug: Wiedereinzug gleicht das gewischte Filament aus
+        let w = insert_steps("M83\n;LAYER_CHANGE\n;Z:1\nG1 E-.3 F1800\nG1 X5 Y5 E-.2\nG1 E.5 F1800\n", "retract", &[(0.5, 1.0)]).unwrap();
+        assert!(w.contains("G1 E-1.00 F1800\nG1 X5 Y5 E-.2\nG1 E1.20 F1800\n"));
+        assert!(insert_steps(g, "explode", &[(1.0, 1.0)]).is_err());
     }
 
     #[test]

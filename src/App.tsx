@@ -10,6 +10,8 @@ import { consume } from "./lib/spools";
 import { useFxLevel } from "./lib/fx";
 import { useWebcamTimelapse } from "./lib/webcam";
 import { useNightAutomation } from "./lib/night";
+import { useZOffsetAutomation } from "./lib/zoffset";
+import { useVoiceAnnouncements } from "./lib/voice";
 import { useStore } from "./lib/store";
 import { resolveLang, setLang } from "./lib/i18n";
 import { setBackendLanguage } from "./lib/api";
@@ -44,6 +46,8 @@ export default function App() {
   const fx = useFxLevel();
   useWebcamTimelapse();
   useNightAutomation();
+  useZOffsetAutomation();
+  useVoiceAnnouncements();
 
   // Kamera-Ansicht verlassen, wenn die Kamera entfernt wurde
   useEffect(() => {
