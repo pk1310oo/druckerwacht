@@ -5,7 +5,7 @@
 **Die kostenlose Komplett-App für deine 3D-Drucker: überwachen, slicen und steuern per WLAN – gemacht für den Creality Ender 3 V3 KE, und sie steuert auch K1, Klipper-, OctoPrint- und Prusa-Drucker.**
 Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch, Englisch, Spanisch, Französisch und Polnisch
 
-[**⬇ Download**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Website](https://pk1310oo.github.io/druckerwacht/) · [Fehler melden / Wünsche](https://github.com/pk1310oo/druckerwacht/issues) · [Mitmachen](CONTRIBUTING.md)
+[**⬇ Download**](https://github.com/pk1310oo/druckerwacht/releases/latest) · [Website](https://pk1310oo.github.io/druckerwacht/) · [Fehler melden / Wünsche](https://github.com/pk1310oo/druckerwacht/issues) · [Mitmachen](CONTRIBUTING.md) · [☕ Auf Ko-fi unterstützen](https://ko-fi.com/prisma76863)
 
 ![Druckerwacht-Dashboard während eines Drucks](docs/bilder/neon.jpg)
 

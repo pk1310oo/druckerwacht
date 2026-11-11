@@ -1356,3 +1356,5 @@
 .top-menu-layer { position: fixed; z-index: 90; }
 .top-menu-layer > .tool-menu { position: static; transform: none; }
 .lang-select { width: 180px; }
+.kofi-btn { border-color: rgb(var(--accent-rgb) / 0.45); background: var(--accent-soft); color: var(--accent-light); }
+.kofi-btn:hover { background: rgb(var(--accent-rgb) / 0.22); }

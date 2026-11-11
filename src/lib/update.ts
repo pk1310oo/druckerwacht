@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { isTauri } from "./api";
 
 export const APP_VERSION = __APP_VERSION__;
+export const KOFI_URL = "https://ko-fi.com/prisma76863";
 export const REPO_URL = "https://github.com/pk1310oo/druckerwacht";
 
 export interface UpdateInfo {

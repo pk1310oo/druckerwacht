@@ -771,4 +771,6 @@ export const FR: Record<string, string> = {
   "Neu heruntergeladen:": "Tout juste téléchargé :",
   "Warte auf deinen Download …": "En attente de ton téléchargement …",
   "Auf die Platte": "Sur le plateau",
+  "Druckerwacht unterstützen": "Soutenir Druckerwacht",
+  "Die App bleibt kostenlos und werbefrei. Wenn sie dir Zeit und Filament spart, hält ein Kaffee die Entwicklung am Laufen.": "L’app reste gratuite et sans publicité. Si elle te fait gagner du temps et du filament, un café fait avancer le développement.",
 };

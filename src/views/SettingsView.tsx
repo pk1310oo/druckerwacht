@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BrainCircuit, Bug, Check, Copy, Download, ExternalLink, FolderGit2, KeyRound, Loader2, Pencil, PlugZap, Plus, Radar, RefreshCw, Search, Send, Smartphone, Trash2, Wifi } from "lucide-react";
+import { BrainCircuit, Bug, Coffee, Check, Copy, Download, ExternalLink, FolderGit2, KeyRound, Loader2, Pencil, PlugZap, Plus, Radar, RefreshCw, Search, Send, Smartphone, Trash2, Wifi } from "lucide-react";
 import { useStore } from "../lib/store";
 import { aiDownload, discoverPrinters, isTauri, onRemoteChange, rawLogDir, reconnect, remoteInfo, remoteNewToken, saveSettings, type RemoteInfo } from "../lib/api";
 import { Qr } from "../components/Qr";
@@ -12,7 +12,7 @@ import { Card, Segmented, Switch } from "../components/ui";
 import { t } from "../lib/i18n";
 import { THEMES, THEME_IDS } from "../lib/theme";
 import { slicerInfo, type SlicerInfo } from "../slicer/api";
-import { APP_VERSION, REPO_URL, checkForUpdate, openProjectLink, type UpdateInfo } from "../lib/update";
+import { APP_VERSION, KOFI_URL, REPO_URL, checkForUpdate, openProjectLink, type UpdateInfo } from "../lib/update";
 import { cameraProbe, ntfyTest, randomTopic } from "../lib/extras";
 import { setFxLevel, useFxLevel, type FxLevel } from "../lib/fx";
 import { listWebcams, type Webcam } from "../lib/webcam";
@@ -345,6 +345,15 @@ function AboutCard() {
               <FolderGit2 size={14} /> GitHub <ExternalLink size={12} />
             </button>
           </span>
+        </div>
+        <div className="toggle-row">
+          <div>
+            <div>{t("Druckerwacht unterstützen")}</div>
+            <div className="hint">{t("Die App bleibt kostenlos und werbefrei. Wenn sie dir Zeit und Filament spart, hält ein Kaffee die Entwicklung am Laufen.")}</div>
+          </div>
+          <button className="btn sm kofi-btn" onClick={() => open(KOFI_URL)}>
+            <Coffee size={14} /> Ko-fi <ExternalLink size={12} />
+          </button>
         </div>
         <div className="toggle-row" style={{ display: "block" }}>
           <div className="hint">

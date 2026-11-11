@@ -430,6 +430,12 @@
     background: radial-gradient(360px circle at var(--mx, 50%) var(--my, 50%), rgba(217,119,87,.16), transparent 60%); }
   .spot:hover::before { opacity: 1; }
 
+  .btn.kofi { gap: 8px; border-color: rgba(255, 154, 116, .45); background: rgba(217, 119, 87, .12); color: #ffd2bf; }
+  .btn.kofi:hover { background: rgba(217, 119, 87, .22); border-color: rgba(255, 154, 116, .7); }
+  .btn.kofi svg { width: 16px; height: 16px; flex: none; }
+  .nav-links a { white-space: nowrap; }
+  @media (max-width: 1320px) { .nav .btn.kofi span { display: none; } .nav .btn.kofi { padding-inline: 10px; } }
+  .kofi-note { margin-top: 18px; color: var(--muted, #a3a3a3); font-size: 15px; }
   @media (max-width: 900px) {
     .float { display: none; }
     .stats, .live-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -604,6 +610,7 @@
     section.block { padding-block: 104px 0; }
     .nav-links { display: none; }
     .nav .lang { margin-left: auto; }
+    .nav .btn.kofi span { display: none; }
   }
   @media (max-width: 520px) {
     .hero { padding-block: 56px 0; }
@@ -635,6 +642,7 @@
       <a href="#download">Download</a>
     </nav>
     <div class="lang" role="group" aria-label="Sprache / Language"><button type="button" data-lang="de">DE</button><button type="button" data-lang="en">EN</button></div>
+    <a class="btn sm kofi" href="https://ko-fi.com/prisma76863" target="_blank" rel="noopener" title="Druckerwacht auf Ko-fi unterstützen" aria-label="Druckerwacht auf Ko-fi unterstützen"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/></svg><span data-en="Support">Unterstützen</span></a>
     <a class="btn sm primary" href="#download" data-en="Download">Herunterladen</a>
   </div>
 </header>
@@ -644,7 +652,7 @@
   <section class="hero">
     <canvas id="printer" aria-hidden="true"></canvas>
     <div class="wrap">
-      <div class="eyebrow rise"><span class="dot"></span><span data-en="Version 0.15.0 Beta · free &amp; open source · Ender 3 V3 KE, K1, Klipper, OctoPrint &amp; Prusa">Version 0.15.0 Beta · kostenlos &amp; Open Source · Ender 3 V3 KE, K1, Klipper, OctoPrint &amp; Prusa</span></div>
+      <div class="eyebrow rise"><span class="dot"></span><span data-en="Version 0.15.1 Beta · free &amp; open source · Ender 3 V3 KE, K1, Klipper, OctoPrint &amp; Prusa">Version 0.15.1 Beta · kostenlos &amp; Open Source · Ender 3 V3 KE, K1, Klipper, OctoPrint &amp; Prusa</span></div>
       <h1 class="rise d1" data-en="Your printer.&lt;br&gt;&lt;em&gt;Calmly&lt;/em&gt; in view.">Dein Drucker.<br><em>In Ruhe</em> im Blick.</h1>
       <p class="lead rise d2" data-en="Druckerwacht monitors your Ender 3 V3 KE live over Wi-Fi, slices your models with the OrcaSlicer engine and sends them straight to the printer – and it runs your K1, Klipper, OctoPrint and Prusa printers at the same time. One clean app for everything – in English or German.">Druckerwacht überwacht deinen Ender 3 V3 KE live über das WLAN, slict deine Modelle mit dem OrcaSlicer-Motor und schickt sie direkt an den Drucker – und steuert nebenbei auch K1-, Klipper-, OctoPrint- und Prusa-Drucker. Eine App für alles, klar und auf Deutsch oder Englisch.</p>
       <div class="hero-actions rise d3">
@@ -994,8 +1002,8 @@
           <p data-en="Licensed under the AGPL-3.0. Read it, change it, share it – and improvements stay open for everyone.">Lizenziert unter der AGPL-3.0. Lesen, verändern, weitergeben, und Verbesserungen bleiben für alle offen.</p>
         </div>
         <div class="card spot reveal">
-          <div class="card-head"><span class="os"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg></span><h3 data-en="More printers">Weitere Drucker</h3></div>
-          <p data-en="Coming next: the Creality K1 series and Klipper printers via Moonraker. Recordings from your printer help.">Als Nächstes geplant: die Creality-K1-Reihe und Klipper-Drucker über Moonraker. Mitschnitte deines Druckers helfen dabei.</p>
+          <div class="card-head"><span class="os"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 2v4M12 18v4M4.9 4.9l2.8 2.8M16.3 16.3l2.8 2.8M2 12h4M18 12h4M4.9 19.1l2.8-2.8M16.3 7.7l2.8-2.8"/></svg></span><h3 data-en="Many printers">Viele Drucker</h3></div>
+          <p data-en="Creality KE and K1, Klipper via Moonraker, OctoPrint and Prusa via PrusaLink are supported. Feedback from your printer helps to get even better.">Creality KE und K1, Klipper über Moonraker, OctoPrint und Prusa über PrusaLink werden unterstützt. Rückmeldungen von deinem Drucker helfen, noch besser zu werden.</p>
         </div>
         <div class="card spot reveal">
           <div class="card-head"><span class="os"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M7.9 20A9 9 0 1 0 4 16.1L2 22Z"/></svg></span><h3 data-en="Get involved">Mitmachen</h3></div>
@@ -1005,7 +1013,9 @@
       <div class="os-actions reveal">
         <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht" target="_blank" rel="noopener" data-en="View repository">Zum Repository</a>
         <a class="btn" href="https://github.com/pk1310oo/druckerwacht/issues" target="_blank" rel="noopener" data-en="Report bugs &amp; ideas">Fehler melden &amp; Wünsche</a>
+        <a class="btn kofi" href="https://ko-fi.com/prisma76863" target="_blank" rel="noopener"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17 8h1a4 4 0 1 1 0 8h-1"/><path d="M3 8h14v9a4 4 0 0 1-4 4H7a4 4 0 0 1-4-4Z"/><path d="M6 2v2M10 2v2M14 2v2"/></svg><span data-en="Buy me a coffee">Spendier mir einen Kaffee</span></a>
       </div>
+      <p class="kofi-note reveal" data-en="Druckerwacht stays free and ad-free. If it saves you time and filament, a coffee on Ko-fi keeps development going. ☕">Druckerwacht bleibt kostenlos und werbefrei. Wenn dir die App Zeit und Filament spart, hält ein Kaffee auf Ko-fi die Entwicklung am Laufen. ☕</p>
     </div>
   </section>
 
@@ -1031,7 +1041,7 @@
           </ol>
           <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/latest" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-            Druckerwacht_0.15.0_x64-setup.exe
+            Druckerwacht_0.15.1_x64-setup.exe
           </a>
         </div>
 
@@ -1053,7 +1063,7 @@
           </div>
           <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/latest" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-            Druckerwacht_0.15.0_aarch64.dmg
+            Druckerwacht_0.15.1_aarch64.dmg
           </a>
         </div>
 
@@ -1069,7 +1079,7 @@
             <li data-en="Download and install the &lt;b&gt;.deb&lt;/b&gt; – an update replaces the old version:"><b>.deb</b> laden und installieren, ein Update ersetzt die alte Version:</li>
           </ol>
           <div class="cmd">
-            <pre id="cmd-linux">sudo apt install ./Druckerwacht_0.15.0_amd64.deb</pre>
+            <pre id="cmd-linux">sudo apt install ./Druckerwacht_0.15.1_amd64.deb</pre>
             <button class="copy" type="button" data-copy="cmd-linux" data-en="Copy">Kopieren</button>
           </div>
           <ol class="steps" start="2">
@@ -1077,7 +1087,7 @@
           </ol>
           <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/latest" target="_blank" rel="noopener">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
-            Druckerwacht_0.15.0_amd64.deb
+            Druckerwacht_0.15.1_amd64.deb
           </a>
         </div>
       </div>
@@ -1106,7 +1116,7 @@
 
 <footer>
   <div class="wrap">
-    <span data-en="Druckerwacht <span class=&quot;num&quot;>0.15.0</span> · by <a href=&quot;https://github.com/pk1310oo&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>pk1310oo</a> · built for the Ender 3 V3 KE">Druckerwacht <span class="num">0.15.0</span> · von <a href="https://github.com/pk1310oo" target="_blank" rel="noopener">pk1310oo</a> · gebaut für den Ender 3 V3 KE</span>
+    <span data-en="Druckerwacht <span class=&quot;num&quot;>0.15.1</span> · by <a href=&quot;https://github.com/pk1310oo&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>pk1310oo</a> · built for the Ender 3 V3 KE">Druckerwacht <span class="num">0.15.1</span> · von <a href="https://github.com/pk1310oo" target="_blank" rel="noopener">pk1310oo</a> · gebaut für den Ender 3 V3 KE</span>
     <span data-en="Open source under AGPL-3.0 · <a href=&quot;https://github.com/pk1310oo/druckerwacht&quot; target=&quot;_blank&quot; rel=&quot;noopener&quot;>Source code</a> · Not an official Creality product. Slicing engine: OrcaSlicer (AGPL-3.0).">Open Source unter AGPL-3.0 · <a href="https://github.com/pk1310oo/druckerwacht" target="_blank" rel="noopener">Quellcode</a> · Kein offizielles Creality-Produkt. Slicer-Motor: OrcaSlicer (AGPL-3.0).</span>
   </div>
 </footer>

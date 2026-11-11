@@ -802,4 +802,6 @@ export const EN: Record<string, string> = {
   "Neu heruntergeladen:": "Just downloaded:",
   "Warte auf deinen Download …": "Waiting for your download …",
   "Auf die Platte": "Put on plate",
+  "Druckerwacht unterstützen": "Support Druckerwacht",
+  "Die App bleibt kostenlos und werbefrei. Wenn sie dir Zeit und Filament spart, hält ein Kaffee die Entwicklung am Laufen.": "The app stays free and ad-free. If it saves you time and filament, a coffee keeps development going.",
 };

@@ -872,7 +872,8 @@ fn open_project_link(url: String) -> Result<(), String> {
     let error_search = url.strip_prefix("https://duckduckgo.com/?q=creality+error+").map(|c| !c.is_empty() && c.len() <= 6 && c.chars().all(|x| x.is_ascii_digit())).unwrap_or(false);
     // Modellsuche auf den großen Plattformen
     let model_search = ["https://www.printables.com/search/models?q=", "https://www.thingiverse.com/search?q=", "https://makerworld.com/en/search/models?keyword="].iter().any(|p| url.starts_with(p));
-    let ok = (url == BASE || url.starts_with(&format!("{BASE}/")) || error_search || model_search)
+    let kofi = url == "https://ko-fi.com/prisma76863";
+    let ok = (url == BASE || url.starts_with(&format!("{BASE}/")) || error_search || model_search || kofi)
         && url.chars().all(|c| c.is_ascii_alphanumeric() || "/:.-_?=&#%+".contains(c));
     if !ok {
         return Err(crate::i18n::tr("Diese Adresse darf nicht geöffnet werden.", "This address may not be opened.").into());
