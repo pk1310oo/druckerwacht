@@ -534,6 +534,8 @@
     color: #dcdad3;
     white-space: pre;
   }
+  .cmd-alt { margin: 10px 0 14px; font-size: 13px; color: var(--muted, #a3a3a3); line-height: 1.5; }
+  .cmd-alt code { font: 12px var(--mono); color: #dcdad3; background: #0e0e0d; border: 1px solid var(--line); border-radius: 6px; padding: 1px 6px; word-break: break-all; }
   .copy {
     flex: none;
     height: 28px;
@@ -1054,13 +1056,21 @@
             </div>
           </div>
           <ol class="steps">
-            <li data-en="Download the &lt;b&gt;.dmg&lt;/b&gt; and drag Druckerwacht into &lt;b&gt;Applications&lt;/b&gt;."><b>.dmg</b> laden und Druckerwacht in <b>Programme</b> ziehen.</li>
-            <li data-en="Allow it once, since the app isn’t registered with Apple:">Einmal freigeben, weil die App nicht bei Apple registriert ist:</li>
+            <li data-en="Open the &lt;b&gt;Terminal&lt;/b&gt;, paste this and press Enter – it downloads the latest version, installs it and starts it (also for updates):"><b>Terminal</b> öffnen, das hier einfügen und Enter drücken – lädt die neueste Version, installiert und startet sie (auch für Updates):</li>
           </ol>
           <div class="cmd">
-            <pre id="cmd-mac">xattr -dr com.apple.quarantine /Applications/Druckerwacht.app</pre>
+            <pre id="cmd-mac">curl -sL https://api.github.com/repos/pk1310oo/druckerwacht/releases/latest |
+  grep -o 'https://[^"]*aarch64\.dmg' | head -1 |
+  xargs curl -sL -o /tmp/Druckerwacht.dmg &amp;&amp;
+  hdiutil attach -nobrowse -quiet -mountpoint /tmp/dwmnt /tmp/Druckerwacht.dmg &amp;&amp;
+  rm -rf /Applications/Druckerwacht.app &amp;&amp;
+  ditto /tmp/dwmnt/Druckerwacht.app /Applications/Druckerwacht.app &amp;&amp;
+  hdiutil detach -quiet /tmp/dwmnt &amp;&amp;
+  xattr -dr com.apple.quarantine /Applications/Druckerwacht.app &amp;&amp;
+  open /Applications/Druckerwacht.app</pre>
             <button class="copy" type="button" data-copy="cmd-mac" data-en="Copy">Kopieren</button>
           </div>
+          <p class="cmd-alt" data-en="Prefer to do it by hand? Download the .dmg below, drag Druckerwacht into &lt;b&gt;Applications&lt;/b&gt; and run once: &lt;code&gt;xattr -dr com.apple.quarantine /Applications/Druckerwacht.app&lt;/code&gt;">Lieber von Hand? Unten die .dmg laden, Druckerwacht in <b>Programme</b> ziehen und einmal ausführen: <code>xattr -dr com.apple.quarantine /Applications/Druckerwacht.app</code></p>
           <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/latest" target="_blank" rel="noopener" data-goatcounter-click="download">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
             Druckerwacht_0.15.1_aarch64.dmg
@@ -1076,12 +1086,16 @@
             </div>
           </div>
           <ol class="steps">
-            <li data-en="Download and install the &lt;b&gt;.deb&lt;/b&gt; – an update replaces the old version:"><b>.deb</b> laden und installieren, ein Update ersetzt die alte Version:</li>
+            <li data-en="Open a &lt;b&gt;terminal&lt;/b&gt;, paste this and press Enter – it downloads and installs the latest version (an update replaces the old one):"><b>Terminal</b> öffnen, das hier einfügen und Enter drücken – lädt und installiert die neueste Version (ein Update ersetzt die alte):</li>
           </ol>
           <div class="cmd">
-            <pre id="cmd-linux">sudo apt install ./Druckerwacht_0.15.1_amd64.deb</pre>
+            <pre id="cmd-linux">wget -qO- https://api.github.com/repos/pk1310oo/druckerwacht/releases/latest |
+  grep -o 'https://[^"]*amd64\.deb' | head -1 |
+  wget -qi - -O /tmp/druckerwacht.deb &amp;&amp;
+  sudo apt install -y /tmp/druckerwacht.deb</pre>
             <button class="copy" type="button" data-copy="cmd-linux" data-en="Copy">Kopieren</button>
           </div>
+          <p class="cmd-alt" data-en="Already downloaded the .deb? Then: &lt;code&gt;sudo apt install ~/Downloads/Druckerwacht_0.15.1_amd64.deb&lt;/code&gt;">Die .deb schon geladen? Dann: <code>sudo apt install ~/Downloads/Druckerwacht_0.15.1_amd64.deb</code></p>
           <ol class="steps" start="2">
             <li data-en="Start it from the menu; right-click → &lt;b&gt;Add to panel&lt;/b&gt;.">Starten über das Menü, Rechtsklick → <b>Zur Kontrollleiste hinzufügen</b>.</li>
           </ol>
