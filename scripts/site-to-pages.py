@@ -8,6 +8,10 @@ import shutil
 import sys
 from pathlib import Path
 
+# Besucherzähler (GoatCounter, ohne Cookies): Code von goatcounter.com eintragen, z. B. "druckerwacht".
+# Leer = kein Zähler.
+GOATCOUNTER = ""
+
 src = Path(sys.argv[1]).read_text(encoding="utf-8")
 img = Path(sys.argv[2])
 i = src.index('<div class="aurora"')
@@ -26,6 +30,28 @@ logo = ("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='1
         "fill='%23F5F4EF'/%3E%3Crect x='300' y='520' width='424' height='56' rx='28' fill='%23D97757'/%3E%3Crect "
         "x='300' y='604' width='424' height='56' rx='28' fill='%23D97757' opacity='.75'/%3E%3Crect x='300' y='688' "
         "width='424' height='56' rx='28' fill='%23D97757' opacity='.5'/%3E%3C/svg%3E")
+# Klicks auf Download- und Spendenknöpfe zählen (wirkt nur mit Zähler)
+def tag_clicks(html: str) -> str:
+    def tag(m):
+        a = m.group(0)
+        if "data-goatcounter-click" in a:
+            return a
+        href = m.group(1)
+        if "ko-fi.com" in href:
+            name = "kofi"
+        elif "releases" in href:
+            name = "download"
+        else:
+            return a
+        return a[:-1] + f' data-goatcounter-click="{name}">'
+    return re.sub(r'<a [^>]*href="([^"]+)"[^>]*>', tag, html)
+
+body = tag_clicks(body)
+counter = (
+    f'<script data-goatcounter="https://{GOATCOUNTER}.goatcounter.com/count" async src="https://gc.zgo.at/count.js"></script>'
+    if GOATCOUNTER
+    else ""
+)
 page = f"""<!doctype html>
 <html lang="de">
 <head>
@@ -46,6 +72,7 @@ page = f"""<!doctype html>
 </head>
 <body>
 {body.strip()}
+{counter}
 </body>
 </html>
 """
