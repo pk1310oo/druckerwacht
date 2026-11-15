@@ -1038,9 +1038,22 @@
             </div>
           </div>
           <ol class="steps">
-            <li data-en="Download the &lt;b&gt;setup.exe&lt;/b&gt; and run it.">Die <b>setup.exe</b> laden und starten.</li>
-            <li data-en="If SmartScreen warns, click &lt;b&gt;More info → Run anyway&lt;/b&gt; – the app isn’t code-signed yet.">Warnt SmartScreen, auf <b>Weitere Informationen → Trotzdem ausführen</b> klicken – die App ist noch nicht signiert.</li>
+            <li data-en="Right-click the Start button → &lt;b&gt;Terminal&lt;/b&gt; (or PowerShell), paste this and press Enter. It installs the latest Druckerwacht &lt;b&gt;plus the OrcaSlicer engine&lt;/b&gt; – Windows asks once for permission for OrcaSlicer.">Rechtsklick auf Start → <b>Terminal</b> (oder PowerShell), das hier einfügen und Enter drücken. Installiert die neueste Version <b>samt OrcaSlicer-Motor</b> – Windows fragt einmal nach der Erlaubnis für OrcaSlicer.</li>
           </ol>
+          <div class="cmd">
+            <pre id="cmd-win">$ProgressPreference='SilentlyContinue'; $ErrorActionPreference='Stop'
+$d=(irm https://api.github.com/repos/pk1310oo/druckerwacht/releases/latest).assets | ? name -like '*x64-setup.exe' | select -First 1
+iwr $d.browser_download_url -OutFile "$env:TEMP\druckerwacht-setup.exe"
+Start-Process "$env:TEMP\druckerwacht-setup.exe" -ArgumentList '/S' -Wait
+if (!(Test-Path "$env:ProgramFiles\OrcaSlicer\orca-slicer.exe")) {
+  $o=(irm https://api.github.com/repos/SoftFever/OrcaSlicer/releases/latest).assets | ? name -like 'OrcaSlicer_Windows_Installer_*_x64.exe' | select -First 1
+  iwr $o.browser_download_url -OutFile "$env:TEMP\orcaslicer-setup.exe"
+  Start-Process "$env:TEMP\orcaslicer-setup.exe" -ArgumentList '/S' -Verb RunAs -Wait
+}
+$e=gci "$env:LOCALAPPDATA\Druckerwacht" -Filter *.exe | ? Name -notlike 'unins*' | select -First 1; if ($e) { start $e.FullName }</pre>
+            <button class="copy" type="button" data-copy="cmd-win" data-en="Copy">Kopieren</button>
+          </div>
+          <p class="cmd-alt" data-en="Prefer to do it by hand? Download the setup.exe below and run it (if SmartScreen warns: &lt;b&gt;More info → Run anyway&lt;/b&gt;), then install OrcaSlicer from orcaslicer.com.">Lieber von Hand? Unten die setup.exe laden und starten (warnt SmartScreen: <b>Weitere Informationen → Trotzdem ausführen</b>), danach OrcaSlicer von orcaslicer.com installieren.</p>
           <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/latest" target="_blank" rel="noopener" data-goatcounter-click="download">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
             Druckerwacht_0.15.1_x64-setup.exe
@@ -1056,7 +1069,7 @@
             </div>
           </div>
           <ol class="steps">
-            <li data-en="Open the &lt;b&gt;Terminal&lt;/b&gt;, paste this and press Enter – it downloads the latest version, installs it and starts it (also for updates):"><b>Terminal</b> öffnen, das hier einfügen und Enter drücken – lädt die neueste Version, installiert und startet sie (auch für Updates):</li>
+            <li data-en="Open the &lt;b&gt;Terminal&lt;/b&gt;, paste this and press Enter – it installs the latest Druckerwacht &lt;b&gt;plus the OrcaSlicer engine&lt;/b&gt; and starts the app (also for updates):"><b>Terminal</b> öffnen, das hier einfügen und Enter drücken – installiert die neueste Version <b>samt OrcaSlicer-Motor</b> und startet die App (auch für Updates):</li>
           </ol>
           <div class="cmd">
             <pre id="cmd-mac">curl -sL https://api.github.com/repos/pk1310oo/druckerwacht/releases/latest |
@@ -1067,10 +1080,19 @@
   ditto /tmp/dwmnt/Druckerwacht.app /Applications/Druckerwacht.app &amp;&amp;
   hdiutil detach -quiet /tmp/dwmnt &amp;&amp;
   xattr -dr com.apple.quarantine /Applications/Druckerwacht.app &amp;&amp;
+  if [ ! -d /Applications/OrcaSlicer.app ]; then
+    curl -sL https://api.github.com/repos/SoftFever/OrcaSlicer/releases/latest |
+      grep -o 'https://[^"]*OrcaSlicer_Mac_universal_[^"]*\.dmg' | head -1 |
+      xargs curl -sL -o /tmp/OrcaSlicer.dmg &amp;&amp;
+      hdiutil attach -nobrowse -quiet -mountpoint /tmp/orcamnt /tmp/OrcaSlicer.dmg &amp;&amp;
+      ditto /tmp/orcamnt/OrcaSlicer.app /Applications/OrcaSlicer.app &amp;&amp;
+      hdiutil detach -quiet /tmp/orcamnt &amp;&amp;
+      xattr -dr com.apple.quarantine /Applications/OrcaSlicer.app
+  fi &amp;&amp;
   open /Applications/Druckerwacht.app</pre>
             <button class="copy" type="button" data-copy="cmd-mac" data-en="Copy">Kopieren</button>
           </div>
-          <p class="cmd-alt" data-en="Prefer to do it by hand? Download the .dmg below, drag Druckerwacht into &lt;b&gt;Applications&lt;/b&gt; and run once: &lt;code&gt;xattr -dr com.apple.quarantine /Applications/Druckerwacht.app&lt;/code&gt;">Lieber von Hand? Unten die .dmg laden, Druckerwacht in <b>Programme</b> ziehen und einmal ausführen: <code>xattr -dr com.apple.quarantine /Applications/Druckerwacht.app</code></p>
+          <p class="cmd-alt" data-en="Prefer to do it by hand? Download the .dmg below, drag Druckerwacht into &lt;b&gt;Applications&lt;/b&gt;, run &lt;code&gt;xattr -dr com.apple.quarantine /Applications/Druckerwacht.app&lt;/code&gt; once and install OrcaSlicer from orcaslicer.com.">Lieber von Hand? Unten die .dmg laden, Druckerwacht in <b>Programme</b> ziehen, einmal <code>xattr -dr com.apple.quarantine /Applications/Druckerwacht.app</code> ausführen und OrcaSlicer von orcaslicer.com installieren.</p>
           <a class="btn primary" href="https://github.com/pk1310oo/druckerwacht/releases/latest" target="_blank" rel="noopener" data-goatcounter-click="download">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 21h14"/></svg>
             Druckerwacht_0.15.1_aarch64.dmg
@@ -1086,16 +1108,24 @@
             </div>
           </div>
           <ol class="steps">
-            <li data-en="Open a &lt;b&gt;terminal&lt;/b&gt;, paste this and press Enter – it downloads and installs the latest version (an update replaces the old one):"><b>Terminal</b> öffnen, das hier einfügen und Enter drücken – lädt und installiert die neueste Version (ein Update ersetzt die alte):</li>
+            <li data-en="Open a &lt;b&gt;terminal&lt;/b&gt;, paste this and press Enter – it installs the latest Druckerwacht &lt;b&gt;plus the OrcaSlicer engine&lt;/b&gt; (an update replaces the old version):"><b>Terminal</b> öffnen, das hier einfügen und Enter drücken – installiert die neueste Version <b>samt OrcaSlicer-Motor</b> (ein Update ersetzt die alte):</li>
           </ol>
           <div class="cmd">
             <pre id="cmd-linux">wget -qO- https://api.github.com/repos/pk1310oo/druckerwacht/releases/latest |
   grep -o 'https://[^"]*amd64\.deb' | head -1 |
   wget -qi - -O /tmp/druckerwacht.deb &amp;&amp;
-  sudo apt install -y /tmp/druckerwacht.deb</pre>
+  sudo apt install -y /tmp/druckerwacht.deb &amp;&amp;
+  (sudo apt install -y libfuse2t64 2&gt;/dev/null || sudo apt install -y libfuse2) &amp;&amp;
+  if ! ls ~/Applications/OrcaSlicer*.AppImage &gt;/dev/null 2&gt;&amp;1; then
+    mkdir -p ~/Applications &amp;&amp;
+    wget -qO- https://api.github.com/repos/SoftFever/OrcaSlicer/releases/latest |
+      grep -o 'https://[^"]*OrcaSlicer_Linux_AppImage_Ubuntu2404_V[^"]*\.AppImage' | head -1 |
+      wget -qi - -O ~/Applications/OrcaSlicer.AppImage &amp;&amp;
+      chmod +x ~/Applications/OrcaSlicer.AppImage
+  fi</pre>
             <button class="copy" type="button" data-copy="cmd-linux" data-en="Copy">Kopieren</button>
           </div>
-          <p class="cmd-alt" data-en="Already downloaded the .deb? Then: &lt;code&gt;sudo apt install ~/Downloads/Druckerwacht_0.15.1_amd64.deb&lt;/code&gt;">Die .deb schon geladen? Dann: <code>sudo apt install ~/Downloads/Druckerwacht_0.15.1_amd64.deb</code></p>
+          <p class="cmd-alt" data-en="Already downloaded the .deb? Then: &lt;code&gt;sudo apt install ~/Downloads/Druckerwacht_0.15.1_amd64.deb&lt;/code&gt;. The current OrcaSlicer needs Linux Mint 22 / Ubuntu 24.04 – on older systems, use an older OrcaSlicer AppImage in ~/Applications.">Die .deb schon geladen? Dann: <code>sudo apt install ~/Downloads/Druckerwacht_0.15.1_amd64.deb</code>. Der aktuelle OrcaSlicer braucht Linux Mint 22 bzw. Ubuntu 24.04 – auf älteren Systemen ein älteres OrcaSlicer-AppImage nach ~/Applications legen.</p>
           <ol class="steps" start="2">
             <li data-en="Start it from the menu; right-click → &lt;b&gt;Add to panel&lt;/b&gt;.">Starten über das Menü, Rechtsklick → <b>Zur Kontrollleiste hinzufügen</b>.</li>
           </ol>
