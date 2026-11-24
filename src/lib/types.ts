@@ -108,6 +108,8 @@ export interface Settings {
   aiPause: boolean;
   /** Bildausschnitt für den KI-Wächter [x, y, Breite, Höhe] relativ; null = ganzes Bild */
   aiCrop: [number, number, number, number] | null;
+  /** Eigener Anthropic-API-Schlüssel (KI-Designer) */
+  aiKey: string;
 }
 
 export interface AiStatus {
@@ -175,4 +177,5 @@ export const DEFAULT_SETTINGS: Settings = {
   aiEnabled: false,
   aiPause: true,
   aiCrop: null,
+  aiKey: "",
 };

@@ -44,6 +44,7 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English, German, Spani
 **Slice**
 - OrcaSlicer engine with the official KE profiles, every setting, layer preview
 - Paint supports and seams, cut, measure, box-select several parts
+- **AI designer:** just type what you want – *“a hook to hang it on the back”*, *“hole for an M4 screw”*, *“engrave my name on the front”* – and Claude builds it **firmly fused** onto the selected part, checks nothing floats, ready to slice (your own Anthropic API key, usually a few cents per request)
 - **Designer on the plate:** add cubes, cylinders, spheres, cones and **3D text** as add-ons or **holes** and combine everything into one printable part
 - **OrcaSlicer installs with one click** right from the app
 - **Colour changes:** mark any layer – the printer pauses there for the next filament

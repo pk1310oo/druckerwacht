@@ -29,7 +29,7 @@ export async function exportBackup(): Promise<boolean> {
   } catch {
     /* kein Speicher – nur Einstellungen sichern */
   }
-  const data: Backup = { app: "druckerwacht", version: APP_VERSION, createdMs: Date.now(), settings: getState().settings, local };
+  const data: Backup = { app: "druckerwacht", version: APP_VERSION, createdMs: Date.now(), settings: { ...getState().settings, aiKey: "" }, local }; // API-Schlüssel nie in Sicherungen
   const text = JSON.stringify(data, null, 2);
   if (!isTauri) {
     (window as unknown as { __dwBackup: string }).__dwBackup = text;
@@ -61,7 +61,7 @@ export async function importBackup(): Promise<boolean> {
   } catch {
     /* Speicher gesperrt */
   }
-  await saveSettings({ ...getState().settings, ...data.settings });
+  await saveSettings({ ...getState().settings, ...data.settings, aiKey: getState().settings.aiKey });
   location.reload();
   return true;
 }

@@ -1254,7 +1254,34 @@ export class Plate {
       for (const i of items) i.geometry.dispose();
     }
     const base = sel.find((m) => roleOf(m) === "part") ?? sel.find((m) => roleOf(m) === "add")!;
-    const name = base.name;
+    this.replaceWith(sel, result, base.name);
+    return null;
+  }
+
+  /** Das ausgewählte Teil für den KI-Designer: Geometrie in Bettkoordinaten (Kopie) und Name */
+  aiPart(): { geometry: THREE.BufferGeometry; name: string; id: number } | null {
+    const m = this.selected;
+    if (!m) return null;
+    m.updateMatrixWorld(true);
+    const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()) as THREE.BufferGeometry;
+    for (const k of Object.keys(g.attributes)) if (k !== "position") g.deleteAttribute(k);
+    g.applyMatrix4(m.matrixWorld);
+    if (m.matrixWorld.determinant() < 0) flipWinding(g);
+    g.computeVertexNormals();
+    return { geometry: g, name: m.name, id: m.userData.id as number };
+  }
+
+  /** Ergebnis des KI-Designers übernehmen (Rückgängig möglich). false, wenn das Teil inzwischen fehlt. */
+  applyAiResult(id: number, geometry: THREE.BufferGeometry): boolean {
+    const m = this.models.find((x) => x.userData.id === id);
+    if (!m) return false;
+    this.replaceWith([m], geometry, m.name);
+    return true;
+  }
+
+  /** Ersetzt `old` durch ein neues Teil aus `result` (Bettkoordinaten) */
+  private replaceWith(old: THREE.Mesh[], result: THREE.BufferGeometry, name: string) {
+    const sel = old;
     for (const m of sel) {
       this.models = this.models.filter((x) => x !== m);
       this.modelGroup.remove(m);
@@ -1277,7 +1304,6 @@ export class Plate {
     this.dropToBed(mesh);
     this.select(mesh);
     this.changed();
-    return null;
   }
 
   duplicate() {

@@ -173,6 +173,8 @@ export function SettingsView() {
 
       <AiCard draft={draft} set={set} />
 
+      <AiKeyCard value={draft.aiKey} set={(v) => set("aiKey", v)} />
+
       <RemoteCard />
 
       <Card className="form-section">
@@ -865,6 +867,50 @@ function AiCard({ draft, set }: { draft: Settings; set: <K extends keyof Setting
 }
 
 /** Update per Klick: laden, installieren, neu starten */
+/** Eigener Anthropic-Schlüssel für den KI-Designer im Slicer */
+function AiKeyCard({ value, set }: { value: string; set: (v: string) => void }) {
+  const [show, setShow] = useState(false);
+  return (
+    <Card className="form-section">
+      <span className="label">{t("KI-Designer")}</span>
+      <div>
+        <div className="hint" style={{ marginBottom: 10 }}>
+          {t("Im Slicer beschreibst du, was am Teil dazukommen oder weg soll – Haken, Löcher, Gravuren, Halterungen … Claude von Anthropic baut es fest ans Teil an. Dafür brauchst du einen eigenen API-Schlüssel; ein Auftrag kostet meist ein paar Cent bis etwa 50 Cent.")}
+        </div>
+        <label className="field">
+          <span className="label">{t("API-Schlüssel")}</span>
+          <span style={{ display: "flex", gap: 8 }}>
+            <input
+              className="input"
+              type={show ? "text" : "password"}
+              autoComplete="off"
+              spellCheck={false}
+              placeholder="sk-ant-…"
+              value={value}
+              onChange={(e) => set(e.target.value)}
+              style={{ flex: 1 }}
+            />
+            <button className="btn sm ghost" type="button" onClick={() => setShow((x) => !x)}>
+              {show ? t("Verbergen") : t("Zeigen")}
+            </button>
+            {value && (
+              <button className="btn sm ghost" type="button" onClick={() => set("")}>
+                {t("Entfernen")}
+              </button>
+            )}
+          </span>
+        </label>
+        <div className="hint" style={{ paddingTop: 8 }}>
+          <button className="link" type="button" onClick={() => void openProjectLink("https://console.anthropic.com/settings/keys")}>
+            {t("Schlüssel bei Anthropic anlegen")}
+          </button>{" "}
+          · {t("Der Schlüssel bleibt nur auf diesem Computer und landet nie in Sicherungen.")}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
 function UpdateButton({ fallbackUrl }: { fallbackUrl: string }) {
   const [state, setState] = useState<{ phase: "idle" | "download" | "install"; pct: number; error?: string }>({ phase: "idle", pct: 0 });
   useEffect(() => {

@@ -887,7 +887,9 @@ fn open_project_link(url: String) -> Result<(), String> {
     // Modellsuche auf den großen Plattformen
     let model_search = ["https://www.printables.com/search/models?q=", "https://www.thingiverse.com/search?q=", "https://makerworld.com/en/search/models?keyword="].iter().any(|p| url.starts_with(p));
     let kofi = url == "https://ko-fi.com/prisma76863";
-    let ok = (url == BASE || url.starts_with(&format!("{BASE}/")) || error_search || model_search || kofi)
+    // API-Schlüssel für den KI-Designer anlegen
+    let anthropic = url == "https://console.anthropic.com/settings/keys";
+    let ok = (url == BASE || url.starts_with(&format!("{BASE}/")) || error_search || model_search || kofi || anthropic)
         && url.chars().all(|c| c.is_ascii_alphanumeric() || "/:.-_?=&#%+".contains(c));
     if !ok {
         return Err(crate::i18n::tr("Diese Adresse darf nicht geöffnet werden.", "This address may not be opened.").into());

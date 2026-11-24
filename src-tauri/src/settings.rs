@@ -90,6 +90,8 @@ pub struct Settings {
     pub ai_pause: bool,
     /// Bildausschnitt für den KI-Wächter: [x, y, Breite, Höhe] relativ (0–1); None = ganzes Bild
     pub ai_crop: Option<[f32; 4]>,
+    /// Eigener Anthropic-API-Schlüssel für den KI-Designer (bleibt nur auf diesem Computer)
+    pub ai_key: String,
 }
 
 impl Default for Settings {
@@ -115,6 +117,7 @@ impl Default for Settings {
             ai_enabled: false,
             ai_pause: true,
             ai_crop: None,
+            ai_key: String::new(),
         }
     }
 }
@@ -217,6 +220,7 @@ impl Settings {
                 self.ai_crop = None;
             }
         }
+        self.ai_key = self.ai_key.trim().chars().filter(|c| c.is_ascii_graphic()).take(300).collect();
         if !self.remote_token.chars().all(|c| c.is_ascii_hexdigit()) || (self.remote_token.len() != 32 && !self.remote_token.is_empty()) {
             self.remote_token.clear();
         }
