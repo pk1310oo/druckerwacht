@@ -5,6 +5,7 @@ mod ai;
 mod discovery;
 mod extras;
 mod model;
+mod orca_install;
 mod printjob;
 mod remote;
 mod settings;
@@ -763,6 +764,12 @@ fn raw_log_dir(state: State<'_, Arc<AppState>>) -> String {
 fn slicer_info(state: State<'_, Arc<AppState>>) -> serde_json::Value {
     let custom = state.lock().settings.orca_path.clone();
     serde_json::to_value(slicer::find_orca(&custom)).unwrap_or_default()
+}
+
+/// OrcaSlicer herunterladen und installieren (Fortschritt über „orca://install“)
+#[tauri::command]
+async fn orca_install(app: AppHandle) -> Result<String, String> {
+    orca_install::install(app).await
 }
 
 #[tauri::command]
@@ -1725,6 +1732,7 @@ pub fn run() {
             discover_printers,
             raw_log_dir,
             slicer_info,
+            orca_install,
             slicer_presets,
             slicer_save_preset,
             slicer_delete_preset,

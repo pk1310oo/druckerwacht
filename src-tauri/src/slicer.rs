@@ -29,8 +29,8 @@ pub struct SlicerState {
 #[derive(Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct SlicerInfo {
-    found: bool,
-    path: Option<String>,
+    pub found: bool,
+    pub path: Option<String>,
     /// Pfade, die automatisch geprüft wurden (für die Hilfe-Anzeige)
     searched: Vec<String>,
 }
@@ -130,6 +130,10 @@ fn candidates(custom: &str) -> Vec<PathBuf> {
             }
         }
         v.push("/opt/OrcaSlicer/AppRun".into());
+        // Von Druckerwacht installiert (entpacktes AppImage)
+        if let Some(home) = std::env::var_os("HOME") {
+            v.push(crate::orca_install::linux_dir(&PathBuf::from(home)).join("squashfs-root").join("AppRun"));
+        }
         v.push("/usr/bin/orca-slicer".into());
         if let Some(home) = std::env::var_os("HOME") {
             let home = PathBuf::from(home);

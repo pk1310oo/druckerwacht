@@ -1358,3 +1358,7 @@
 .lang-select { width: 180px; }
 .kofi-btn { border-color: rgb(var(--accent-rgb) / 0.45); background: var(--accent-soft); color: var(--accent-light); }
 .kofi-btn:hover { background: rgb(var(--accent-rgb) / 0.22); }
+.orca-install { display: flex; flex-direction: column; gap: 6px; align-items: flex-start; margin: 6px 0; }
+.orca-install .bar { width: 260px; }
+.orca-ok { display: inline-flex; align-items: center; gap: 6px; color: var(--success); }
+.orca-missing .btn.ghost { margin-left: 0; }

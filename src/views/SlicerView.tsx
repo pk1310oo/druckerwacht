@@ -79,6 +79,7 @@ import { queueAdd } from "../lib/extras";
 import { useCaps } from "../lib/printers";
 import { MATERIALS } from "../slicer/materials";
 import { DownloadWatcher, ModelSearchMenu } from "../slicer/ModelSearch";
+import { OrcaInstallButton } from "../slicer/OrcaInstall";
 import { endsAtNight } from "../lib/night";
 import { TOWER_PRESETS, calibHelp, calibStl, calibTitle, makeTower, range, towerSteps, unitOf, type CalibKind, type Tower } from "../slicer/calib";
 import { invoke } from "@tauri-apps/api/core";
@@ -847,7 +848,7 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
       </div>
 
       <aside className="slicer-side">
-        {info && !info.found && <OrcaMissing go={go} />}
+        {info && !info.found && <OrcaMissing go={go} onInstalled={() => void slicerInfo().then(setInfo)} />}
 
         {active ? (
           <SettingsPanel presets={active} overrides={overrides} onChange={onSetting} />
@@ -1623,23 +1624,15 @@ function Cell({ axis, value, unit, onCommit }: { axis: string; value: string; un
   );
 }
 
-function OrcaMissing({ go }: { go: (v: ViewId) => void }) {
-  const mac = /Mac/i.test(navigator.userAgent);
+function OrcaMissing({ go, onInstalled }: { go: (v: ViewId) => void; onInstalled: () => void }) {
   return (
     <div className="orca-missing">
       <AlertTriangle size={16} />
       <div>
         <div style={{ fontWeight: 600 }}>{t("OrcaSlicer fehlt")}</div>
-        <p className="hint">
-          {t("Der Slicer-Motor ist kostenlos:")} <span className="num">github.com/SoftFever/OrcaSlicer/releases</span>
-          {mac
-            ? t(" – die .dmg laden und OrcaSlicer in „Programme“ ziehen.")
-            : /Windows/i.test(navigator.userAgent)
-              ? t(" – den Windows-Installer laden und ganz normal installieren.")
-              : t(" – das AppImage laden und z. B. in ~/Applications ablegen.")}{" "}
-          {t("Öffnen musst du ihn nie.")}
-        </p>
-        <button className="btn sm" onClick={() => go("settings")}>
+        <p className="hint">{t("Zum Slicen braucht Druckerwacht den kostenlosen Slicer-Motor OrcaSlicer. Ein Klick genügt – die App lädt ihn herunter und richtet ihn ein. Öffnen musst du ihn nie.")}</p>
+        <OrcaInstallButton onDone={onInstalled} />
+        <button className="btn sm ghost" onClick={() => go("settings")}>
           {t("Pfad manuell eintragen")}
         </button>
       </div>

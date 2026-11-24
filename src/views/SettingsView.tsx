@@ -3,6 +3,7 @@ import { BrainCircuit, Bug, Coffee, Check, Copy, Download, ExternalLink, FolderG
 import { useStore } from "../lib/store";
 import { aiDownload, discoverPrinters, isTauri, onRemoteChange, rawLogDir, reconnect, remoteInfo, remoteNewToken, saveSettings, type RemoteInfo } from "../lib/api";
 import { Qr } from "../components/Qr";
+import { OrcaInstallButton } from "../slicer/OrcaInstall";
 import { exportBackup, importBackup } from "../lib/backup";
 import { setVoice, useVoice, voiceSupported } from "../lib/voice";
 import { connectionLabel } from "../lib/format";
@@ -217,6 +218,7 @@ export function SettingsView() {
           <span className="hint">
             {orca?.found ? t("Gefunden: {path}", { path: orca.path ?? "" }) : t("Leer lassen – die App sucht OrcaSlicer automatisch an den üblichen Orten.")}
           </span>
+          {orca && !orca.found && <OrcaInstallButton onDone={() => void slicerInfo().then(setOrca)} />}
         </div>
       </Card>
 
