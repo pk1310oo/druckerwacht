@@ -1362,3 +1362,4 @@
 .orca-install .bar { width: 260px; }
 .orca-ok { display: inline-flex; align-items: center; gap: 6px; color: var(--success); }
 .orca-missing .btn.ghost { margin-left: 0; }
+.update-run { display: inline-flex; align-items: center; gap: 8px; color: var(--accent-light); }

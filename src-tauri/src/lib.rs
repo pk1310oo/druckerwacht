@@ -8,6 +8,7 @@ mod model;
 mod orca_install;
 mod printjob;
 mod remote;
+mod self_update;
 mod settings;
 mod slicer;
 mod threemf;
@@ -764,6 +765,12 @@ fn raw_log_dir(state: State<'_, Arc<AppState>>) -> String {
 fn slicer_info(state: State<'_, Arc<AppState>>) -> serde_json::Value {
     let custom = state.lock().settings.orca_path.clone();
     serde_json::to_value(slicer::find_orca(&custom)).unwrap_or_default()
+}
+
+/// Neueste Druckerwacht-Version laden und installieren (App startet neu)
+#[tauri::command]
+async fn app_update(app: AppHandle) -> Result<(), String> {
+    self_update::update(app).await
 }
 
 /// OrcaSlicer herunterladen und installieren (Fortschritt über „orca://install“)
@@ -1733,6 +1740,7 @@ pub fn run() {
             raw_log_dir,
             slicer_info,
             orca_install,
+            app_update,
             slicer_presets,
             slicer_save_preset,
             slicer_delete_preset,

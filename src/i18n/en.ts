@@ -806,4 +806,8 @@ export const EN: Record<string, string> = {
   "OrcaSlicer jetzt installieren": "Install OrcaSlicer now",
   "Windows fragt gleich nach der Erlaubnis – bitte mit „Ja“ bestätigen und den Installer durchklicken.": "Windows will ask for permission – confirm with “Yes” and click through the installer.",
   "Zum Slicen braucht Druckerwacht den kostenlosen Slicer-Motor OrcaSlicer. Ein Klick genügt – die App lädt ihn herunter und richtet ihn ein. Öffnen musst du ihn nie.": "To slice, Druckerwacht needs the free OrcaSlicer engine. One click is enough – the app downloads and sets it up. You never have to open it.",
+  "Jetzt aktualisieren": "Update now",
+  "Update fehlgeschlagen.": "Update failed.",
+  "Installiere – die App startet gleich neu …": "Installing – the app restarts in a moment …",
+  "Download-Seite": "Download page",
 };

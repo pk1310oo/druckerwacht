@@ -325,9 +325,7 @@ function AboutCard() {
             <div className="hint">{status}</div>
           </div>
           {check.info?.newer ? (
-            <button className="btn sm primary" onClick={() => open(check.info!.url)}>
-              <Download size={14} /> {t("Herunterladen")}
-            </button>
+            <UpdateButton fallbackUrl={check.info.url} />
           ) : (
             <button className="btn sm" onClick={() => void run()} disabled={check.running}>
               <RefreshCw size={14} className={check.running ? "spin" : undefined} /> {t("Prüfen")}
@@ -853,5 +851,47 @@ function AiCard({ draft, set }: { draft: Settings; set: <K extends keyof Setting
         )}
       </div>
     </Card>
+  );
+}
+
+/** Update per Klick: laden, installieren, neu starten */
+function UpdateButton({ fallbackUrl }: { fallbackUrl: string }) {
+  const [state, setState] = useState<{ phase: "idle" | "download" | "install"; pct: number; error?: string }>({ phase: "idle", pct: 0 });
+  useEffect(() => {
+    if (!isTauri) return;
+    let off: (() => void) | undefined;
+    void import("@tauri-apps/api/event").then(({ listen }) =>
+      listen<{ phase: "download" | "install"; pct: number }>("update://progress", (e) => setState({ phase: e.payload.phase, pct: e.payload.pct })).then((f) => (off = f)),
+    );
+    return () => off?.();
+  }, []);
+  const run = async () => {
+    setState({ phase: "download", pct: 0 });
+    try {
+      if (isTauri) await (await import("@tauri-apps/api/core")).invoke("app_update");
+    } catch (e) {
+      setState({ phase: "idle", pct: 0, error: typeof e === "string" ? e : t("Update fehlgeschlagen.") });
+    }
+  };
+  if (state.phase !== "idle") {
+    return (
+      <span className="update-run small">
+        <Loader2 size={14} className="spin" />
+        {state.phase === "install" ? t("Installiere – die App startet gleich neu …") : t("Lade … {p} %", { p: Math.round(state.pct) })}
+      </span>
+    );
+  }
+  return (
+    <span style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", justifyContent: "flex-end" }}>
+      {state.error && <span className="hint error">{state.error}</span>}
+      <button className="btn sm primary" onClick={() => void run()}>
+        <Download size={14} /> {t("Jetzt aktualisieren")}
+      </button>
+      {state.error && (
+        <button className="btn sm ghost" onClick={() => void openProjectLink(fallbackUrl).catch(() => {})}>
+          {t("Download-Seite")}
+        </button>
+      )}
+    </span>
   );
 }
