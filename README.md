@@ -37,7 +37,7 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English, German, Spani
 - Send any finished G-code file and print it
 - **Find models** on Printables, Thingiverse and MakerWorld – the download lands straight on the plate
 - **Print again** from the history with one click – the app keeps a copy of your last 15 prints
-- **Night mode:** quiet 50 % between 22:00 and 07:00, back to your speed in the morning – or **deep sleep**: 30 % with the part fan kept off, as quiet as it gets
+- **Night mode:** quiet 50 % between 22:00 and 07:00, back to your speed in the morning – plus the **deep sleep** speed level: 20 % with every switchable fan kept off, as quiet as it gets
 - **Live speed** from 25 % *Whisper* to 150 % *Turbo* – the first layer always stays at max. 50 mm/s so it sticks
 - **Print queue:** line up sliced prints and start the next one with a click once the plate is clear
 

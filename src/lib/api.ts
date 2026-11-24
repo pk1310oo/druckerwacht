@@ -108,7 +108,7 @@ export function thumbnailUrl(fileName: string | null): string | null {
  */
 export type ControlAction =
   | "pause" | "resume" | "stop" | "home" | "level" | "motors_off"
-  | `speed:${number}` | `flow:${number}` | `nozzle:${number}` | `bed:${number}` | `light:${0 | 1}` | `fan:${number}`
+  | `speed:${number}` | `flow:${number}` | `nozzle:${number}` | `bed:${number}` | `light:${0 | 1}` | `fan:${number}` | `fan_aux:${number}` | `fan_case:${number}`
   | `zoffset:${number}` | `extrude:${number}` | `level:${number}` | `pid_nozzle:${number}` | `pid_bed:${number}`;
 
 export async function printerControl(action: ControlAction): Promise<void> {

@@ -3,40 +3,52 @@
  * vorherige Tempo wieder her. Läuft, solange die App offen ist (auch minimiert).
  * Ändert der Nutzer nachts selbst das Tempo, bleibt es dabei – die Automatik greift pro Nacht nur einmal.
  *
- * Tiefschlaf: solange eingeschaltet (egal zu welcher Uhrzeit) langsam mit 30 % und Bauteillüfter
- * dauerhaft aus – schaltet der G-Code ihn wieder ein, wird er sofort wieder ausgemacht.
- * Beim Ausschalten kommen Tempo und Lüfter auf die vorigen Werte zurück.
+ * Tiefschlaf (eigene Tempo-Stufe unter „Flüster“): 20 % und ALLE steuerbaren Lüfter aus
+ * (Bauteil-, Zusatz- und Gehäuselüfter). Schaltet der G-Code einen wieder ein, macht die App ihn
+ * sofort wieder aus. Gilt, bis eine andere Tempo-Stufe gewählt wird – dann kommen die Lüfter zurück.
+ * Der Kühlkörper-Lüfter am Hotend läuft immer weiter (nicht abschaltbar, schützt die Düse).
  */
 import { useEffect, useSyncExternalStore } from "react";
 import { getState } from "./store";
 import { printerControl } from "./api";
+import type { PrinterStatus } from "./types";
 
 const KEY = "dw.night";
 const STATE = "dw.night.state";
 export const NIGHT_FROM = 22;
 export const NIGHT_TO = 7;
 export const NIGHT_PCT = 50;
-export const DEEP_PCT = 30;
-
-export type NightMode = "off" | "quiet" | "deep";
-const DEEP = "dw.night.deep";
+export const DEEP_PCT = 20;
+const DEEP_KEY = "dw.deep";
+const DEEP = "dw.deep.state";
 
 const subs = new Set<() => void>();
-function read(): NightMode {
+const readKey = (k: string) => {
   try {
-    const v = localStorage.getItem(KEY);
-    return v === "1" ? "quiet" : v === "2" ? "deep" : "off";
+    return localStorage.getItem(k) === "1";
   } catch {
-    return "off";
+    return false;
   }
-}
-export function setNightMode(mode: NightMode) {
+};
+const writeKey = (k: string, on: boolean) => {
   try {
-    localStorage.setItem(KEY, mode === "quiet" ? "1" : mode === "deep" ? "2" : "0");
+    localStorage.setItem(k, on ? "1" : "0");
   } catch {
     /* egal */
   }
   subs.forEach((f) => f());
+};
+const read = () => readKey(KEY);
+export const setNightMode = (on: boolean) => writeKey(KEY, on);
+export const setDeepSleep = (on: boolean) => writeKey(DEEP_KEY, on);
+export function useDeepSleepMode() {
+  return useSyncExternalStore(
+    (f) => {
+      subs.add(f);
+      return () => subs.delete(f);
+    },
+    () => readKey(DEEP_KEY),
+  );
 }
 export function useNightMode() {
   return useSyncExternalStore(
@@ -87,9 +99,9 @@ function saveApplied(a: Applied | null) {
 
 /** Einmal in der App einhängen (App.tsx) */
 export function useNightAutomation() {
-  const mode = useNightMode();
-  useDeepSleep(mode === "deep");
-  const on = mode === "quiet";
+  const deep = useDeepSleepMode();
+  useDeepSleep(deep);
+  const on = useNightMode() && !deep;
   useEffect(() => {
     if (!on) return;
     const tick = () => {
@@ -120,10 +132,17 @@ export function useNightAutomation() {
   }, [on]);
 }
 
+type FanKey = "fan" | "fan_aux" | "fan_case";
+const FANS: [FanKey, (s: PrinterStatus) => number | null][] = [
+  ["fan", (s) => s.fanPct],
+  ["fan_aux", (s) => s.fanAuxPct],
+  ["fan_case", (s) => s.fanCasePct],
+];
+
 interface DeepApplied {
   file: string;
-  prevSpeed: number;
-  prevFan: number | null;
+  /** Lüfterwerte vor dem Tiefschlaf (zum Zurückstellen) */
+  prev: Partial<Record<FanKey, number>>;
 }
 function loadDeep(): DeepApplied | null {
   try {
@@ -140,41 +159,52 @@ function saveDeep(a: DeepApplied | null) {
   }
 }
 
-/** Tiefschlaf: langsam und ohne Bauteillüfter, solange eingeschaltet */
+/** Tiefschlaf: 20 % und alle steuerbaren Lüfter aus, solange die Stufe gewählt ist */
 function useDeepSleep(on: boolean) {
   useEffect(() => {
-    const printing = () => {
+    const job = () => {
       const s = getState().status;
       return getState().connection.kind === "connected" && s && (s.state === "printing" || s.state === "paused") ? s : null;
     };
     if (!on) {
-      // Ausgeschaltet: vorige Werte zurück, falls der Druck noch läuft
+      // Andere Stufe gewählt: Lüfter wieder auf die vorigen Werte
       const a = loadDeep();
-      const s = printing();
+      const s = job();
       if (a && s && (s.fileName ?? "") === a.file) {
-        if (Math.round(s.speedPct ?? 100) === DEEP_PCT) void printerControl(`speed:${a.prevSpeed}`).catch(() => {});
-        if (a.prevFan != null && a.prevFan > 0 && !s.fanPct) void printerControl(`fan:${a.prevFan}`).catch(() => {});
+        for (const [k, get] of FANS) {
+          const prev = a.prev[k];
+          if (prev && !get(s)) void printerControl(`${k}:${prev}`).catch(() => {});
+        }
       }
       if (a) saveDeep(null);
       return;
     }
-    let sentFanOff = 0;
+    const lastOff: Partial<Record<FanKey, number>> = {};
     const tick = () => {
-      const s = printing();
-      if (!s || s.state !== "printing" || s.preparing) return;
+      const s = job();
+      if (!s || s.state !== "printing") return;
       const file = s.fileName ?? "";
       let a = loadDeep();
       if (!a || a.file !== file) {
-        if (s.layer != null && s.layer < 2) return; // erste Schicht nicht anfassen
-        a = { file, prevSpeed: s.speedPct != null ? Math.round(s.speedPct) : 100, prevFan: s.fanPct };
+        a = { file, prev: {} };
         saveDeep(a);
-        if (a.prevSpeed > DEEP_PCT) void printerControl(`speed:${DEEP_PCT}`).catch(() => {});
+        // Neuer Druck im Tiefschlaf: Tempo wieder auf 20 % (der Start-G-Code setzt 100 %)
+        if (!s.preparing && Math.round(s.speedPct ?? 100) !== DEEP_PCT) void printerControl(`speed:${DEEP_PCT}`).catch(() => {});
+        else if (s.preparing) a.file = ""; // nach dem Heizen/Leveling erneut prüfen
+        saveDeep(a);
       }
-      // Der G-Code schaltet den Lüfter je Schicht wieder ein – sofort wieder aus
-      if ((s.fanPct ?? 0) > 0 && Date.now() - sentFanOff > 5_000) {
-        if (a.prevFan == null || a.prevFan === 0) saveDeep({ ...a, prevFan: s.fanPct });
-        sentFanOff = Date.now();
-        void printerControl("fan:0").catch(() => {});
+      // Jeder Lüfter, den der Drucker meldet und der läuft, wird ausgeschaltet
+      for (const [k, get] of FANS) {
+        const v = get(s);
+        if (v == null || v <= 0) continue;
+        if (!a.prev[k] || v > (a.prev[k] ?? 0)) {
+          a.prev[k] = Math.round(v);
+          saveDeep(a);
+        }
+        if (Date.now() - (lastOff[k] ?? 0) > 5_000) {
+          lastOff[k] = Date.now();
+          void printerControl(`${k}:0`).catch(() => {});
+        }
       }
     };
     tick();

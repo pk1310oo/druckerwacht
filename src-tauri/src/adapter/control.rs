@@ -27,6 +27,10 @@ pub enum Cmd {
     Light(bool),
     /// Bauteillüfter in %
     Fan(u32),
+    /// Zusatz-/Seitenlüfter in % (Creality K1: Kanal P2)
+    FanAux(u32),
+    /// Gehäuselüfter in % (Creality K1: Kanal P1)
+    FanCase(u32),
     /// Referenzfahrt aller Achsen
     Home,
     /// Bett vermessen und das Ergebnis speichern; Wert = Bett vorher heizen auf °C (0 = nicht heizen)
@@ -67,6 +71,8 @@ pub fn parse(action: &str) -> Option<Cmd> {
         "bed" => Cmd::Bed(num()?.round().clamp(0.0, 120.0) as u32),
         "light" => Cmd::Light(num()? > 0.0),
         "fan" => Cmd::Fan(num()?.round().clamp(0.0, 100.0) as u32),
+        "fan_aux" => Cmd::FanAux(num()?.round().clamp(0.0, 100.0) as u32),
+        "fan_case" => Cmd::FanCase(num()?.round().clamp(0.0, 100.0) as u32),
         "home" => Cmd::Home,
         "level" => Cmd::Level(match arg {
             None => 0,
@@ -95,6 +101,10 @@ pub fn klipper(cmd: &Cmd, creality: bool) -> Vec<String> {
         Cmd::Bed(t) => vec![format!("M140 S{t}")],
         // Creality-Firmware: Bauteillüfter ist Kanal P0
         Cmd::Fan(p) => vec![format!("M106{} S{}", if creality { " P0" } else { "" }, fan_pwm(*p))],
+        // Nur die Creality-Firmware kennt Kanäle für Zusatz- und Gehäuselüfter
+        Cmd::FanAux(p) if creality => vec![format!("M106 P2 S{}", fan_pwm(*p))],
+        Cmd::FanCase(p) if creality => vec![format!("M106 P1 S{}", fan_pwm(*p))],
+        Cmd::FanAux(_) | Cmd::FanCase(_) => vec![],
         Cmd::Home => vec!["G28".into()],
         // Wie Mainsail/Fluidd: messen, dann SAVE_CONFIG (Klipper startet danach kurz neu)
         Cmd::Level(bed) => {
@@ -153,14 +163,14 @@ pub async fn run(p: &PrinterProfile, cmd: &Cmd) -> Result<(), String> {
             Cmd::Pause => moonraker::print_action(p, "pause").await,
             Cmd::Resume => moonraker::print_action(p, "resume").await,
             Cmd::Stop => moonraker::print_action(p, "cancel").await,
-            Cmd::Light(_) => Err(unsupported()),
+            Cmd::Light(_) | Cmd::FanAux(_) | Cmd::FanCase(_) => Err(unsupported()),
             c => moonraker::gcode(p, &klipper(c, false).join("\n")).await,
         },
         "octoprint" => match cmd {
             Cmd::Pause => octoprint::job_command(p, json!({ "command": "pause", "action": "pause" })).await,
             Cmd::Resume => octoprint::job_command(p, json!({ "command": "pause", "action": "resume" })).await,
             Cmd::Stop => octoprint::job_command(p, json!({ "command": "cancel" })).await,
-            Cmd::Light(_) => Err(unsupported()),
+            Cmd::Light(_) | Cmd::FanAux(_) | Cmd::FanCase(_) => Err(unsupported()),
             c => octoprint::gcode(p, &marlin(c)).await,
         },
         "prusalink" => match cmd {
@@ -251,6 +261,9 @@ mod tests {
         assert_eq!(marlin(&Cmd::PidBed(60)), vec!["M303 E-1 S60 C8 U1", "M500"]);
         assert_eq!(klipper(&Cmd::Fan(100), true), vec!["M106 P0 S255"]);
         assert_eq!(klipper(&Cmd::Fan(50), false), vec!["M106 S128"]);
+        assert_eq!(klipper(&parse("fan_aux:0").unwrap(), true), vec!["M106 P2 S0"]);
+        assert_eq!(klipper(&parse("fan_case:0").unwrap(), true), vec!["M106 P1 S0"]);
+        assert!(klipper(&Cmd::FanAux(0), false).is_empty());
         assert_eq!(klipper(&Cmd::ZAdjust(-0.02), false), vec!["SET_GCODE_OFFSET Z_ADJUST=-0.020 MOVE=1"]);
         assert_eq!(marlin(&Cmd::Level(0)), vec!["G28", "G29", "M500"]);
         assert_eq!(marlin(&Cmd::ZAdjust(0.05)), vec!["M290 Z0.050"]);

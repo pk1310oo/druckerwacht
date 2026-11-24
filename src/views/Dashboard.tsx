@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, ArrowDown, ArrowUp, Box, Flame, Gauge, Layers, ListOrdered, Loader2, Moon, Palette, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Box, Flame, MoonStar, Gauge, Layers, ListOrdered, Loader2, Moon, Palette, Pause, Play, PlugZap, Printer, Square, Thermometer, WifiOff, X } from "lucide-react";
 import { useStore } from "../lib/store";
 import { discoverPrinters, isTauri, printerControl, reconnect, saveSettings, thumbnailUrl } from "../lib/api";
 import { getState } from "../lib/store";
@@ -21,7 +21,7 @@ import { FleetStrip, ToolsCard } from "./Tools";
 import { useCaps } from "../lib/printers";
 import { errorSearchUrl, explainError } from "../lib/errors";
 import { openProjectLink } from "../lib/update";
-import { DEEP_PCT, endsAtNight, NIGHT_FROM, NIGHT_PCT, NIGHT_TO, setNightMode, useNightMode } from "../lib/night";
+import { DEEP_PCT, endsAtNight, NIGHT_FROM, NIGHT_PCT, NIGHT_TO, setDeepSleep, setNightMode, useDeepSleepMode, useNightMode } from "../lib/night";
 
 const TEMP_SERIES = (): SeriesDef[] => [
   { key: "nozzle", label: t("Düse"), color: accentHex(), unit: "°C" },
@@ -442,6 +442,11 @@ function HeroInfo({ s, job }: { s: PrinterStatus; job: boolean }) {
 
 /** Druckgeschwindigkeit live ändern: Faktor auf die gesliceten Geschwindigkeiten (wie M220). */
 const SPEED_MODES = () => [
+  {
+    pct: DEEP_PCT,
+    name: t("Tiefschlaf"),
+    hint: t("Tiefschlaf: {p} % und alle Lüfter aus, die sich abschalten lassen – so leise wie möglich, auch wenn der G-Code sie wieder einschalten will. Gut für PETG, ABS und einfache Teile; bei PLA leiden Überhänge und Brücken. Der Hotend-Kühler läuft zum Schutz der Düse weiter.", { p: DEEP_PCT }),
+  },
   { pct: 25, name: t("Flüster"), hint: t("Flüsterleise für die Nacht – der Druck dauert ein Vielfaches länger.") },
   { pct: 50, name: t("Leise"), hint: t("Deutlich ruhiger, sehr saubere Oberflächen – etwa doppelte Druckzeit.") },
   { pct: 75, name: t("Ruhig"), hint: t("Etwas leiser bei fast voller Geschwindigkeit.") },
@@ -511,6 +516,7 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
 
   const choose = (pct: number) => {
     setError(null);
+    setDeepSleep(pct === DEEP_PCT);
     if (holdBack(pct)) {
       setQueued(pct);
       // Läuft schon ein erhöhtes Tempo, für die erste Schicht sofort auf 100 % zurück
@@ -524,23 +530,18 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
   const shown = queued ?? pending ?? current ?? 100;
   const active = modes.find((m) => m.pct === shown);
   const night = useNightMode();
+  const deep = useDeepSleepMode();
   return (
     <div className="speed-ctl">
       <div className="speed-head">
         <span className="label">{t("Tempo")}</span>
         <button
-          className={`night-toggle small${night !== "off" ? " on" : ""}${night === "deep" ? " deep" : ""}`}
-          aria-pressed={night !== "off"}
-          title={
-            night === "off"
-              ? t("Klicken: Nachtmodus – zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Noch ein Klick: Tiefschlaf.", { a: NIGHT_FROM, b: NIGHT_TO, p: NIGHT_PCT })
-              : night === "quiet"
-                ? t("Nachtmodus: zwischen {a} und {b} Uhr automatisch auf {p} %. Klicken für Tiefschlaf (ganz leise, ohne Lüfter).", { a: NIGHT_FROM, b: NIGHT_TO, p: NIGHT_PCT })
-                : t("Tiefschlaf: {p} % Tempo und Bauteillüfter dauerhaft aus – so leise wie möglich. Gut für PETG, ABS und einfache Teile; bei PLA leiden Überhänge und Brücken. Klicken zum Ausschalten, dann kommen Tempo und Lüfter zurück.", { p: DEEP_PCT })
-          }
-          onClick={() => setNightMode(night === "off" ? "quiet" : night === "quiet" ? "deep" : "off")}
+          className={`night-toggle small${night ? " on" : ""}`}
+          aria-pressed={night}
+          title={t("Zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Die App muss dafür geöffnet bleiben.", { a: NIGHT_FROM, b: NIGHT_TO, p: NIGHT_PCT })}
+          onClick={() => setNightMode(!night)}
         >
-          <Moon size={12} /> {night === "deep" ? t("Tiefschlaf") : night === "quiet" ? t("Nachtmodus an") : t("Nachtmodus")}
+          <Moon size={12} /> {night ? t("Nachtmodus an") : t("Nachtmodus")}
         </button>
         <span className="header-spacer" />
         <span className="small muted num">
@@ -570,13 +571,13 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
             role="radio"
             aria-checked={shown === m.pct}
             aria-label={`${m.pct} % – ${m.name}`}
-            className={`speed-mode${shown === m.pct ? " on" : ""}${m.pct >= 125 ? " fast" : ""}${m.pct <= 50 ? " quiet" : ""}`}
+            className={`speed-mode${shown === m.pct ? " on" : ""}${m.pct === DEEP_PCT ? " deep" : ""}${m.pct >= 125 ? " fast" : ""}${m.pct <= 50 ? " quiet" : ""}`}
             disabled={pending != null}
             onClick={() => choose(m.pct)}
             title={m.hint}
           >
             <span className="sm-pct num">
-              {m.pct === 25 ? <Moon size={11} /> : m.pct === 150 ? <Flame size={11} /> : null}
+              {m.pct === DEEP_PCT ? <MoonStar size={11} /> : m.pct === 25 ? <Moon size={11} /> : m.pct === 150 ? <Flame size={11} /> : null}
               {m.pct}%
             </span>
             <span className="sm-name">{m.name}</span>
@@ -584,7 +585,7 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
         ))}
       </div>
       <div className={`speed-hint small${shown >= 125 ? " warn" : ""}`}>
-        {!error && night === "off" && endsAtNight(s.remainingS) && (
+        {!error && !night && !deep && endsAtNight(s.remainingS) && (
           <div className="night-hint">
             <Moon size={12} /> {t("Der Druck läuft bis in die Nacht – der Nachtmodus macht ihn ab {a} Uhr leise.", { a: NIGHT_FROM })}
           </div>
