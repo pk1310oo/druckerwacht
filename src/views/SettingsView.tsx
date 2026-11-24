@@ -4,6 +4,7 @@ import { useStore } from "../lib/store";
 import { aiDownload, discoverPrinters, isTauri, onRemoteChange, rawLogDir, reconnect, remoteInfo, remoteNewToken, saveSettings, type RemoteInfo } from "../lib/api";
 import { Qr } from "../components/Qr";
 import { OrcaInstallButton } from "../slicer/OrcaInstall";
+import { CropEditor } from "../components/CropEditor";
 import { exportBackup, importBackup } from "../lib/backup";
 import { setVoice, useVoice, voiceSupported } from "../lib/voice";
 import { connectionLabel } from "../lib/format";
@@ -836,6 +837,15 @@ function AiCard({ draft, set }: { draft: Settings; set: <K extends keyof Setting
                 >
                   {downloading ? <Loader2 size={14} className="spin" /> : <Download size={14} />} {t("Herunterladen")}
                 </button>
+              </div>
+            )}
+            {hasCam && (
+              <div className="toggle-row" style={{ display: "block" }}>
+                <div>{t("Bildausschnitt")}</div>
+                <div className="hint" style={{ marginBottom: 8 }}>
+                  {draft.aiCrop ? t("Geprüft wird nur der eingezeichnete Bereich.") : t("Geprüft wird das ganze Bild. Steht die Kamera weiter weg, am besten einen Rahmen um das Druckbett ziehen.")}
+                </div>
+                <CropEditor value={draft.aiCrop} localCamera={draft.localCamera} onChange={(v) => set("aiCrop", v)} />
               </div>
             )}
             <ToggleRow

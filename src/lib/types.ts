@@ -106,6 +106,8 @@ export interface Settings {
   aiEnabled: boolean;
   /** Bei erkanntem Fehler automatisch pausieren */
   aiPause: boolean;
+  /** Bildausschnitt für den KI-Wächter [x, y, Breite, Höhe] relativ; null = ganzes Bild */
+  aiCrop: [number, number, number, number] | null;
 }
 
 export interface AiStatus {
@@ -172,4 +174,5 @@ export const DEFAULT_SETTINGS: Settings = {
   remoteToken: "",
   aiEnabled: false,
   aiPause: true,
+  aiCrop: null,
 };

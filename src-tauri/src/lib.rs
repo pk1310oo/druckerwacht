@@ -1233,9 +1233,9 @@ fn spawn_ai_watch(app: AppHandle, data_dir: PathBuf) {
         loop {
             tokio::time::sleep(std::time::Duration::from_secs(10)).await;
             let st = app.state::<Arc<AppState>>().inner().clone();
-            let (enabled, pause, cam_url, status, local_cam, connected) = {
+            let (enabled, pause, cam_url, status, local_cam, connected, crop) = {
                 let i = st.lock();
-                (i.settings.ai_enabled, i.settings.ai_pause, i.settings.camera_url.clone(), i.status.clone(), !i.settings.local_camera.is_empty(), matches!(i.connection, ConnectionState::Connected { .. }))
+                (i.settings.ai_enabled, i.settings.ai_pause, i.settings.camera_url.clone(), i.status.clone(), !i.settings.local_camera.is_empty(), matches!(i.connection, ConnectionState::Connected { .. }), i.settings.ai_crop)
             };
             let model = ai::model_ready(&model_path);
             let printing = connected && status.as_ref().map(|s| s.state == PrintState::Printing && !s.preparing).unwrap_or(false);
@@ -1287,7 +1287,7 @@ fn spawn_ai_watch(app: AppHandle, data_dir: PathBuf) {
                     }
                     g.clone().unwrap()
                 };
-                Ok(d.detect(&jpeg)?.iter().map(|f| f.0).sum())
+                Ok(d.detect(&jpeg, crop)?.iter().map(|f| f.0).sum())
             })
             .await;
             let Ok(Ok(p)) = result else { continue };
@@ -1338,6 +1338,22 @@ fn spawn_ai_watch(app: AppHandle, data_dir: PathBuf) {
             }
         }
     });
+}
+
+/// Aktuelles Kamerabild (für das Einzeichnen des Ausschnitts): letztes Foto oder frisch von der Kamera am Drucker
+#[tauri::command]
+async fn ai_camera_image(app: AppHandle) -> Option<String> {
+    use base64::Engine;
+    let st = app.state::<Arc<AppState>>().inner().clone();
+    let (url, last) = {
+        let i = st.lock();
+        (i.settings.camera_url.clone(), i.last_snapshot.as_ref().map(|(_, b)| b.clone()))
+    };
+    let fresh = match extras::snapshot_url(&url) {
+        Some(u) if !url.trim().is_empty() => extras::fetch_snapshot(&u).await,
+        _ => None,
+    };
+    fresh.or(last).filter(|b| extras::is_jpeg(b)).map(|b| base64::engine::general_purpose::STANDARD.encode(b))
 }
 
 #[tauri::command]
@@ -1726,6 +1742,7 @@ pub fn run() {
             gcode_calib,
             remote_info,
             ai_status,
+            ai_camera_image,
             ai_download,
             backup_write,
             recent_models,

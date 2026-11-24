@@ -1363,3 +1363,9 @@
 .orca-ok { display: inline-flex; align-items: center; gap: 6px; color: var(--success); }
 .orca-missing .btn.ghost { margin-left: 0; }
 .update-run { display: inline-flex; align-items: center; gap: 8px; color: var(--accent-light); }
+.crop-start { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.crop-editor { display: flex; flex-direction: column; gap: 10px; }
+.crop-stage { position: relative; max-width: 560px; border-radius: 10px; overflow: hidden; cursor: crosshair; user-select: none; touch-action: none; background: #000; }
+.crop-stage img { display: block; width: 100%; pointer-events: none; }
+.crop-rect { position: absolute; border: 2px solid var(--accent); border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55), 0 0 18px rgb(var(--accent-rgb) / 0.5); pointer-events: none; }
+.crop-actions { display: flex; gap: 8px; justify-content: flex-end; max-width: 560px; }

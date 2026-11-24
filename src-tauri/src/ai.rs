@@ -46,8 +46,12 @@ impl Detector {
     }
 
     /// Erkennungen in einem JPEG-Bild: (Konfidenz, [x1, y1, x2, y2] relativ 0–1)
-    pub fn detect(&self, jpeg: &[u8]) -> Result<Vec<(f32, [f32; 4])>, String> {
-        let img = image::load_from_memory_with_format(jpeg, image::ImageFormat::Jpeg).map_err(|e| e.to_string())?.to_rgb8();
+    /// `crop`: Ausschnitt [x, y, Breite, Höhe] relativ zum Bild (z. B. nur das Druckbett)
+    pub fn detect(&self, jpeg: &[u8], crop: Option<[f32; 4]>) -> Result<Vec<(f32, [f32; 4])>, String> {
+        let mut img = image::load_from_memory_with_format(jpeg, image::ImageFormat::Jpeg).map_err(|e| e.to_string())?.to_rgb8();
+        if let Some(c) = crop {
+            img = crop_image(&img, c);
+        }
         let img = image::imageops::resize(&img, SIDE as u32, SIDE as u32, image::imageops::FilterType::Triangle);
         let mut data = vec![0f32; 3 * SIDE * SIDE];
         for (x, y, p) in img.enumerate_pixels() {
@@ -69,6 +73,18 @@ impl Detector {
             .collect();
         Ok(nms(&mut found))
     }
+}
+
+/// Schneidet den relativen Ausschnitt aus (mindestens 16 × 16 Pixel)
+pub fn crop_image(img: &image::RgbImage, [x, y, w, h]: [f32; 4]) -> image::RgbImage {
+    let (iw, ih) = (img.width() as f32, img.height() as f32);
+    let x0 = (x.clamp(0.0, 1.0) * iw) as u32;
+    let y0 = (y.clamp(0.0, 1.0) * ih) as u32;
+    let cw = ((w.clamp(0.0, 1.0) * iw) as u32).clamp(16, img.width().saturating_sub(x0).max(16));
+    let ch = ((h.clamp(0.0, 1.0) * ih) as u32).clamp(16, img.height().saturating_sub(y0).max(16));
+    let x0 = x0.min(img.width().saturating_sub(cw));
+    let y0 = y0.min(img.height().saturating_sub(ch));
+    image::imageops::crop_imm(img, x0, y0, cw, ch).to_image()
 }
 
 fn iou(a: &[f32; 4], b: &[f32; 4]) -> f32 {
@@ -175,6 +191,17 @@ mod tests {
     }
 
     #[test]
+    fn crops_relative_area() {
+        let img = image::RgbImage::from_fn(200, 100, |x, _| image::Rgb([x as u8, 0, 0]));
+        let c = crop_image(&img, [0.5, 0.0, 0.5, 1.0]);
+        assert_eq!((c.width(), c.height()), (100, 100));
+        assert_eq!(c.get_pixel(0, 0)[0], 100);
+        // Unsinnige Werte bleiben im Bild
+        let d = crop_image(&img, [0.99, 0.99, 0.5, 0.5]);
+        assert!(d.width() >= 16 && d.height() >= 16);
+    }
+
+    #[test]
     fn nms_keeps_best() {
         let mut v = vec![(0.3, [0.0, 0.0, 1.0, 1.0]), (0.9, [0.0, 0.0, 1.0, 0.9]), (0.2, [2.0, 2.0, 3.0, 3.0])];
         let k = nms(&mut v);
@@ -188,7 +215,7 @@ mod tests {
         let Ok(dir) = std::env::var("DW_AI_DIR") else { return };
         let d = Detector::load(&Path::new(&dir).join("model.onnx")).unwrap();
         let jpeg = std::fs::read(Path::new(&dir).join("detached-1.jpg")).unwrap();
-        let found = d.detect(&jpeg).unwrap();
+        let found = d.detect(&jpeg, None).unwrap();
         let sum: f32 = found.iter().map(|f| f.0).sum();
         println!("detections {} sum {sum}", found.len());
         assert!(sum > 0.3, "Fehlbild sollte erkannt werden");

@@ -88,6 +88,8 @@ pub struct Settings {
     pub ai_enabled: bool,
     /// Bei erkanntem Fehler automatisch pausieren (sonst nur melden)
     pub ai_pause: bool,
+    /// Bildausschnitt für den KI-Wächter: [x, y, Breite, Höhe] relativ (0–1); None = ganzes Bild
+    pub ai_crop: Option<[f32; 4]>,
 }
 
 impl Default for Settings {
@@ -112,6 +114,7 @@ impl Default for Settings {
             remote_token: String::new(),
             ai_enabled: false,
             ai_pause: true,
+            ai_crop: None,
         }
     }
 }
@@ -207,6 +210,13 @@ impl Settings {
         self.orca_path = self.orca_path.trim().to_string();
         self.ntfy_topic = self.ntfy_topic.trim().to_string();
         self.local_camera = self.local_camera.trim().chars().take(256).collect();
+        // Ausschnitt muss im Bild liegen und groß genug sein, sonst ganzes Bild
+        if let Some([x, y, w, h]) = self.ai_crop {
+            let ok = [x, y, w, h].iter().all(|v| v.is_finite()) && x >= 0.0 && y >= 0.0 && w >= 0.05 && h >= 0.05 && x + w <= 1.001 && y + h <= 1.001;
+            if !ok {
+                self.ai_crop = None;
+            }
+        }
         if !self.remote_token.chars().all(|c| c.is_ascii_hexdigit()) || (self.remote_token.len() != 32 && !self.remote_token.is_empty()) {
             self.remote_token.clear();
         }

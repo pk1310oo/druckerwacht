@@ -810,4 +810,13 @@ export const EN: Record<string, string> = {
   "Update fehlgeschlagen.": "Update failed.",
   "Installiere – die App startet gleich neu …": "Installing – the app restarts in a moment …",
   "Download-Seite": "Download page",
+  "Bildausschnitt": "Picture area",
+  "Bildausschnitt festlegen": "Set picture area",
+  "Bildausschnitt ändern": "Change picture area",
+  "Ganzes Bild": "Whole picture",
+  "Gerade kein Kamerabild – ist die Kamera eingerichtet und angeschlossen?": "No camera picture right now – is the camera set up and plugged in?",
+  "Ziehe mit der Maus einen Rahmen um das Druckbett. Nur dieser Teil wird geprüft – Möbel und Hintergrund stören dann nicht mehr.": "Drag a frame around the print bed. Only this part is checked – furniture and background won't get in the way anymore.",
+  "Übernehmen": "Apply",
+  "Geprüft wird nur der eingezeichnete Bereich.": "Only the marked area is checked.",
+  "Geprüft wird das ganze Bild. Steht die Kamera weiter weg, am besten einen Rahmen um das Druckbett ziehen.": "The whole picture is checked. If the camera is further away, it's best to draw a frame around the print bed.",
 };

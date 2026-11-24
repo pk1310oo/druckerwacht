@@ -779,4 +779,13 @@ export const PL: Record<string, string> = {
   "Update fehlgeschlagen.": "Aktualizacja nie powiodła się.",
   "Installiere – die App startet gleich neu …": "Instaluję – aplikacja zaraz się uruchomi ponownie …",
   "Download-Seite": "Strona pobierania",
+  "Bildausschnitt": "Obszar obrazu",
+  "Bildausschnitt festlegen": "Ustaw obszar obrazu",
+  "Bildausschnitt ändern": "Zmień obszar obrazu",
+  "Ganzes Bild": "Cały obraz",
+  "Gerade kein Kamerabild – ist die Kamera eingerichtet und angeschlossen?": "Brak obrazu z kamery – czy kamera jest skonfigurowana i podłączona?",
+  "Ziehe mit der Maus einen Rahmen um das Druckbett. Nur dieser Teil wird geprüft – Möbel und Hintergrund stören dann nicht mehr.": "Przeciągnij ramkę wokół stołu. Sprawdzany będzie tylko ten fragment – meble i tło przestaną przeszkadzać.",
+  "Übernehmen": "Zastosuj",
+  "Geprüft wird nur der eingezeichnete Bereich.": "Sprawdzany jest tylko zaznaczony obszar.",
+  "Geprüft wird das ganze Bild. Steht die Kamera weiter weg, am besten einen Rahmen um das Druckbett ziehen.": "Sprawdzany jest cały obraz. Jeśli kamera stoi dalej, najlepiej zaznacz ramkę wokół stołu.",
 };

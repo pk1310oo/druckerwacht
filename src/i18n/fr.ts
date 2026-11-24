@@ -779,4 +779,13 @@ export const FR: Record<string, string> = {
   "Update fehlgeschlagen.": "La mise à jour a échoué.",
   "Installiere – die App startet gleich neu …": "Installation – l’app redémarre dans un instant …",
   "Download-Seite": "Page de téléchargement",
+  "Bildausschnitt": "Zone de l’image",
+  "Bildausschnitt festlegen": "Définir la zone de l’image",
+  "Bildausschnitt ändern": "Modifier la zone de l’image",
+  "Ganzes Bild": "Image entière",
+  "Gerade kein Kamerabild – ist die Kamera eingerichtet und angeschlossen?": "Pas d’image caméra pour le moment – la caméra est-elle configurée et branchée ?",
+  "Ziehe mit der Maus einen Rahmen um das Druckbett. Nur dieser Teil wird geprüft – Möbel und Hintergrund stören dann nicht mehr.": "Trace un cadre autour du plateau. Seule cette partie est analysée – les meubles et l’arrière-plan ne gênent plus.",
+  "Übernehmen": "Appliquer",
+  "Geprüft wird nur der eingezeichnete Bereich.": "Seule la zone tracée est analysée.",
+  "Geprüft wird das ganze Bild. Steht die Kamera weiter weg, am besten einen Rahmen um das Druckbett ziehen.": "L’image entière est analysée. Si la caméra est éloignée, mieux vaut tracer un cadre autour du plateau.",
 };

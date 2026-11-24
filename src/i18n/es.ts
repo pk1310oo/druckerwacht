@@ -779,4 +779,13 @@ export const ES: Record<string, string> = {
   "Update fehlgeschlagen.": "La actualización falló.",
   "Installiere – die App startet gleich neu …": "Instalando: la app se reiniciará enseguida …",
   "Download-Seite": "Página de descarga",
+  "Bildausschnitt": "Área de la imagen",
+  "Bildausschnitt festlegen": "Definir área de la imagen",
+  "Bildausschnitt ändern": "Cambiar área de la imagen",
+  "Ganzes Bild": "Imagen completa",
+  "Gerade kein Kamerabild – ist die Kamera eingerichtet und angeschlossen?": "Ahora no hay imagen de cámara: ¿está configurada y conectada?",
+  "Ziehe mit der Maus einen Rahmen um das Druckbett. Nur dieser Teil wird geprüft – Möbel und Hintergrund stören dann nicht mehr.": "Arrastra un marco alrededor de la cama. Solo se revisa esa parte: los muebles y el fondo ya no molestan.",
+  "Übernehmen": "Aplicar",
+  "Geprüft wird nur der eingezeichnete Bereich.": "Solo se revisa el área marcada.",
+  "Geprüft wird das ganze Bild. Steht die Kamera weiter weg, am besten einen Rahmen um das Druckbett ziehen.": "Se revisa la imagen completa. Si la cámara está lejos, lo mejor es marcar un marco alrededor de la cama.",
 };
