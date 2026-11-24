@@ -871,4 +871,8 @@ export const EN: Record<string, string> = {
   "Loch für eine M4-Schraube in der Mitte": "Hole for an M4 screw in the middle",
   "Meinen Namen vorne eingravieren": "Engrave my name on the front",
   "Schlüsselloch zum Aufhängen an der Wand": "Keyhole slot for wall mounting",
+  "Diese Ausgabe nutzt dein Claude-Abo über Claude Code. Claude Code wurde nicht gefunden – bitte installieren, einmal im Terminal „claude“ starten, mit dem Abo anmelden und Druckerwacht neu starten.": "This edition uses your Claude subscription via Claude Code. Claude Code wasn't found – please install it, run “claude” once in a terminal, log in with your subscription and restart Druckerwacht.",
+  "Private Abo-Ausgabe: neue Versionen bitte neu bauen lassen – das normale Update würde die Abo-Funktion ersetzen.": "Private subscription edition: please have new versions rebuilt – the normal update would replace the subscription feature.",
+  "Suche Claude Code …": "Looking for Claude Code …",
+  "Über dein Claude-Abo": "Via your Claude subscription",
 };

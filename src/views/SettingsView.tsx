@@ -1,3 +1,4 @@
+import { ABO } from "../slicer/aiDesignerAbo";
 import { useEffect, useMemo, useState } from "react";
 import { BrainCircuit, Bug, Coffee, Check, Copy, Download, ExternalLink, FolderGit2, KeyRound, Loader2, Pencil, PlugZap, Plus, Radar, RefreshCw, Search, Send, Smartphone, Trash2, Wifi } from "lucide-react";
 import { useStore } from "../lib/store";
@@ -173,7 +174,7 @@ export function SettingsView() {
 
       <AiCard draft={draft} set={set} />
 
-      <AiKeyCard value={draft.aiKey} set={(v) => set("aiKey", v)} />
+      {!ABO && <AiKeyCard value={draft.aiKey} set={(v) => set("aiKey", v)} />}
 
       <RemoteCard />
 
@@ -328,7 +329,11 @@ function AboutCard() {
             <div className="hint">{status}</div>
           </div>
           {check.info?.newer ? (
-            <UpdateButton fallbackUrl={check.info.url} />
+            ABO ? (
+              <span className="hint">{t("Private Abo-Ausgabe: neue Versionen bitte neu bauen lassen – das normale Update würde die Abo-Funktion ersetzen.")}</span>
+            ) : (
+              <UpdateButton fallbackUrl={check.info.url} />
+            )
           ) : (
             <button className="btn sm" onClick={() => void run()} disabled={check.running}>
               <RefreshCw size={14} className={check.running ? "spin" : undefined} /> {t("Prüfen")}

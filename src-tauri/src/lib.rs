@@ -2,6 +2,7 @@
 mod i18n;
 mod adapter;
 mod ai;
+mod claude_cli;
 mod discovery;
 mod extras;
 mod model;
@@ -774,6 +775,40 @@ async fn app_update(app: AppHandle) -> Result<(), String> {
 }
 
 /// OrcaSlicer herunterladen und installieren (Fortschritt über „orca://install“)
+/// Private Abo-Ausgabe: Ist Claude Code da?
+#[tauri::command]
+fn abo_status() -> claude_cli::AboStatus {
+    claude_cli::AboStatus { enabled: claude_cli::enabled(), found: claude_cli::enabled() && claude_cli::find().is_some() }
+}
+
+fn abo_dir(app: &AppHandle) -> Result<std::path::PathBuf, String> {
+    if !claude_cli::enabled() {
+        return Err("abo".into());
+    }
+    Ok(app.path().app_cache_dir().map_err(|e| e.to_string())?.join("ki-designer"))
+}
+
+/// Neuer Auftrag: leerer Arbeitsordner
+#[tauri::command]
+fn abo_start(app: AppHandle) -> Result<(), String> {
+    abo_dir(&app)?;
+    claude_cli::workdir(&app).map(|_| ())
+}
+
+#[tauri::command]
+fn abo_image(app: AppHandle, name: String, data: String) -> Result<(), String> {
+    claude_cli::write_image(&abo_dir(&app)?, &name, &data)
+}
+
+#[tauri::command]
+async fn abo_run(app: AppHandle, message: String, session: Option<String>, model: String) -> Result<claude_cli::AboReply, String> {
+    let dir = abo_dir(&app)?;
+    if !["opus", "sonnet"].contains(&model.as_str()) {
+        return Err("model?".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || claude_cli::run(&dir, &message, session.as_deref(), &model)).await.map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn orca_install(app: AppHandle) -> Result<String, String> {
     orca_install::install(app).await
@@ -1735,6 +1770,10 @@ pub fn run() {
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
+            abo_status,
+            abo_start,
+            abo_image,
+            abo_run,
             get_settings,
             save_settings,
             reconnect,

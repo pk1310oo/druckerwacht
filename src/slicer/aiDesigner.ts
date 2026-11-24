@@ -12,7 +12,7 @@ import { evaluate, OpError, parseOps, sliceOutline, type Evaluation, type V3 } f
 import { renderViews } from "./aiRender";
 
 export const AI_MODEL = "claude-opus-5-5";
-const MAX_TURNS = 16;
+export const MAX_TURNS = 16;
 
 export type AiPhase = "look" | "think" | "probe" | "slice" | "try" | "apply";
 export interface AiProgress {
@@ -37,9 +37,9 @@ export class AiDesignError extends Error {
   }
 }
 
-const LANG: Record<string, string> = { de: "German", en: "English", es: "Spanish", fr: "French", pl: "Polish" };
+export const LANG: Record<string, string> = { de: "German", en: "English", es: "Spanish", fr: "French", pl: "Polish" };
 
-const SYSTEM = `You are the design assistant inside Druckerwacht, a 3D-printing app. The user has a part on the print bed and describes a change in plain words (often German): add a hook, a hole, a mounting tab, engrave or emboss text, a slot, a handle, fillets/feet, a stand, a lid recess, etc. You build that change as CSG operations that are fused EXACTLY with the existing part, so the result is one solid, printable body.
+export const SYSTEM = `You are the design assistant inside Druckerwacht, a 3D-printing app. The user has a part on the print bed and describes a change in plain words (often German): add a hook, a hole, a mounting tab, engrave or emboss text, a slot, a handle, fillets/feet, a stand, a lid recess, etc. You build that change as CSG operations that are fused EXACTLY with the existing part, so the result is one solid, printable body.
 
 Coordinates: millimetres, bed coordinates. X = right, Y = back (away from the viewer), Z = up, the bed is z = 0. "Front" means the -Y side, "back" the +Y side, "left" -X, "right" +X, "top" +Z. All coordinates in tool calls are absolute bed coordinates, never relative to the part.
 
@@ -84,7 +84,7 @@ const opsSchema = {
   },
 } as const;
 
-const TOOLS: Anthropic.Beta.BetaTool[] = [
+export const TOOLS: Anthropic.Beta.BetaTool[] = [
   {
     name: "probe_surface",
     description:
@@ -160,6 +160,78 @@ function apiError(e: unknown): AiDesignError {
   return new AiDesignError(e instanceof Error ? e.message : String(e));
 }
 
+/** Teil prüfen, Strahlen-Ziel und Kurzbeschreibung vorbereiten */
+export async function preparePart(part: THREE.BufferGeometry, partName: string) {
+  let stats: Evaluation;
+  try {
+    stats = (await evaluate(part, [])).report;
+  } catch (e) {
+    throw new AiDesignError(e instanceof Error ? e.message : String(e), "part");
+  }
+  const probeMesh = new THREE.Mesh(part, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
+  probeMesh.updateMatrixWorld(true);
+  part.computeBoundingBox();
+  const bb = part.boundingBox!;
+  const r1 = (v: number) => Math.round(v * 10) / 10;
+  const size = bb.getSize(new THREE.Vector3());
+  const info = [
+    `Part name: ${partName}`,
+    `Bounding box min [${[bb.min.x, bb.min.y, bb.min.z].map(r1).join(", ")}], max [${[bb.max.x, bb.max.y, bb.max.z].map(r1).join(", ")}]`,
+    `Size X ${r1(size.x)} × Y ${r1(size.y)} × Z ${r1(size.z)} mm, volume ${r1(stats.volumeBefore / 1000)} cm³, ${stats.piecesBefore} solid piece(s), ${Math.round(part.getAttribute("position").count / 3)} triangles.`,
+  ].join("\n");
+  return { probeMesh, info };
+}
+
+export interface ToolOutcome {
+  text: string;
+  image?: string;
+  error?: boolean;
+  done?: { geometry: THREE.BufferGeometry; summary: string };
+}
+
+/** Führt ein Werkzeug der KI aus (gleich für API und Abo) */
+export async function execTool(
+  name: string,
+  rawInput: unknown,
+  ctx: { part: THREE.BufferGeometry; probeMesh: THREE.Mesh; turn: number; note?: string; progress: (p: AiProgress) => void },
+): Promise<ToolOutcome> {
+  const input = (rawInput ?? {}) as Record<string, unknown>;
+  const { part, turn, note } = ctx;
+  try {
+    if (name === "probe_surface") {
+      ctx.progress({ phase: "probe", turn, note });
+      return { text: JSON.stringify(probe(ctx.probeMesh, input)) };
+    }
+    if (name === "slice_outline") {
+      ctx.progress({ phase: "slice", turn, note });
+      const z = input.z;
+      if (typeof z !== "number" || !Number.isFinite(z)) throw new OpError("z must be a number");
+      const polys = await sliceOutline(part, z);
+      return { text: JSON.stringify(polys.length ? { z, polygons: polys } : { z, polygons: [], note: "no material at this height" }) };
+    }
+    if (name === "try_design" || name === "apply_design") {
+      const final = name === "apply_design";
+      ctx.progress({ phase: final ? "apply" : "try", turn, note });
+      const ops = parseOps(input.operations);
+      const { geometry, report } = await evaluate(part, ops);
+      if (final) {
+        if (!geometry || report.problems.length) {
+          geometry?.dispose();
+          return { error: true, text: `Not applied. Fix these problems first: ${report.problems.join(" | ")}. Full report: ${fmt(report)}` };
+        }
+        const summary = typeof input.summary === "string" ? input.summary.trim() : "";
+        return { text: "Applied.", done: { geometry, summary } };
+      }
+      const image = geometry ? renderViews(geometry) : undefined;
+      geometry?.dispose();
+      return { text: fmt(report), image };
+    }
+    return { error: true, text: `Unknown tool ${name}` };
+  } catch (e) {
+    return { error: true, text: `Error: ${e instanceof Error ? e.message : String(e)}` };
+  }
+}
+
 /**
  * Führt einen Design-Auftrag aus. `part` ist die Geometrie des Teils in Bettkoordinaten.
  * Liefert die neue Geometrie (Bettkoordinaten) – die Platte ist noch nicht verändert.
@@ -177,24 +249,7 @@ export async function runAiDesign(opts: {
   const progress = (p: AiProgress) => opts.onProgress?.(p);
   progress({ phase: "look", turn: 0 });
 
-  // Teil prüfen und vermessen
-  let stats: Evaluation;
-  try {
-    stats = (await evaluate(part, [])).report;
-  } catch (e) {
-    throw new AiDesignError(e instanceof Error ? e.message : String(e), "part");
-  }
-  const probeMesh = new THREE.Mesh(part, new THREE.MeshBasicMaterial({ side: THREE.DoubleSide }));
-  probeMesh.updateMatrixWorld(true);
-  part.computeBoundingBox();
-  const bb = part.boundingBox!;
-  const r1 = (v: number) => Math.round(v * 10) / 10;
-  const size = bb.getSize(new THREE.Vector3());
-  const info = [
-    `Part name: ${opts.partName}`,
-    `Bounding box min [${[bb.min.x, bb.min.y, bb.min.z].map(r1).join(", ")}], max [${[bb.max.x, bb.max.y, bb.max.z].map(r1).join(", ")}]`,
-    `Size X ${r1(size.x)} × Y ${r1(size.y)} × Z ${r1(size.z)} mm, volume ${r1(stats.volumeBefore / 1000)} cm³, ${stats.piecesBefore} solid piece(s), ${Math.round(part.getAttribute("position").count / 3)} triangles.`,
-  ].join("\n");
+  const { probeMesh, info } = await preparePart(part, opts.partName);
 
   const client = new Anthropic({ apiKey: opts.apiKey, dangerouslyAllowBrowser: true, maxRetries: 2 });
   const system = SYSTEM.replace("LANGUAGE", LANG[opts.lang] ?? "German");
@@ -258,46 +313,11 @@ export async function runAiDesign(opts: {
     const results: Anthropic.Beta.BetaToolResultBlockParam[] = [];
     let done: AiResult | null = null;
     for (const use of uses) {
-      const input = use.input as Record<string, unknown>;
-      try {
-        if (use.name === "probe_surface") {
-          progress({ phase: "probe", turn, note: text || undefined });
-          results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(probe(probeMesh, input)) });
-        } else if (use.name === "slice_outline") {
-          progress({ phase: "slice", turn, note: text || undefined });
-          const z = input?.z;
-          if (typeof z !== "number" || !Number.isFinite(z)) throw new OpError("z must be a number");
-          const polys = await sliceOutline(part, z);
-          results.push({ type: "tool_result", tool_use_id: use.id, content: JSON.stringify(polys.length ? { z, polygons: polys } : { z, polygons: [], note: "no material at this height" }) });
-        } else if (use.name === "try_design" || use.name === "apply_design") {
-          const final = use.name === "apply_design";
-          progress({ phase: final ? "apply" : "try", turn, note: text || undefined });
-          const ops = parseOps(input?.operations);
-          const { geometry, report } = await evaluate(part, ops);
-          if (final) {
-            if (!geometry || report.problems.length) {
-              geometry?.dispose();
-              results.push({ type: "tool_result", tool_use_id: use.id, is_error: true, content: `Not applied. Fix these problems first: ${report.problems.join(" | ")}. Full report: ${fmt(report)}` });
-            } else {
-              const summary = typeof input?.summary === "string" ? input.summary.trim() : "";
-              done = { geometry, summary, costUsd: cost };
-              results.push({ type: "tool_result", tool_use_id: use.id, content: "Applied." });
-            }
-          } else {
-            const content: Anthropic.Beta.BetaToolResultBlockParam["content"] = [{ type: "text", text: fmt(report) }];
-            if (geometry) {
-              content.push({ type: "image", source: { type: "base64", media_type: "image/png", data: renderViews(geometry) } });
-              geometry.dispose();
-            }
-            results.push({ type: "tool_result", tool_use_id: use.id, content });
-          }
-        } else {
-          results.push({ type: "tool_result", tool_use_id: use.id, is_error: true, content: `Unknown tool ${use.name}` });
-        }
-      } catch (e) {
-        const m = e instanceof Error ? e.message : String(e);
-        results.push({ type: "tool_result", tool_use_id: use.id, is_error: true, content: `Error: ${m}` });
-      }
+      const r = await execTool(use.name, use.input, { part, probeMesh, turn, note: text || undefined, progress });
+      if (r.done) done = { ...r.done, costUsd: cost };
+      const content: Anthropic.Beta.BetaToolResultBlockParam["content"] = [{ type: "text", text: r.text }];
+      if (r.image) content.push({ type: "image", source: { type: "base64", media_type: "image/png", data: r.image } });
+      results.push({ type: "tool_result", tool_use_id: use.id, is_error: r.error || undefined, content });
     }
     if (done) {
       probeMesh.material.dispose();

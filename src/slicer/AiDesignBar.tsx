@@ -6,6 +6,7 @@ import { useEffect, useRef, useState } from "react";
 import { ExternalLink, KeyRound, Loader2, Send, Sparkles, Square, Undo2, X } from "lucide-react";
 import type { Plate } from "./plate";
 import { AiDesignError, runAiDesign, type AiPhase } from "./aiDesigner";
+import { ABO, aboStatus, runAiDesignAbo } from "./aiDesignerAbo";
 import { getLang, t } from "../lib/i18n";
 import { useStore } from "../lib/store";
 import { saveSettings } from "../lib/api";
@@ -60,26 +61,32 @@ export function AiDesignBar({ plate, partName, hidden }: { plate: Plate; partNam
   const [keyDraft, setKeyDraft] = useState("");
   const [open, setOpen] = useState(true);
   const abort = useRef<AbortController | null>(null);
+  // Abo-Ausgabe: Claude Code statt API-Schlüssel
+  const [aboFound, setAboFound] = useState<boolean | null>(null);
+  useEffect(() => {
+    if (ABO) void aboStatus().then((s) => setAboFound(s.found));
+  }, []);
+  const ready = ABO ? aboFound === true : !!apiKey;
   // Anderes Teil gewählt: altes Ergebnis/Fehler ausblenden
   useEffect(() => setState((s) => (s.kind === "running" ? s : { kind: "idle" })), [partName]);
 
   const run = async () => {
     const text = prompt.trim();
     const part = plate.aiPart();
-    if (!text || !part || !apiKey) return;
+    if (!text || !part || !ready) return;
     const ctrl = new AbortController();
     abort.current = ctrl;
     setState({ kind: "running", phase: "look", round: 0 });
     try {
-      const res = await runAiDesign({
-        apiKey,
+      const job = {
         prompt: text,
         part: part.geometry,
         partName: part.name,
         lang: getLang(),
         signal: ctrl.signal,
-        onProgress: (p) => setState({ kind: "running", phase: p.phase, round: p.turn, note: p.note }),
-      });
+        onProgress: (p: { phase: AiPhase; turn: number; note?: string }) => setState({ kind: "running", phase: p.phase, round: p.turn, note: p.note }),
+      };
+      const res = ABO ? await runAiDesignAbo(job) : await runAiDesign({ ...job, apiKey });
       if (!plate.applyAiResult(part.id, res.geometry)) throw new AiDesignError(t("Das Teil ist nicht mehr auf der Platte."));
       setState({ kind: "done", summary: res.summary || t("Fertig – an das Teil angebaut."), cost: res.costUsd });
       setPrompt("");
@@ -124,7 +131,18 @@ export function AiDesignBar({ plate, partName, hidden }: { plate: Plate; partNam
         )}
       </div>
 
-      {!apiKey ? (
+      {ABO && !ready ? (
+        <div className="ai-key">
+          <span className="small">
+            {aboFound === null
+              ? t("Suche Claude Code …")
+              : t("Diese Ausgabe nutzt dein Claude-Abo über Claude Code. Claude Code wurde nicht gefunden – bitte installieren, einmal im Terminal „claude“ starten, mit dem Abo anmelden und Druckerwacht neu starten.")}
+          </span>
+          {aboFound === false && (
+            <code className="small">{navigator.userAgent.includes("Windows") ? "irm https://claude.ai/install.ps1 | iex" : "curl -fsSL https://claude.ai/install.sh | bash"}</code>
+          )}
+        </div>
+      ) : !ready ? (
         <div className="ai-key">
           <span className="small">{t("Der KI-Designer nutzt Claude von Anthropic mit deinem eigenen API-Schlüssel. Ein Auftrag kostet meist nur ein paar Cent bis etwa 50 Cent – abgerechnet direkt bei Anthropic.")}</span>
           <span className="ai-row">
@@ -197,7 +215,7 @@ export function AiDesignBar({ plate, partName, hidden }: { plate: Plate; partNam
             <div className="ai-result">
               <span>{state.summary}</span>
               <span className="ai-row">
-                <span className="small muted num">{t("Kosten ca. {c} $", { c: state.cost < 0.01 ? `< ${fmtNum(0.01, 2)}` : fmtNum(state.cost, 2) })}</span>
+                <span className="small muted num">{ABO ? t("Über dein Claude-Abo") : t("Kosten ca. {c} $", { c: state.cost < 0.01 ? `< ${fmtNum(0.01, 2)}` : fmtNum(state.cost, 2) })}</span>
                 <button className="btn sm ghost" onClick={() => (plate.undo(), setState({ kind: "idle" }))}>
                   <Undo2 size={13} /> {t("Rückgängig")}
                 </button>

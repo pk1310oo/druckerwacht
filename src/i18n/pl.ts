@@ -840,4 +840,8 @@ export const PL: Record<string, string> = {
   "Loch für eine M4-Schraube in der Mitte": "Otwór na śrubę M4 na środku",
   "Meinen Namen vorne eingravieren": "Wygraweruj moje imię z przodu",
   "Schlüsselloch zum Aufhängen an der Wand": "Otwór na wieszak do zawieszenia na ścianie",
+  "Diese Ausgabe nutzt dein Claude-Abo über Claude Code. Claude Code wurde nicht gefunden – bitte installieren, einmal im Terminal „claude“ starten, mit dem Abo anmelden und Druckerwacht neu starten.": "Ta wersja korzysta z Twojej subskrypcji Claude przez Claude Code. Nie znaleziono Claude Code – zainstaluj go, uruchom raz „claude” w terminalu, zaloguj się subskrypcją i uruchom ponownie Druckerwacht.",
+  "Private Abo-Ausgabe: neue Versionen bitte neu bauen lassen – das normale Update würde die Abo-Funktion ersetzen.": "Prywatna wersja z subskrypcją: nowe wersje zbuduj ponownie – zwykła aktualizacja zastąpiłaby funkcję subskrypcji.",
+  "Suche Claude Code …": "Szukam Claude Code …",
+  "Über dein Claude-Abo": "Przez Twoją subskrypcję Claude",
 };
