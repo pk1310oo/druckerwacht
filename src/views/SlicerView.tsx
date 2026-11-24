@@ -18,6 +18,12 @@ import {
   Undo2,
   Wand2,
   Sparkles,
+  Shapes,
+  Combine,
+  Cylinder,
+  Cone,
+  Circle,
+  Type,
   Globe,
   Download,
   Eye,
@@ -466,6 +472,27 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
   const [printOpen, setPrintOpen] = useState(false);
   const [mirrorOpen, setMirrorOpen] = useState(false);
   const [calibOpen, setCalibOpen] = useState(false);
+  const [shapesOpen, setShapesOpen] = useState(false);
+  const [shapeRole, setShapeRole] = useState<"add" | "hole">("add");
+  const [shapeText, setShapeText] = useState("");
+  const [combining, setCombining] = useState(false);
+  const addShape = async (kind: "box" | "cylinder" | "sphere" | "cone" | "text") => {
+    setShapesOpen(false);
+    setLoadError(null);
+    try {
+      await plate.addShape(kind, shapeRole, shapeText);
+    } catch (e) {
+      setLoadError(e instanceof Error ? e.message : String(e));
+    }
+  };
+  const doCombine = async () => {
+    setCombining(true);
+    setLoadError(null);
+    const err = await plate.combineSelection();
+    setCombining(false);
+    if (err) setLoadError(err);
+    else setNotice(t("Zusammengefügt – jetzt ist es ein Teil."));
+  };
   const [matOpen, setMatOpen] = useState(false);
   const [searchOpen, setSearchOpen] = useState(false);
   const [watchSince, setWatchSince] = useState<number | null>(null);
@@ -679,6 +706,52 @@ export function SlicerView({ go }: { go: (v: ViewId) => void }) {
             <ToolBtn icon={Scissors} label="Schneiden (C)" on={tool === "cut" && !preview} onClick={() => setTool("cut")} disabled={!sel} />
             <ToolBtn icon={Ruler} label="Messen" on={tool === "measure" && !preview} onClick={() => setTool("measure")} />
             <ToolBtn icon={Brush} label="Stützen & Naht malen (P)" on={tool === "paint" && !preview} onClick={() => setTool("paint")} disabled={!models.length} />
+            <span className="tb-sep" />
+            <span className="tool-wrap">
+              <ToolBtn icon={Shapes} label="Formen hinzufügen" on={shapesOpen} onClick={() => setShapesOpen((o) => !o)} disabled={!!preview} />
+              {shapesOpen && (
+                <span className="tool-menu card shapes-menu">
+                  <span className="small muted">{t("Was soll die Form werden?")}</span>
+                  <span className="seg shape-role" role="radiogroup" aria-label={t("Art der Form")}>
+                    <button role="radio" aria-checked={shapeRole === "add"} className={shapeRole === "add" ? "on" : ""} onClick={() => setShapeRole("add")}>
+                      {t("Anbauen")}
+                    </button>
+                    <button role="radio" aria-checked={shapeRole === "hole"} className={shapeRole === "hole" ? "on" : ""} onClick={() => setShapeRole("hole")}>
+                      {t("Loch")}
+                    </button>
+                  </span>
+                  <span className="shape-grid">
+                    <button className="btn sm ghost" onClick={() => void addShape("box")}>
+                      <Box size={15} /> {t("Würfel")}
+                    </button>
+                    <button className="btn sm ghost" onClick={() => void addShape("cylinder")}>
+                      <Cylinder size={15} /> {t("Zylinder")}
+                    </button>
+                    <button className="btn sm ghost" onClick={() => void addShape("sphere")}>
+                      <Circle size={15} /> {t("Kugel")}
+                    </button>
+                    <button className="btn sm ghost" onClick={() => void addShape("cone")}>
+                      <Cone size={15} /> {t("Kegel")}
+                    </button>
+                  </span>
+                  <span className="shape-text">
+                    <input
+                      className="input"
+                      placeholder={t("Text, z. B. dein Name")}
+                      value={shapeText}
+                      maxLength={40}
+                      onChange={(e) => setShapeText(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && void addShape("text")}
+                    />
+                    <button className="btn sm" onClick={() => void addShape("text")}>
+                      <Type size={15} /> {t("Text")}
+                    </button>
+                  </span>
+                  <span className="small muted">{t("Tipp: Erst das Teil anklicken – die Form landet dann direkt darauf bzw. geht als Loch hindurch.")}</span>
+                </span>
+              )}
+            </span>
+            <ToolBtn icon={combining ? Loader2 : Combine} label="Zusammenfügen" onClick={() => void doCombine()} disabled={selectedIds.length < 2 || combining || !!preview} />
             <span className="tb-sep" />
             <ToolBtn icon={Copy} label="Duplizieren" onClick={() => plate.duplicate()} disabled={!selectedIds.length || !!preview} />
             <ToolBtn icon={Trash2} label="Löschen (Entf)" onClick={() => plate.remove()} disabled={!selectedIds.length || !!preview} />
@@ -1564,6 +1637,19 @@ function ObjectPanel({ m, plate }: { m: ModelInfo; plate: Plate }) {
         </span>
         <span className="small muted num">{t("{n} Dreiecke", { n: fmtNum(m.triangles) })}</span>
       </div>
+      {m.role !== "part" && (
+        <div className="op-role">
+          <span className="seg" role="radiogroup" aria-label={t("Art der Form")}>
+            <button role="radio" aria-checked={m.role === "add"} className={m.role === "add" ? "on" : ""} onClick={() => plate.setRole("add")}>
+              {t("Anbauen")}
+            </button>
+            <button role="radio" aria-checked={m.role === "hole"} className={m.role === "hole" ? "on" : ""} onClick={() => plate.setRole("hole")}>
+              {t("Loch")}
+            </button>
+          </span>
+          <span className="hint">{t("Zum Verrechnen das Teil dazu auswählen (Shift-Klick) und „Zusammenfügen“ drücken.")}</span>
+        </div>
+      )}
       <div className="op-grid">
         <span className="label">{t("Größe")}</span>
         {(["X", "Y", "Z"] as const).map((a, i) => (

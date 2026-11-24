@@ -20,7 +20,7 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English, German, Spani
 - **Plain-language printer errors** and a **maintenance planner** that reminds you to clean the plate, lubricate rails or check belts by print hours
 
 **AI failure watch**
-- Detects spaghetti and detached prints in the camera picture and **pauses the print automatically** – runs entirely on your computer with the open Obico model, no cloud, no subscription
+- Detects spaghetti and detached prints in the camera picture and **pauses the print automatically** – draw a frame around the bed so furniture in the picture doesn't matter – runs entirely on your computer with the open Obico model, no cloud, no subscription
 
 **Calibrate like a pro**
 - Temperature, **flow**, **retraction** and **speed towers** plus a **first-layer test** – the app builds the model and writes the values into the G-code; click the best block to put its value into your profile
@@ -44,6 +44,8 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English, German, Spani
 **Slice**
 - OrcaSlicer engine with the official KE profiles, every setting, layer preview
 - Paint supports and seams, cut, measure, box-select several parts
+- **Designer on the plate:** add cubes, cylinders, spheres, cones and **3D text** as add-ons or **holes** and combine everything into one printable part
+- **OrcaSlicer installs with one click** right from the app
 - **Colour changes:** mark any layer – the printer pauses there for the next filament
 - **Temperature tower** with one click: the app builds the model and writes the temperature change into each block
 - The print dialog shows when the print will be **done** – with a 🌙 if that's in the middle of the night
@@ -55,7 +57,7 @@ Open source (AGPL-3.0) · **Windows, macOS and Linux** · English, German, Spani
 
 ![Filament stock](docs/images/filament.jpg)
 
-**Comfort:** **voice announcements** (start, 25/50/75 %, colour change, done) · **print calendar with electricity cost** · **share image** of finished prints for Instagram & TikTok · on first start the app searches your network and sets up the printer with one click · **backup & restore** of all printers, settings, spools and maintenance status.
+**Comfort:** **updates with one click** inside the app · **voice announcements** (start, 25/50/75 %, colour change, done) · **print calendar with electricity cost** · **share image** of finished prints for Instagram & TikTok · on first start the app searches your network and sets up the printer with one click · **backup & restore** of all printers, settings, spools and maintenance status.
 
 **Looks:** calm neon grid background, glowing progress ring, 3D cards, seven colour themes – or switch effects to *Subtle* on slower computers.
 

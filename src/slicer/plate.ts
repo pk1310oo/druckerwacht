@@ -3,6 +3,7 @@
  * Modelle haben ihren Ursprung unten mittig, damit „auf das Bett legen“ einfach z = −min ist.
  */
 import * as THREE from "three";
+import { combine, DesignError, shapeGeometry, type Role, type ShapeKind } from "./design";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { TransformControls } from "three/examples/jsm/controls/TransformControls.js";
 import { STLLoader } from "three/examples/jsm/loaders/STLLoader.js";
@@ -30,6 +31,8 @@ const COLOR = {
   model: 0xc9c7bf,
   selected: 0xd97757,
   outside: 0xe05a4f,
+  add: 0x5aa9e6,
+  hole: 0xe05a4f,
 };
 
 export interface ModelInfo {
@@ -41,6 +44,7 @@ export interface ModelInfo {
   scale: [number, number, number];
   triangles: number;
   outside: boolean;
+  role: Role;
 }
 
 export type Tool = "select" | "move" | "rotate" | "scale" | "layflat" | "cut" | "measure" | "paint" | null;
@@ -51,6 +55,7 @@ interface Snap {
     name: string;
     geometry: THREE.BufferGeometry;
     paint: PaintData | undefined;
+    role: Role;
     p: [number, number, number];
     q: [number, number, number, number];
     s: [number, number, number];
@@ -69,6 +74,8 @@ export interface ProjectModel {
   quaternion: [number, number, number, number];
   scale: [number, number, number];
   paint: PaintData | null;
+  /** Designer: Anbau oder Loch (fehlt bei normalen Modellen) */
+  role?: Role;
 }
 
 export interface Measure {
@@ -219,12 +226,13 @@ export class Plate {
       name: m.name,
       geometry: m.geometry,
       paint: m.userData.paint as PaintData | undefined,
+      role: roleOf(m),
       p: m.position.toArray() as [number, number, number],
       q: m.quaternion.toArray() as [number, number, number, number],
       s: m.scale.toArray() as [number, number, number],
     }));
     const r = (v: number) => Math.round(v * 1000) / 1000;
-    const key = JSON.stringify(items.map((i) => [i.id, i.geometry.id, paintVersion(i.paint), ...i.p.map(r), ...i.q.map(r), ...i.s.map(r)]));
+    const key = JSON.stringify(items.map((i) => [i.id, i.geometry.id, paintVersion(i.paint), i.role, ...i.p.map(r), ...i.q.map(r), ...i.s.map(r)]));
     return { items, key };
   }
 
@@ -284,6 +292,7 @@ export class Plate {
         this.modelGroup.add(m);
       }
       m.name = it.name;
+      m.userData.role = it.role;
       if (m.userData.paint !== it.paint) {
         m.userData.paint = it.paint;
         updatePaintOverlay(m);
@@ -317,6 +326,7 @@ export class Plate {
       quaternion: m.quaternion.toArray() as [number, number, number, number],
       scale: m.scale.toArray() as [number, number, number],
       paint: (m.userData.paint as PaintData | undefined) ?? null,
+      role: roleOf(m) === "part" ? undefined : roleOf(m),
     }));
   }
 
@@ -344,6 +354,7 @@ export class Plate {
       m.position.fromArray(pm.position);
       m.quaternion.fromArray(pm.quaternion);
       m.scale.fromArray(pm.scale);
+      if (pm.role) m.userData.role = pm.role;
       this.modelGroup.add(m);
       this.models.push(m);
     }
@@ -1180,6 +1191,95 @@ export class Plate {
     this.remove();
   }
 
+  // ------------------------------------------------------------------ Designer
+
+  /** Neue Form auf die Platte: auf das ausgewählte Teil (Anbau) bzw. hindurch (Loch) */
+  async addShape(kind: ShapeKind, role: Role, text?: string) {
+    const geom = await shapeGeometry(kind, text);
+    const mesh = new THREE.Mesh(geom, newModelMaterial());
+    mesh.name = kind === "text" ? `${t("Text")} „${(text ?? "").trim() || "Text"}“` : shapeName(kind);
+    mesh.castShadow = true;
+    mesh.userData.id = this.nextId++;
+    mesh.userData.role = role;
+    const target = this.selected && roleOf(this.selected) === "part" ? this.selected : null;
+    if (target) {
+      target.updateMatrixWorld(true);
+      const b = new THREE.Box3().setFromObject(target, true);
+      const c = b.getCenter(new THREE.Vector3());
+      if (role === "hole") {
+        // Loch geht ganz durch das Teil (in der Höhe angepasst), Anbau sitzt oben auf
+        const h = b.max.z - b.min.z + 2;
+        mesh.scale.set(kind === "text" ? 1 : 0.5, kind === "text" ? 1 : 0.5, kind === "text" ? 1 : h / 20);
+        mesh.position.set(c.x, c.y, kind === "text" ? b.max.z - 1 : b.min.z - 1);
+      } else {
+        mesh.position.set(c.x, c.y, kind === "text" ? b.max.z - 0.01 : b.max.z - 0.5);
+      }
+    } else {
+      mesh.position.set(BED.x / 2, BED.y / 2, 0);
+    }
+    this.modelGroup.add(mesh);
+    this.models.push(mesh);
+    this.tool = "move";
+    this.select(mesh);
+    this.changed();
+  }
+
+  /** Anbau oder Loch umschalten */
+  setRole(role: Role) {
+    for (const m of this.selection) m.userData.role = role;
+    this.updateColors();
+    this.changed();
+  }
+
+  /** Ausgewählte Teile, Anbauten und Löcher zu einem Teil verrechnen. Liefert eine Fehlermeldung oder null. */
+  async combineSelection(): Promise<string | null> {
+    const sel = [...this.selection];
+    if (sel.length < 2) return t("Bitte mindestens zwei Teile auswählen (Shift- oder Strg-Klick).");
+    const items = sel.map((m) => {
+      m.updateMatrixWorld(true);
+      const g = (m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone()) as THREE.BufferGeometry;
+      g.applyMatrix4(m.matrixWorld);
+      if (m.matrixWorld.determinant() < 0) flipWinding(g);
+      return { geometry: g, role: roleOf(m) };
+    });
+    let result: THREE.BufferGeometry;
+    try {
+      result = await combine(items, {
+        notClosed: t("Ein Teil ist kein geschlossener Körper – das kann nicht verrechnet werden."),
+        empty: t("Vom Teil bliebe nichts übrig."),
+      });
+    } catch (e) {
+      return e instanceof DesignError ? e.message : t("Zusammenfügen fehlgeschlagen.");
+    } finally {
+      for (const i of items) i.geometry.dispose();
+    }
+    const base = sel.find((m) => roleOf(m) === "part") ?? sel.find((m) => roleOf(m) === "add")!;
+    const name = base.name;
+    for (const m of sel) {
+      this.models = this.models.filter((x) => x !== m);
+      this.modelGroup.remove(m);
+      this.selection.delete(m);
+    }
+    result.computeBoundingBox();
+    const b = result.boundingBox!;
+    const cx = (b.min.x + b.max.x) / 2;
+    const cy = (b.min.y + b.max.y) / 2;
+    result.translate(-cx, -cy, -b.min.z);
+    result.computeBoundingBox();
+    result.computeBoundingSphere();
+    const mesh = new THREE.Mesh(result, newModelMaterial());
+    mesh.name = name;
+    mesh.castShadow = true;
+    mesh.userData.id = this.nextId++;
+    mesh.position.set(cx, cy, b.min.z);
+    this.modelGroup.add(mesh);
+    this.models.push(mesh);
+    this.dropToBed(mesh);
+    this.select(mesh);
+    this.changed();
+    return null;
+  }
+
   duplicate() {
     const copies: THREE.Mesh[] = [];
     for (const m of this.selection) {
@@ -1190,6 +1290,7 @@ export class Plate {
       c.position.copy(m.position);
       c.quaternion.copy(m.quaternion);
       c.scale.copy(m.scale);
+      c.userData.role = m.userData.role;
       if (m.userData.paint) {
         c.userData.paint = m.userData.paint; // unverändert geteilt; Malen kopiert vorher (copy-on-write)
         updatePaintOverlay(c);
@@ -1245,7 +1346,21 @@ export class Plate {
     for (const m of this.models) {
       const mat = m.material as THREE.MeshStandardMaterial;
       const outside = this.isOutside(m);
-      mat.color.setHex(outside ? COLOR.outside : this.selection.has(m) ? COLOR.selected : COLOR.model);
+      const role = roleOf(m);
+      const sel = this.selection.has(m);
+      if (role === "part") {
+        mat.color.setHex(outside ? COLOR.outside : sel ? COLOR.selected : COLOR.model);
+        mat.transparent = false;
+        mat.opacity = 1;
+      } else {
+        // Werkzeug-Formen: Anbau blau, Loch rot und durchscheinend
+        mat.color.setHex(role === "hole" ? COLOR.hole : COLOR.add);
+        if (sel) mat.color.lerp(new THREE.Color(0xffffff), 0.25);
+        mat.transparent = true;
+        mat.opacity = role === "hole" ? 0.45 : 0.85;
+        mat.depthWrite = role !== "hole";
+      }
+      mat.needsUpdate = true;
     }
     this.invalidate();
   }
@@ -1272,6 +1387,7 @@ export class Plate {
       scale: [m.scale.x, m.scale.y, m.scale.z],
       triangles: (m.geometry.index ? m.geometry.index.count : m.geometry.attributes.position.count) / 3,
       outside: this.isOutside(m),
+      role: roleOf(m),
     };
   }
 
@@ -1287,7 +1403,8 @@ export class Plate {
 
   /** Jedes Modell als binäre STL in Bettkoordinaten (für Orca mit --arrange 0). */
   exportStls(): { name: string; data: Uint8Array; support?: Uint8Array; seam?: Uint8Array }[] {
-    return this.models.map((m) => {
+    // Nicht zusammengefügte Löcher werden nicht gedruckt
+    return this.models.filter((m) => roleOf(m) !== "hole").map((m) => {
       const paint = m.userData.paint as PaintData | undefined;
       m.updateMatrixWorld(true);
       const g = m.geometry.index ? m.geometry.toNonIndexed() : m.geometry.clone();
@@ -1571,6 +1688,14 @@ export function splitAtZ(g: THREE.BufferGeometry, h: number): { lower: THREE.Buf
     return b;
   };
   return { lower: mk(lo), upper: mk(up) };
+}
+
+function roleOf(m: THREE.Mesh): Role {
+  return (m.userData.role as Role | undefined) ?? "part";
+}
+
+function shapeName(kind: ShapeKind) {
+  return { box: t("Würfel"), cylinder: t("Zylinder"), sphere: t("Kugel"), cone: t("Kegel"), text: t("Text") }[kind];
 }
 
 function newModelMaterial() {

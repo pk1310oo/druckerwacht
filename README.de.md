@@ -20,7 +20,7 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch, Englisch, Spa
 - **Druckerfehler in Klartext** und ein **Wartungsplaner**, der nach Druckstunden an Platte reinigen, Schienen schmieren oder Riemen prüfen erinnert
 
 **KI-Fehlerwächter**
-- Erkennt Spaghetti und abgelöste Drucke im Kamerabild und **pausiert automatisch** – läuft komplett auf deinem Computer mit dem offenen Obico-Modell, ohne Cloud und ohne Abo
+- Erkennt Spaghetti und abgelöste Drucke im Kamerabild und **pausiert automatisch** – mit einem Rahmen ums Druckbett stören Möbel im Bild nicht – läuft komplett auf deinem Computer mit dem offenen Obico-Modell, ohne Cloud und ohne Abo
 
 **Kalibrieren wie ein Profi**
 - Temperatur-, **Fluss-**, **Rückzugs-** und **Tempo-Turm** plus **Erste-Schicht-Test** – die App baut das Modell und schreibt die Werte in den G-Code; den besten Block anklicken und der Wert landet im Profil
@@ -44,6 +44,8 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch, Englisch, Spa
 **Slicen**
 - OrcaSlicer-Motor mit den offiziellen KE-Profilen, alle Einstellungen, Schichtvorschau
 - Stützen und Naht malen, schneiden, messen, mehrere Teile per Rechteck auswählen
+- **Designer auf dem Bett:** Würfel, Zylinder, Kugeln, Kegel und **3D-Text** als Anbau oder **Loch** hinzufügen und alles zu einem druckbaren Teil zusammenfügen
+- **OrcaSlicer mit einem Klick** direkt aus der App installieren
 - **Farbwechsel:** beliebige Schichten markieren – dort pausiert der Drucker für das nächste Filament
 - **Temperaturturm** mit einem Klick: die App baut das Modell und schreibt den Temperaturwechsel in jeden Block
 - Der Drucken-Dialog zeigt, **wann der Druck fertig** ist – mit 🌙, wenn das mitten in der Nacht wäre
@@ -55,7 +57,7 @@ Open Source (AGPL-3.0) · **Windows, macOS und Linux** · Deutsch, Englisch, Spa
 
 ![Filament-Lager](docs/bilder/filament.jpg)
 
-**Komfort:** **Sprachansagen** (Start, 25/50/75 %, Farbwechsel, fertig) · **Druck-Kalender mit Stromkosten** · **Teilen-Bild** fertiger Drucke für Instagram & TikTok · Beim ersten Start sucht die App das Netzwerk ab und richtet den Drucker mit einem Klick ein · **Sichern & Wiederherstellen** aller Drucker, Einstellungen, Spulen und Wartungsstände.
+**Komfort:** **Updates per Klick** direkt in der App · **Sprachansagen** (Start, 25/50/75 %, Farbwechsel, fertig) · **Druck-Kalender mit Stromkosten** · **Teilen-Bild** fertiger Drucke für Instagram & TikTok · Beim ersten Start sucht die App das Netzwerk ab und richtet den Drucker mit einem Klick ein · **Sichern & Wiederherstellen** aller Drucker, Einstellungen, Spulen und Wartungsstände.
 
 **Optik:** ruhiges Neon-Gitter im Hintergrund, leuchtender Fortschrittsring, 3D-Karten, sieben Farbthemen – oder Effekte auf *Dezent* für langsamere Rechner.
 

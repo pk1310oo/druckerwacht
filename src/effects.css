@@ -1369,3 +1369,14 @@
 .crop-stage img { display: block; width: 100%; pointer-events: none; }
 .crop-rect { position: absolute; border: 2px solid var(--accent); border-radius: 4px; box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.55), 0 0 18px rgb(var(--accent-rgb) / 0.5); pointer-events: none; }
 .crop-actions { display: flex; gap: 8px; justify-content: flex-end; max-width: 560px; }
+
+/* ---------------------------------------------------------------- Designer */
+.shapes-menu { min-width: 260px; padding: 10px; gap: 8px; align-items: stretch; }
+.shapes-menu > .small { white-space: normal; }
+.shape-role { display: grid; grid-template-columns: 1fr 1fr; }
+.shape-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
+.shape-grid .btn { justify-content: flex-start; gap: 8px; }
+.shape-text { display: flex; gap: 6px; }
+.shape-text .input { flex: 1; min-width: 0; height: 32px; }
+.op-role { display: flex; flex-direction: column; gap: 6px; padding: 8px 0 4px; }
+.op-role .seg { align-self: flex-start; }
