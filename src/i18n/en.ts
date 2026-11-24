@@ -658,7 +658,6 @@ export const EN: Record<string, string> = {
   "Temperaturturm – je Block 5 °C kühler:": "Temperature tower – 5 °C cooler per block:",
   "Wartung": "Maintenance",
   "Wartung fällig: {list} – abhaken unter Verlauf.": "Maintenance due: {list} – tick it off under History.",
-  "Zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Die App muss dafür geöffnet bleiben.": "Between {a}:00 and {b}:00 automatically {p} % (quiet), back to the previous speed in the morning. The app needs to stay open for this.",
   "alle {h} h": "every {h} h",
   "fertig {eta}": "done {eta}",
   "fällig seit {h} h": "due for {h} h",
@@ -875,4 +874,8 @@ export const EN: Record<string, string> = {
   "Private Abo-Ausgabe: neue Versionen bitte neu bauen lassen – das normale Update würde die Abo-Funktion ersetzen.": "Private subscription edition: please have new versions rebuilt – the normal update would replace the subscription feature.",
   "Suche Claude Code …": "Looking for Claude Code …",
   "Über dein Claude-Abo": "Via your Claude subscription",
+  "Klicken: Nachtmodus – zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Noch ein Klick: Tiefschlaf.": "Click: night mode – automatically {p} % (quiet) between {a}:00 and {b}:00, back to the previous speed in the morning. Click again: deep sleep.",
+  "Nachtmodus: zwischen {a} und {b} Uhr automatisch auf {p} %. Klicken für Tiefschlaf (ganz leise, ohne Lüfter).": "Night mode: automatically {p} % between {a}:00 and {b}:00. Click for deep sleep (very quiet, no fan).",
+  "Tiefschlaf: {p} % Tempo und Bauteillüfter dauerhaft aus – so leise wie möglich. Gut für PETG, ABS und einfache Teile; bei PLA leiden Überhänge und Brücken. Klicken zum Ausschalten, dann kommen Tempo und Lüfter zurück.": "Deep sleep: {p} % speed and the part fan permanently off – as quiet as possible. Good for PETG, ABS and simple parts; with PLA, overhangs and bridges suffer. Click to turn off – speed and fan come back.",
+  "Tiefschlaf": "Deep sleep",
 };

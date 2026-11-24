@@ -627,7 +627,6 @@ export const FR: Record<string, string> = {
   "Temperaturturm – je Block 5 °C kühler:": "Tour de température – 5 °C de moins par bloc :",
   "Wartung": "Entretien",
   "Wartung fällig: {list} – abhaken unter Verlauf.": "Entretien à faire : {list} – coche-le dans Historique.",
-  "Zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Die App muss dafür geöffnet bleiben.": "Entre {a} h et {b} h, automatiquement à {p} % (silencieux), retour à la vitesse précédente le matin. L’app doit rester ouverte pour cela.",
   "alle {h} h": "toutes les {h} h",
   "fertig {eta}": "fin {eta}",
   "fällig seit {h} h": "en retard de {h} h",
@@ -844,4 +843,8 @@ export const FR: Record<string, string> = {
   "Private Abo-Ausgabe: neue Versionen bitte neu bauen lassen – das normale Update würde die Abo-Funktion ersetzen.": "Édition privée avec abonnement : fais recompiler les nouvelles versions – la mise à jour normale remplacerait la fonction abonnement.",
   "Suche Claude Code …": "Recherche de Claude Code …",
   "Über dein Claude-Abo": "Via ton abonnement Claude",
+  "Klicken: Nachtmodus – zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Noch ein Klick: Tiefschlaf.": "Clic : mode nuit – entre {a} h et {b} h automatiquement à {p} % (silencieux), le matin retour à la vitesse précédente. Encore un clic : sommeil profond.",
+  "Nachtmodus: zwischen {a} und {b} Uhr automatisch auf {p} %. Klicken für Tiefschlaf (ganz leise, ohne Lüfter).": "Mode nuit : entre {a} h et {b} h automatiquement à {p} %. Clic pour le sommeil profond (très silencieux, sans ventilateur).",
+  "Tiefschlaf: {p} % Tempo und Bauteillüfter dauerhaft aus – so leise wie möglich. Gut für PETG, ABS und einfache Teile; bei PLA leiden Überhänge und Brücken. Klicken zum Ausschalten, dann kommen Tempo und Lüfter zurück.": "Sommeil profond : vitesse à {p} % et ventilateur de pièce toujours éteint – aussi silencieux que possible. Bien pour le PETG, l'ABS et les pièces simples ; avec le PLA, surplombs et ponts en pâtissent. Clic pour désactiver – vitesse et ventilateur reviennent.",
+  "Tiefschlaf": "Sommeil profond",
 };

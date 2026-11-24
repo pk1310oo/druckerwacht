@@ -627,7 +627,6 @@ export const ES: Record<string, string> = {
   "Temperaturturm – je Block 5 °C kühler:": "Torre de temperatura: 5 °C menos por bloque:",
   "Wartung": "Mantenimiento",
   "Wartung fällig: {list} – abhaken unter Verlauf.": "Mantenimiento pendiente: {list}. Márcalo en Historial.",
-  "Zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Die App muss dafür geöffnet bleiben.": "Entre las {a}:00 y las {b}:00, automáticamente al {p} % (silencioso); por la mañana vuelve a la velocidad anterior. La app debe quedarse abierta.",
   "alle {h} h": "cada {h} h",
   "fertig {eta}": "termina {eta}",
   "fällig seit {h} h": "pendiente desde hace {h} h",
@@ -844,4 +843,8 @@ export const ES: Record<string, string> = {
   "Private Abo-Ausgabe: neue Versionen bitte neu bauen lassen – das normale Update würde die Abo-Funktion ersetzen.": "Edición privada con suscripción: vuelve a compilar las nuevas versiones; la actualización normal sustituiría la función de suscripción.",
   "Suche Claude Code …": "Buscando Claude Code…",
   "Über dein Claude-Abo": "Con tu suscripción de Claude",
+  "Klicken: Nachtmodus – zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Noch ein Klick: Tiefschlaf.": "Clic: modo nocturno – entre las {a}:00 y las {b}:00 automáticamente al {p} % (silencioso), por la mañana vuelve a la velocidad anterior. Otro clic: sueño profundo.",
+  "Nachtmodus: zwischen {a} und {b} Uhr automatisch auf {p} %. Klicken für Tiefschlaf (ganz leise, ohne Lüfter).": "Modo nocturno: entre las {a}:00 y las {b}:00 automáticamente al {p} %. Clic para sueño profundo (muy silencioso, sin ventilador).",
+  "Tiefschlaf: {p} % Tempo und Bauteillüfter dauerhaft aus – so leise wie möglich. Gut für PETG, ABS und einfache Teile; bei PLA leiden Überhänge und Brücken. Klicken zum Ausschalten, dann kommen Tempo und Lüfter zurück.": "Sueño profundo: velocidad al {p} % y ventilador de capa siempre apagado, lo más silencioso posible. Bien para PETG, ABS y piezas sencillas; con PLA sufren voladizos y puentes. Clic para desactivarlo: vuelven la velocidad y el ventilador.",
+  "Tiefschlaf": "Sueño profundo",
 };

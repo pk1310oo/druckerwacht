@@ -627,7 +627,6 @@ export const PL: Record<string, string> = {
   "Temperaturturm – je Block 5 °C kühler:": "Wieża temperatur – o 5 °C mniej na blok:",
   "Wartung": "Konserwacja",
   "Wartung fällig: {list} – abhaken unter Verlauf.": "Konserwacja do zrobienia: {list} – odhacz w Historii.",
-  "Zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Die App muss dafür geöffnet bleiben.": "Między {a}:00 a {b}:00 automatycznie {p} % (cicho), rano powrót do poprzedniej prędkości. Aplikacja musi być otwarta.",
   "alle {h} h": "co {h} h",
   "fertig {eta}": "koniec {eta}",
   "fällig seit {h} h": "zaległe od {h} h",
@@ -844,4 +843,8 @@ export const PL: Record<string, string> = {
   "Private Abo-Ausgabe: neue Versionen bitte neu bauen lassen – das normale Update würde die Abo-Funktion ersetzen.": "Prywatna wersja z subskrypcją: nowe wersje zbuduj ponownie – zwykła aktualizacja zastąpiłaby funkcję subskrypcji.",
   "Suche Claude Code …": "Szukam Claude Code …",
   "Über dein Claude-Abo": "Przez Twoją subskrypcję Claude",
+  "Klicken: Nachtmodus – zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Noch ein Klick: Tiefschlaf.": "Kliknij: tryb nocny – między {a}:00 a {b}:00 automatycznie {p} % (cicho), rano powrót do poprzedniej prędkości. Jeszcze jedno kliknięcie: głęboki sen.",
+  "Nachtmodus: zwischen {a} und {b} Uhr automatisch auf {p} %. Klicken für Tiefschlaf (ganz leise, ohne Lüfter).": "Tryb nocny: między {a}:00 a {b}:00 automatycznie {p} %. Kliknij, aby włączyć głęboki sen (bardzo cicho, bez wentylatora).",
+  "Tiefschlaf: {p} % Tempo und Bauteillüfter dauerhaft aus – so leise wie möglich. Gut für PETG, ABS und einfache Teile; bei PLA leiden Überhänge und Brücken. Klicken zum Ausschalten, dann kommen Tempo und Lüfter zurück.": "Głęboki sen: prędkość {p} % i wentylator chłodzenia wydruku stale wyłączony – najciszej jak się da. Dobre dla PETG, ABS i prostych części; przy PLA cierpią nawisy i mosty. Kliknij, aby wyłączyć – prędkość i wentylator wrócą.",
+  "Tiefschlaf": "Głęboki sen",
 };

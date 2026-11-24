@@ -1248,9 +1248,10 @@
 .maint-item.due .mi-bar i { background: var(--warning); }
 .mi-how { grid-column: 1 / -1; margin: 4px 0 0; }
 .maint-hint { display: flex; align-items: center; gap: 6px; color: var(--warning); }
-.night-toggle { display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-2); font: inherit; cursor: pointer; transition: all var(--t) var(--ease); }
+.night-toggle { white-space: nowrap; flex-shrink: 0; display: inline-flex; align-items: center; gap: 5px; height: 24px; padding: 0 10px; border: 1px solid var(--line); border-radius: 999px; background: transparent; color: var(--text-2); font: inherit; cursor: pointer; transition: all var(--t) var(--ease); }
 .night-toggle:hover { color: var(--text); border-color: #3a3a3a; }
 .night-toggle.on { color: #b9ccff; border-color: rgba(91, 141, 239, 0.5); background: rgba(91, 141, 239, 0.14); }
+.night-toggle.deep { color: #d6c8ff; border-color: rgba(140, 110, 240, 0.6); background: rgba(110, 80, 220, 0.22); box-shadow: 0 0 12px rgba(110, 80, 220, 0.25); }
 .night-hint { display: flex; align-items: center; gap: 6px; color: #b9ccff; margin-bottom: 4px; }
 
 /* ---------------------------------------------------------------- Kalibrier-Drucke */

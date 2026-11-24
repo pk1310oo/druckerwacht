@@ -21,7 +21,7 @@ import { FleetStrip, ToolsCard } from "./Tools";
 import { useCaps } from "../lib/printers";
 import { errorSearchUrl, explainError } from "../lib/errors";
 import { openProjectLink } from "../lib/update";
-import { endsAtNight, NIGHT_FROM, NIGHT_PCT, NIGHT_TO, setNightMode, useNightMode } from "../lib/night";
+import { DEEP_PCT, endsAtNight, NIGHT_FROM, NIGHT_PCT, NIGHT_TO, setNightMode, useNightMode } from "../lib/night";
 
 const TEMP_SERIES = (): SeriesDef[] => [
   { key: "nozzle", label: t("Düse"), color: accentHex(), unit: "°C" },
@@ -529,12 +529,18 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
       <div className="speed-head">
         <span className="label">{t("Tempo")}</span>
         <button
-          className={`night-toggle small${night ? " on" : ""}`}
-          aria-pressed={night}
-          title={t("Zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Die App muss dafür geöffnet bleiben.", { a: NIGHT_FROM, b: NIGHT_TO, p: NIGHT_PCT })}
-          onClick={() => setNightMode(!night)}
+          className={`night-toggle small${night !== "off" ? " on" : ""}${night === "deep" ? " deep" : ""}`}
+          aria-pressed={night !== "off"}
+          title={
+            night === "off"
+              ? t("Klicken: Nachtmodus – zwischen {a} und {b} Uhr automatisch auf {p} % (leise), morgens zurück aufs vorige Tempo. Noch ein Klick: Tiefschlaf.", { a: NIGHT_FROM, b: NIGHT_TO, p: NIGHT_PCT })
+              : night === "quiet"
+                ? t("Nachtmodus: zwischen {a} und {b} Uhr automatisch auf {p} %. Klicken für Tiefschlaf (ganz leise, ohne Lüfter).", { a: NIGHT_FROM, b: NIGHT_TO, p: NIGHT_PCT })
+                : t("Tiefschlaf: {p} % Tempo und Bauteillüfter dauerhaft aus – so leise wie möglich. Gut für PETG, ABS und einfache Teile; bei PLA leiden Überhänge und Brücken. Klicken zum Ausschalten, dann kommen Tempo und Lüfter zurück.", { p: DEEP_PCT })
+          }
+          onClick={() => setNightMode(night === "off" ? "quiet" : night === "quiet" ? "deep" : "off")}
         >
-          <Moon size={12} /> {night ? t("Nachtmodus an") : t("Nachtmodus")}
+          <Moon size={12} /> {night === "deep" ? t("Tiefschlaf") : night === "quiet" ? t("Nachtmodus an") : t("Nachtmodus")}
         </button>
         <span className="header-spacer" />
         <span className="small muted num">
@@ -578,7 +584,7 @@ function SpeedControl({ s }: { s: PrinterStatus }) {
         ))}
       </div>
       <div className={`speed-hint small${shown >= 125 ? " warn" : ""}`}>
-        {!error && !night && endsAtNight(s.remainingS) && (
+        {!error && night === "off" && endsAtNight(s.remainingS) && (
           <div className="night-hint">
             <Moon size={12} /> {t("Der Druck läuft bis in die Nacht – der Nachtmodus macht ihn ab {a} Uhr leise.", { a: NIGHT_FROM })}
           </div>
